@@ -16,7 +16,6 @@ export default function OverviewPage() {
   const validPanelRef = useRef<HTMLDivElement>(null)
   const validRoughRef = useRef<SVGSVGElement>(null)
 
-  // Debug log per user request
   useEffect(() => {
     console.log('[OverviewPage] full parseResult:', JSON.stringify(parseResult, null, 2))
   }, [parseResult])
@@ -26,8 +25,8 @@ export default function OverviewPage() {
   // ── KPI metrics ────────────────────────────────────────────────────────────
   const metricsRoot = (parseResult as any)?.metrics ?? (parseResult as any)?.data?.metrics ?? {}
   const totalSegments: number | string = metricsRoot?.total_segments ?? '--'
-  const txSets:        number | string = metricsRoot?.total_claims   ?? '--'
-  const fileName    = (parseResult as any)?.filename ?? file?.name ?? '--'
+  const txSets: number | string = metricsRoot?.total_claims ?? '--'
+  const fileName = (parseResult as any)?.filename ?? file?.name ?? '--'
   const fileSizeBytes = file?.size ?? 0
   const fileSizeLabel = fileSizeBytes > 0
     ? fileSizeBytes < 1024
@@ -37,43 +36,43 @@ export default function OverviewPage() {
         : `${(fileSizeBytes / (1024 * 1024)).toFixed(2)} MB`
     : '--'
 
-  // ── Error normalisation (mirrors ValidationDrawer exactly) ─────────────────
-  const rawErrors: unknown[] = (() => {
-    if (!parseResult) return []
-    const root = parseResult as Record<string, any>
-    const nested = root.data || {}
-    // The backend can return both "errors" and "warnings" arrays (or "validation_errors").
-    // We concatenate them all here before normalizing.
-    const e = root.validation_errors ?? root.errors ?? nested.validation_errors ?? nested.errors ?? []
-    const w = root.warnings ?? nested.warnings ?? []
-    return [...(e as any[]), ...(w as any[])]
-  })()
-
-  // Same placeholder fallback used by ValidationDrawer (only shown when NO FILE is uploaded!)
   const PLACEHOLDER_ERRORS = [
-    { type: 'error'   as const, code: 'InvalidNPI',    element: 'NM109', loop: '2010AA', message: 'Billing Provider NPI is missing or invalid format (must be 10 digits).' },
-    { type: 'warning' as const, code: 'AmountMismatch', element: 'CLM02', loop: '2300',  message: 'Total claim charge amount does not equal sum of service lines (SV102).' },
+    { type: 'error' as const, code: 'InvalidNPI', element: 'NM109', loop: '2010AA', message: 'Billing Provider NPI is missing or invalid format (must be 10 digits).' },
+    { type: 'warning' as const, code: 'AmountMismatch', element: 'CLM02', loop: '2300', message: 'Total claim charge amount does not equal sum of service lines (SV102).' },
   ]
 
   type NormErr = { type: 'error' | 'warning'; code: string; element: string; loop: string; message: string }
-  const normalise = (raw: unknown[]): NormErr[] =>
-    raw.map((e: any) => ({
-      type:    (e.type === 'warning' || e.type === 'SituationalWarning') ? 'warning' : 'error',
-      code:    e.code ?? e.error_code ?? e.type ?? 'ValidationError',
-      element: e.element ?? e.field ?? e.segment ?? '',
-      loop:    e.loop ?? e.loop_id ?? e.location ?? '',
-      message: e.message ?? e.msg ?? e.description ?? 'Validation error.',
-    } as NormErr))
 
-  // If a file is loaded, use the REAL parsed errors (which may correctly be empty!).
-  // If NO file is loaded, show placeholders.
-  const errorsArr: NormErr[] = hasData
-    ? normalise(rawErrors)
-    : PLACEHOLDER_ERRORS
+  // FIX: Explicitly map items from the errors array as 'error', and warnings array as 'warning'
+  const errorsArr: NormErr[] = (() => {
+    if (!parseResult) return PLACEHOLDER_ERRORS;
+    const root = parseResult as Record<string, any>;
+    const nested = root.data || {};
+    const e = root.errors ?? nested.errors ?? [];
+    const w = root.warnings ?? nested.warnings ?? [];
 
-  const errCount  = errorsArr.filter(e => e.type === 'error').length
+    const normE = e.map((err: any) => ({
+      type: 'error' as const,
+      code: err.code ?? err.error_code ?? err.type ?? 'ValidationError',
+      element: err.element ?? err.field ?? err.segment ?? '',
+      loop: err.loop ?? err.loop_id ?? err.location ?? '',
+      message: err.message ?? err.msg ?? err.description ?? 'Validation error.',
+    }));
+
+    const normW = w.map((warn: any) => ({
+      type: 'warning' as const,
+      code: warn.code ?? warn.error_code ?? warn.type ?? 'Warning',
+      element: warn.element ?? warn.field ?? warn.segment ?? '',
+      loop: warn.loop ?? warn.loop_id ?? warn.location ?? '',
+      message: warn.message ?? warn.msg ?? warn.description ?? 'Validation warning.',
+    }));
+
+    return [...normE, ...normW];
+  })();
+
+  const errCount = errorsArr.filter(e => e.type === 'error').length
   const warnCount = errorsArr.filter(e => e.type === 'warning').length
-  const isValid   = hasData && errCount === 0 && warnCount === 0
+  const isValid = hasData && errCount === 0 && warnCount === 0
 
   useEffect(() => {
     if (!validRoughRef.current || !validPanelRef.current) return
@@ -234,7 +233,6 @@ export default function OverviewPage() {
                 </div>
               </div>
             ) : (
-              // Show errors and warnings from errorsArr (split by type)
               <>
                 {errorsArr.filter(e => e.type === 'error').map((err, i) => (
                   <div key={`err-${i}`} style={{
@@ -281,7 +279,6 @@ export default function OverviewPage() {
       }}>
       </div>
 
-      {/* Guest upsell — shown below all data cards */}
       {!session && <GuestUpsellCard />}
     </div>
   )

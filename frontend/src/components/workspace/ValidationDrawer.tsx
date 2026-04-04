@@ -56,15 +56,24 @@ function resolveFormField(err: NormalisedError): string {
   return 'clm-id'
 }
 
-function normaliseErrors(raw: unknown[]): NormalisedError[] {
-  return raw.map((e: any, i) => ({
-    id: e.id ?? i,
-    type: (e.type === 'warning' || e.type === 'SituationalWarning') ? 'warning' : 'error',
+function normaliseErrors(errs: unknown[], warns: unknown[]): NormalisedError[] {
+  const normE = errs.map((e: any, i) => ({
+    id: `e-${e.id ?? i}`,
+    type: 'error' as const,
     code: e.code ?? e.error_code ?? e.type ?? 'ValidationError',
     element: e.element ?? e.field ?? e.segment ?? '',
     loop: e.loop ?? e.loop_id ?? e.location ?? '',
     msg: e.message ?? e.msg ?? e.description ?? 'Validation error.',
   }))
+  const normW = warns.map((e: any, i) => ({
+    id: `w-${e.id ?? i}`,
+    type: 'warning' as const,
+    code: e.code ?? e.error_code ?? e.type ?? 'Warning',
+    element: e.element ?? e.field ?? e.segment ?? '',
+    loop: e.loop ?? e.loop_id ?? e.location ?? '',
+    msg: e.message ?? e.msg ?? e.description ?? 'Validation warning.',
+  }))
+  return [...normE, ...normW]
 }
 
 const PLACEHOLDER_ERRORS: NormalisedError[] = [
@@ -81,7 +90,6 @@ export default function ValidationDrawer() {
   const setFocusFieldId = useAppStore((s) => s.setFocusFieldId)
   const setActiveTabId = useAppStore((s) => s.setActiveTabId)
   const [isMinimized, setIsMinimized] = useState(false)
-  // Height of the drawer when it is NOT minimized — the user can drag this
   const [expandedHeight, setExpandedHeight] = useState(220)
   const [isDragging, setIsDragging] = useState(false)
   const dragStartY = useRef(0)
@@ -95,7 +103,6 @@ export default function ValidationDrawer() {
     e.preventDefault()
 
     const onMouseMove = (ev: MouseEvent) => {
-      // Moving the mouse UP (negative delta) increases the drawer height
       const delta = dragStartY.current - ev.clientY
       const newHeight = Math.max(80, Math.min(600, dragStartHeight.current + delta))
       setExpandedHeight(newHeight)
@@ -111,16 +118,16 @@ export default function ValidationDrawer() {
 
   const hasFile = !!(parseResult || ediFile.fileName)
 
+  // FIX: Properly extract BOTH arrays and map them safely
   const errors: NormalisedError[] = (() => {
     if (!parseResult) return PLACEHOLDER_ERRORS
     const root = parseResult as Record<string, any>
     const nested = root.data || {}
-
-    const e = root.validation_errors ?? root.errors ?? nested.validation_errors ?? nested.errors ?? []
+    const e = root.errors ?? nested.errors ?? []
     const w = root.warnings ?? nested.warnings ?? []
-    const raw = [...(e as any[]), ...(w as any[])]
 
-    return normaliseErrors(raw)
+    if (e.length === 0 && w.length === 0) return [] // Valid file, no errors
+    return normaliseErrors(e, w)
   })()
 
   const errorCount = errors.filter((e) => e.type === 'error').length
@@ -142,12 +149,10 @@ export default function ValidationDrawer() {
         background: '#FDFAF4',
         overflow: 'hidden',
         flexShrink: 0,
-        // Height drives both minimize animation and user-drag; suppress transition during drag
         height: isMinimized ? 44 : expandedHeight,
         transition: isDragging ? 'none' : 'height 0.3s ease-in-out',
       }}
     >
-      {/* ── Drag-resize handle (top edge of the drawer) ────────────── */}
       <div
         onMouseDown={handleDragMouseDown}
         style={{
@@ -246,10 +251,10 @@ export default function ValidationDrawer() {
             height: '100%',
             fontFamily: 'Nunito, sans-serif',
             fontSize: 13,
-            color: '#4ECDC4',
             fontWeight: 700,
+            color: '#4ECDC4',
           }}>
-            ✨ No validation errors found! All checks passed.
+            ✨ All checks passed. No errors or warnings found.
           </div>
         ) : (
           <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>

@@ -7,31 +7,21 @@ export default function ValidationBadge() {
 
   if (!parseResult) return null
 
+  // FIX: Access the arrays directly depending on how deep the data is nested.
   const root = parseResult as Record<string, any>
-  const nested = root.data || {}
+  const data = root.data || {}
 
-  const e = root.validation_errors ?? root.errors ?? nested.validation_errors ?? nested.errors ?? []
-  const w = root.warnings ?? nested.warnings ?? []
-  const rawErrors = [...(e as any[]), ...(w as any[])]
-
-  let errCount = 0
-  let warnCount = 0
-  rawErrors.forEach((err: any) => {
-    if (err.type === 'warning' || err.type === 'SituationalWarning') {
-      warnCount++
-    } else {
-      errCount++
-    }
-  })
+  const errCount = (root.errors ?? data.errors ?? []).length
+  const warnCount = (root.warnings ?? data.warnings ?? []).length
 
   // Strict logic: 0 errors AND 0 warnings = valid.
   const isValid = errCount === 0 && warnCount === 0
 
   return (
     <div style={{
-      background: isValid ? (isDark ? 'rgba(149,225,211,0.2)' : t.mint) : (errCount > 0 ? t.coral : t.yellow),
+      background: isValid ? (isDark ? 'rgba(149,225,211,0.2)' : t.mint) : t.coral,
       border: `2px solid ${t.ink}`,
-      color: isValid || errCount === 0 ? t.ink : 'white',
+      color: isValid ? t.ink : 'white',
       fontFamily: 'Nunito, sans-serif',
       fontWeight: 700,
       fontSize: 12,
@@ -42,7 +32,7 @@ export default function ValidationBadge() {
       gap: 6,
       boxShadow: `2px 2px 0px ${t.shadow}`,
     }}>
-      {isValid ? '✓ Valid' : (errCount > 0 ? `✗ ${errCount} Errors` : `⚠️ ${warnCount} Warnings`)}
+      {isValid ? '✓ Valid' : `✗ ${errCount} Errors`}
     </div>
   )
 }

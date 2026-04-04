@@ -14,6 +14,7 @@ import OverviewPage from '../components/dashboard/overview/OverviewPage'
 import WorkspaceWelcome from '../components/workspace/WorkspaceWelcome'
 import ReconcileView from '../components/workspace/ReconcileView'
 import ExportPage from '../components/workspace/ExportPage'
+import ChangeReport834View from '../components/workspace/ChangeReport834View'
 
 const FlexPanelGroup = PanelGroup as any
 
@@ -50,7 +51,7 @@ export default function WorkspacePage() {
   }
 
   // ── Determine what the center area renders ─────────────────────────────────
-  const isFullPageView = activeMainView === 'welcome' || activeMainView === 'dashboard' || activeMainView === 'reconcile'
+  const isFullPageView = activeMainView === 'welcome' || activeMainView === 'dashboard' || activeMainView === 'reconcile' || activeMainView === 'change-report'
 
   return (
     <div style={{ position: 'relative', display: 'flex', flexDirection: 'column', height: '100vh', overflow: 'hidden', background: '#FDFAF4' }}>
@@ -93,6 +94,13 @@ export default function WorkspacePage() {
         {activeMainView === 'reconcile' && (
           <div style={{ flex: 1, overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
             <ReconcileView />
+          </div>
+        )}
+
+        {/* ── 834 Change Report page — full area ── */}
+        {activeMainView === 'change-report' && (
+          <div style={{ flex: 1, overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
+            <ChangeReport834View />
           </div>
         )}
 

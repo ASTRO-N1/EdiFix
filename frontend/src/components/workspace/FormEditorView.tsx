@@ -435,14 +435,16 @@ function InstanceFields({ instance, loopKey, errors, handleCommit, activeFieldPa
   activeFieldPath: string | null; idSuffix: string
 }) {
   if (!instance || typeof instance !== 'object') return null
-  const segIds = Object.keys(instance)
 
   const allFields: Array<{
     segObj: Record<string, unknown>; fieldKey: string; fieldId: string
     label: string; techRef: string; segId: string
   }> = []
 
-  for (const segId of segIds) {
+  // Each key in an instance is a segment ID (e.g. "NM1", "N3", "REF")
+  // whose value is either a segment object or an array of segment objects.
+  // We must go INTO each segment to find the scalar fields.
+  for (const segId of Object.keys(instance)) {
     const rawSeg = instance[segId]
     const segList = Array.isArray(rawSeg) ? rawSeg : [rawSeg]
 
@@ -450,10 +452,22 @@ function InstanceFields({ instance, loopKey, errors, handleCommit, activeFieldPa
       const seg = segList[si]
       if (!seg || typeof seg !== 'object') continue
       const segObj = seg as Record<string, unknown>
+
       for (const fieldKey of Object.keys(segObj)) {
         if (SKIP_KEYS.has(fieldKey)) continue
         const val = segObj[fieldKey]
-        if (val == null || typeof val === 'object') continue
+
+        // Convert arrays (composite elements like ["HC","99213"]) to joined string
+        // Skip nested objects that aren't arrays (shouldn't happen, but safety)
+        let displayVal: string
+        if (Array.isArray(val)) {
+          displayVal = val.join(':')
+        } else if (val != null && typeof val !== 'object') {
+          displayVal = String(val)
+        } else {
+          continue
+        }
+
         const label = humanLabel(segId, fieldKey)
         const techRef = `${segId}.${fieldKey}`
         allFields.push({
@@ -475,20 +489,32 @@ function InstanceFields({ instance, loopKey, errors, handleCommit, activeFieldPa
 
   return (
     <FieldGrid cols={2}>
-      {allFields.map(({ segObj, fieldKey, fieldId, label, techRef, segId }) => (
-        <div key={fieldId} style={{ minWidth: 0, overflow: 'hidden' }}>
-          <FormField
-            id={fieldId}
-            label={label}
-            techRef={techRef}
-            mono
-            value={String(segObj[fieldKey] ?? '')}
-            onCommit={(v) => handleCommit(segObj, [fieldKey], v)}
-            errors={getErrors(errors, loopKey, fieldKey, segId)}
-            isActive={isFieldActive(activeFieldPath, loopKey, fieldKey)}
-          />
-        </div>
-      ))}
+      {allFields.map(({ segObj, fieldKey, fieldId, label, techRef, segId }) => {
+        const raw = segObj[fieldKey]
+        const displayVal = Array.isArray(raw) ? raw.join(':') : String(raw ?? '')
+        return (
+          <div key={fieldId} style={{ minWidth: 0, overflow: 'hidden' }}>
+            <FormField
+              id={fieldId}
+              label={label}
+              techRef={techRef}
+              mono
+              value={displayVal}
+              onCommit={(v) => {
+                // If original was array (composite), split back on ':'
+                if (Array.isArray(segObj[fieldKey])) {
+                  segObj[fieldKey] = v.includes(':') ? v.split(':') : [v]
+                } else {
+                  segObj[fieldKey] = v
+                }
+                handleCommit(segObj, [fieldKey], v)
+              }}
+              errors={getErrors(errors, loopKey, fieldKey, segId)}
+              isActive={isFieldActive(activeFieldPath, loopKey, fieldKey)}
+            />
+          </div>
+        )
+      })}
     </FieldGrid>
   )
 }

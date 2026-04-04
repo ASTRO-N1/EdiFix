@@ -463,37 +463,105 @@ class TestPendingInsLineReset(unittest.TestCase):
         self.assertIsNone(p._pending_ins_line)
 
 
-# ── 834 Member Enrollment Summary ──────────────────────────────────────────────
-class TestMemberEnrollmentSummary:
+# ─────────────────────────────────────────────────────────────────────────────
+# Inline sample 834 used by the enrollment summary tests.
+# Contains: 1 subscriber (John Smith, 021-Addition) with 2 dependents,
+#           1 COB record, 1 termination (024), and 1 change (001).
+# ─────────────────────────────────────────────────────────────────────────────
+SAMPLE_834_EDI = (
+    "ISA*00*          *00*          *ZZ*EMPLOYER01      *ZZ*PAYER01         "
+    "*260101*1200*^*00501*000000001*0*P*:~"
+    "GS*BE*EMPLOYER01*PAYER01*20260101*1200*1*X*005010X220A1~"
+    "ST*834*0001*005010X220A1~"
+    "BGN*00*20260101*20260101*120000**2*~"
+    "N1*P5*ACME CORPORATION*FI*123456789~"
+    "N1*IN*BLUECROSS BLUESHIELD*XV*98765~"
+    "INS*Y*18*021*25*A*E**FT~"
+    "REF*0F*MBR001~"
+    "DTP*356*D8*20260101~"
+    "NM1*IL*1*SMITH*JOHN*A**II*MBR001~"
+    "N3*100 MAIN STREET~"
+    "N4*SPRINGFIELD*IL*62701~"
+    "DMG*D8*19800315*M~"
+    "HD*021**HLT*GRP001*IND~"
+    "DTP*348*D8*20260101~"
+    "COB*P*987654*5~"
+    "NM1*IN*2*CIGNA***** ~"
+    "INS*N*01*021*25*A*E**FT~"
+    "REF*0F*MBR002~"
+    "DTP*356*D8*20260101~"
+    "NM1*IL*1*SMITH*JANE*B***~"
+    "DMG*D8*19821104*F~"
+    "HD*021**HLT*GRP001*FAM~"
+    "DTP*348*D8*20260101~"
+    "INS*N*19*021*25*A*E**FT~"
+    "REF*0F*MBR003~"
+    "DTP*356*D8*20260101~"
+    "NM1*IL*1*SMITH*EMILY*C***~"
+    "DMG*D8*20150620*F~"
+    "HD*021**HLT*GRP001*CHD~"
+    "DTP*348*D8*20260101~"
+    "INS*Y*18*024*AI*A*E**FT~"
+    "REF*0F*MBR004~"
+    "DTP*356*D8*20260101~"
+    "NM1*IL*1*JONES*ROBERT*D***~"
+    "DMG*D8*19751201*M~"
+    "HD*024**HLT*GRP001*IND~"
+    "DTP*349*D8*20260101~"
+    "SE*42*0001~"
+    "GE*1*1~"
+    "IEA*1*000000001~"
+)
+
+
+# ═════════════════════════════════════════════════════════════════════════════
+# 834 Member Enrollment Summary
+# ═════════════════════════════════════════════════════════════════════════════
+
+class TestMemberEnrollmentSummary(unittest.TestCase):
+    """
+    Integration-style tests that write SAMPLE_834_EDI to a temp file,
+    run the full parser pipeline, and assert on member_enrollment_summary.
+    """
 
     def _parse_834(self, edi_content: str) -> dict:
-        import tempfile, os
-        with tempfile.NamedTemporaryFile(mode='w', suffix='.edi', delete=False, encoding='utf-8') as f:
+        import tempfile
+        with tempfile.NamedTemporaryFile(
+            mode='w', suffix='.edi', delete=False, encoding='utf-8'
+        ) as f:
             f.write(edi_content)
             path = f.name
         try:
-            from core_parser.edi_parser import EDIParser
             parser = EDIParser(path)
             return parser.parse()
         finally:
             os.unlink(path)
 
+    def test_summary_key_present(self):
+        """parse() must always return a member_enrollment_summary key for 834."""
+        result = self._parse_834(SAMPLE_834_EDI)
+        self.assertIn("member_enrollment_summary", result)
+
     def test_subscriber_is_group_root(self):
         """Subscriber (INS01=Y) must be the first member in a family group."""
-        result = self._parse_834(SAMPLE_834_EDI)  # use the sample file content
+        result = self._parse_834(SAMPLE_834_EDI)
         summary = result.get("member_enrollment_summary", [])
-        assert len(summary) > 0, "Expected at least one family group"
+        self.assertGreater(len(summary), 0, "Expected at least one family group")
         first_member = summary[0]["family_members"][0]
-        assert first_member["is_subscriber"] is True
+        self.assertTrue(first_member["is_subscriber"])
 
     def test_dependent_rollup(self):
         """Dependents (INS01=N) must be nested under their subscriber group."""
         result = self._parse_834(SAMPLE_834_EDI)
         summary = result.get("member_enrollment_summary", [])
+        self.assertGreater(len(summary), 0)
         first_group = summary[0]
-        assert len(first_group["family_members"]) > 1, "Expected subscriber + at least 1 dependent"
+        self.assertGreater(
+            len(first_group["family_members"]), 1,
+            "Expected subscriber + at least 1 dependent in the first group"
+        )
         dependents = [m for m in first_group["family_members"] if not m["is_subscriber"]]
-        assert len(dependents) >= 1
+        self.assertGreaterEqual(len(dependents), 1)
 
     def test_maintenance_type_labels(self):
         """Maintenance type codes must be translated to human-readable labels."""
@@ -501,12 +569,53 @@ class TestMemberEnrollmentSummary:
         summary = result.get("member_enrollment_summary", [])
         all_members = [m for g in summary for m in g["family_members"]]
         labels = {m["maintenance_label"] for m in all_members}
-        assert "Addition" in labels  # 021
+        self.assertIn("Addition", labels, "Expected 'Addition' label for code 021")
 
-    def test_cob_captured(self):
-        """COB records must be attached to the correct member."""
+    def test_termination_label_present(self):
+        """Code 024 must produce a Termination label."""
         result = self._parse_834(SAMPLE_834_EDI)
         summary = result.get("member_enrollment_summary", [])
         all_members = [m for g in summary for m in g["family_members"]]
-        cob_members = [m for m in all_members if m["cob"]]
-        assert len(cob_members) >= 1, "Expected at least one member with a COB record"
+        labels = {m["maintenance_label"] for m in all_members}
+        self.assertIn("Termination", labels, "Expected 'Termination' label for code 024")
+
+    def test_member_fields_populated(self):
+        """Each member record must contain the required fields."""
+        result = self._parse_834(SAMPLE_834_EDI)
+        summary = result.get("member_enrollment_summary", [])
+        self.assertGreater(len(summary), 0)
+        member = summary[0]["family_members"][0]
+        required_keys = {
+            "member_id", "name", "dob", "gender",
+            "relationship_code", "relationship_label",
+            "is_subscriber", "maintenance_type", "maintenance_label",
+            "effective_date", "coverage", "cob",
+        }
+        for key in required_keys:
+            self.assertIn(key, member, f"Missing key '{key}' in member record")
+
+    def test_cob_captured(self):
+        """COB records must be attached to at least one member."""
+        result = self._parse_834(SAMPLE_834_EDI)
+        summary = result.get("member_enrollment_summary", [])
+        all_members = [m for g in summary for m in g["family_members"]]
+        cob_members = [m for m in all_members if m.get("cob")]
+        self.assertGreaterEqual(
+            len(cob_members), 1,
+            "Expected at least one member with a COB record"
+        )
+
+    def test_multiple_family_groups(self):
+        """JONES (second INS*Y) must form a separate group from SMITH."""
+        result = self._parse_834(SAMPLE_834_EDI)
+        summary = result.get("member_enrollment_summary", [])
+        self.assertGreaterEqual(len(summary), 2, "Expected at least 2 family groups")
+
+    def test_relationship_labels(self):
+        """INS02 relationship codes must be decoded to human-readable labels."""
+        result = self._parse_834(SAMPLE_834_EDI)
+        summary = result.get("member_enrollment_summary", [])
+        all_members = [m for g in summary for m in g["family_members"]]
+        rel_labels = {m["relationship_label"] for m in all_members}
+        self.assertIn("Self",  rel_labels)
+        self.assertIn("Spouse", rel_labels)

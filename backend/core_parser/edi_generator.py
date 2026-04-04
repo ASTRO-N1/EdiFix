@@ -27,8 +27,6 @@ class EDIGenerator:
 
     # ─────────────────────────────────────────────────────────────────────────
     # Standard X12 loop ordering for 837/835/834 transactions
-    # The generator will process loops in this sequence to maintain proper
-    # hierarchical order in the output EDI file.
     # ─────────────────────────────────────────────────────────────────────────
     LOOP_ORDER_837 = [
         "HEADER",
@@ -63,63 +61,21 @@ class EDIGenerator:
     def __init__(self, tree: dict):
         """
         Initialize the generator with a parsed JSON tree.
-        
-        Args:
-            tree: The JSON AST from EDIParser, with structure:
-                  {
-                      "metadata": {...},
-                      "envelope": {"ISA": {...}, "GS": {...}, "ST": {...}, ...},
-                      "loops": {"1000A": [...], "2000A": [...], ...},
-                      ...
-                  }
         """
         self.tree = tree
         self.metadata = tree.get("metadata", {})
         self.envelope = tree.get("envelope", {})
         self.loops = tree.get("loops", {})
 
-        # ─────────────────────────────────────────────────────────────────────
-        # Delimiter Configuration
-        # Default to standard X12 delimiters; override from ISA if available
-        # ─────────────────────────────────────────────────────────────────────
+        # Default X12 delimiters
         self.element_sep = "*"
         self.subelement_sep = ":"
         self.segment_sep = "~"
 
-        self._extract_delimiters_from_isa()
-
         # For dynamic control counting
-        self._segment_count = 0  # Counts segments between ST and SE
-        self._transaction_count = 0  # Counts ST/SE pairs within GS/GE
-        self._group_count = 0  # Counts GS/GE pairs within ISA/IEA
-
-    def _extract_delimiters_from_isa(self) -> None:
-        """
-        Extract delimiters from the ISA segment if present.
-        
-        The ISA segment in the tree may contain raw element values or decoded fields.
-        We look for specific positions or fall back to detecting from raw_data.
-        """
-        isa = self.envelope.get("ISA", {})
-        if not isa:
-            return
-
-        # Check if raw_data is present (original element array)
-        raw_data = isa.get("raw_data", [])
-        if raw_data and len(raw_data) >= 17:
-            # ISA16 contains sub-element separator + segment terminator
-            isa16 = raw_data[16] if len(raw_data) > 16 else ":~"
-            if len(isa16) >= 1:
-                self.subelement_sep = isa16[0]
-            if len(isa16) >= 2:
-                self.segment_sep = isa16[1]
-
-        # If the tree has decoded ISA fields, we can also check those
-        # The parser stores these as ComponentElementSeparator_16 typically
-        if "ComponentElementSeparator_16" in isa:
-            sep_field = isa["ComponentElementSeparator_16"]
-            if isinstance(sep_field, str) and len(sep_field) >= 1:
-                self.subelement_sep = sep_field[0]
+        self._segment_count = 0
+        self._transaction_count = 0
+        self._group_count = 0
 
     # =========================================================================
     # CORE GENERATION LOGIC
@@ -128,85 +84,59 @@ class EDIGenerator:
     def generate(self) -> str:
         """
         Main entry point: generates the complete EDI string from the JSON tree.
-        
-        Returns:
-            A properly formatted X12 EDI string with:
-            - Dynamically calculated control counts (SE01, GE01, IEA01)
-            - Correct segment ordering
-            - Proper delimiter usage
         """
         output_segments: list[str] = []
 
-        # ─────────────────────────────────────────────────────────────────────
-        # 1. Generate ISA (Interchange Control Header)
-        # ─────────────────────────────────────────────────────────────────────
-        isa_seg = self._encode_segment(self.envelope.get("ISA", {}))
+        # 1. Generate ISA
+        isa_seg = self._encode_envelope_segment("ISA", self.envelope.get("ISA", {}))
         if isa_seg:
             output_segments.append(isa_seg)
 
-        # ─────────────────────────────────────────────────────────────────────
-        # 2. Generate GS (Functional Group Header)
-        # ─────────────────────────────────────────────────────────────────────
-        gs_seg = self._encode_segment(self.envelope.get("GS", {}))
+        # 2. Generate GS
+        gs_seg = self._encode_envelope_segment("GS", self.envelope.get("GS", {}))
         if gs_seg:
             output_segments.append(gs_seg)
 
-        # ─────────────────────────────────────────────────────────────────────
-        # 3. Generate ST (Transaction Set Header) — starts segment counting
-        # ─────────────────────────────────────────────────────────────────────
-        st_seg = self._encode_segment(self.envelope.get("ST", {}))
+        # 3. Generate ST — starts segment counting
+        st_seg = self._encode_envelope_segment("ST", self.envelope.get("ST", {}))
         if st_seg:
             output_segments.append(st_seg)
-            self._segment_count = 1  # ST counts as segment 1
+            self._segment_count = 1
 
-        # ─────────────────────────────────────────────────────────────────────
-        # 4. Flatten and encode all loops in correct hierarchical order
-        # ─────────────────────────────────────────────────────────────────────
+        # 4. Flatten and encode all loops
         loop_segments = self._flatten_loops()
         for seg in loop_segments:
             output_segments.append(seg)
             self._segment_count += 1
 
-        # ─────────────────────────────────────────────────────────────────────
-        # 5. Generate SE (Transaction Set Trailer) — with dynamic count
-        # ─────────────────────────────────────────────────────────────────────
-        self._segment_count += 1  # SE itself counts
+        # 5. Generate SE with dynamic count
+        self._segment_count += 1
         se_seg = self._encode_se_segment()
         if se_seg:
             output_segments.append(se_seg)
-        self._transaction_count = 1  # We processed one ST/SE pair
+        self._transaction_count = 1
 
-        # ─────────────────────────────────────────────────────────────────────
-        # 6. Generate GE (Functional Group Trailer) — with dynamic count
-        # ─────────────────────────────────────────────────────────────────────
+        # 6. Generate GE
         ge_seg = self._encode_ge_segment()
         if ge_seg:
             output_segments.append(ge_seg)
-        self._group_count = 1  # We processed one GS/GE pair
+        self._group_count = 1
 
-        # ─────────────────────────────────────────────────────────────────────
-        # 7. Generate IEA (Interchange Control Trailer) — with dynamic count
-        # ─────────────────────────────────────────────────────────────────────
+        # 7. Generate IEA
         iea_seg = self._encode_iea_segment()
         if iea_seg:
             output_segments.append(iea_seg)
 
-        # ─────────────────────────────────────────────────────────────────────
-        # 8. Join all segments with the segment terminator
-        # ─────────────────────────────────────────────────────────────────────
+        # 8. Join with segment terminator
         return self.segment_sep.join(output_segments) + self.segment_sep
 
     def _flatten_loops(self) -> list[str]:
         """
-        Walks through all loops in the correct hierarchical order and
-        encodes each segment within them.
-        
-        Returns:
-            List of encoded segment strings (without terminators)
+        Walks through all loops in the correct hierarchical order.
         """
         segments: list[str] = []
 
-        # Determine which loop order to use based on transaction type
+        # Determine loop order based on transaction type
         txn_type = self.metadata.get("transaction_type", "837")
         if txn_type == "835":
             loop_order = self.LOOP_ORDER_835
@@ -215,7 +145,7 @@ class EDIGenerator:
         else:
             loop_order = self.LOOP_ORDER_837
 
-        # Also process any loops that exist but aren't in our predefined order
+        # Process loops in order, then any remaining
         all_loop_ids = set(self.loops.keys())
         ordered_loops = [lid for lid in loop_order if lid in all_loop_ids]
         unordered_loops = sorted(all_loop_ids - set(loop_order))
@@ -230,21 +160,32 @@ class EDIGenerator:
                     continue
                 
                 # Encode each segment in this loop instance
-                for seg_id, seg_data in instance.items():
-                    # Skip Segment_ID marker or envelope segments
-                    if seg_id == "Segment_ID" or seg_id in self.ENVELOPE_SEGMENTS:
-                        continue
+                instance_segments = self._encode_loop_instance(instance)
+                segments.extend(instance_segments)
 
-                    # Handle repeated segments (stored as list)
-                    if isinstance(seg_data, list):
-                        for seg in seg_data:
-                            encoded = self._encode_segment(seg)
-                            if encoded:
-                                segments.append(encoded)
-                    else:
-                        encoded = self._encode_segment(seg_data)
-                        if encoded:
-                            segments.append(encoded)
+        return segments
+
+    def _encode_loop_instance(self, instance: dict) -> list[str]:
+        """
+        Encodes all segments within a single loop instance.
+        """
+        segments = []
+        
+        for seg_id, seg_data in instance.items():
+            # Skip metadata keys and envelope segments
+            if seg_id in ("Segment_ID", "raw_data") or seg_id in self.ENVELOPE_SEGMENTS:
+                continue
+
+            # Handle repeated segments (stored as list)
+            if isinstance(seg_data, list):
+                for seg in seg_data:
+                    encoded = self._encode_segment(seg)
+                    if encoded:
+                        segments.append(encoded)
+            else:
+                encoded = self._encode_segment(seg_data)
+                if encoded:
+                    segments.append(encoded)
 
         return segments
 
@@ -256,17 +197,9 @@ class EDIGenerator:
         """
         Encodes a single segment dictionary back into an EDI string.
         
-        This is where the reverse schema mapping happens:
-        - Extracts the segment ID from Segment_ID
-        - Parses property names like "TotalClaimChargeAmount_02" to get index 2
-        - Places values into the correct element positions
-        - Joins sub-elements with the sub-element separator
-        
-        Args:
-            segment: Dictionary with Segment_ID and property_name_NN keys
-            
-        Returns:
-            Encoded segment string (e.g., "CLM*12345*150.00*...")
+        Handles multiple data formats:
+        1. Decoded with _NN suffixes: {"PatientControlNumber_01": "12345"}
+        2. Raw data array: {"raw_data": ["CLM", "12345", "150.00"]}
         """
         if not segment or not isinstance(segment, dict):
             return None
@@ -276,16 +209,28 @@ class EDIGenerator:
             return None
 
         # ─────────────────────────────────────────────────────────────────────
-        # Build element array by parsing property suffixes (_01, _02, etc.)
+        # STRATEGY 1: Use raw_data if available (most reliable)
+        # ─────────────────────────────────────────────────────────────────────
+        raw_data = segment.get("raw_data")
+        if raw_data and isinstance(raw_data, list) and len(raw_data) > 0:
+            # raw_data is the original element array
+            elements = [str(el) for el in raw_data]
+            # Trim trailing empty elements
+            while len(elements) > 1 and elements[-1] == "":
+                elements.pop()
+            return self.element_sep.join(elements)
+
+        # ─────────────────────────────────────────────────────────────────────
+        # STRATEGY 2: Reverse-map from _NN suffixed property names
         # ─────────────────────────────────────────────────────────────────────
         max_index = 0
         elements_map: dict[int, str] = {}
 
         for key, value in segment.items():
-            if key == "Segment_ID" or key == "raw_data":
+            if key in ("Segment_ID", "raw_data"):
                 continue
 
-            # Extract the index from the property name suffix (e.g., "_02" → 2)
+            # Extract index from property name suffix (e.g., "_02" → 2)
             index = self._extract_element_index(key)
             if index is None:
                 continue
@@ -295,37 +240,154 @@ class EDIGenerator:
             elements_map[index] = encoded_value
             max_index = max(max_index, index)
 
-        # ─────────────────────────────────────────────────────────────────────
+        # If no indexed properties found, segment only has Segment_ID
+        if max_index == 0:
+            return seg_id
+
         # Build the ordered elements array
-        # ─────────────────────────────────────────────────────────────────────
         elements = [seg_id]
         for i in range(1, max_index + 1):
             elements.append(elements_map.get(i, ""))
 
-        # ─────────────────────────────────────────────────────────────────────
-        # Trim trailing empty elements (optional, keeps output cleaner)
-        # ─────────────────────────────────────────────────────────────────────
+        # Trim trailing empty elements
         while len(elements) > 1 and elements[-1] == "":
             elements.pop()
 
         return self.element_sep.join(elements)
 
+    def _encode_envelope_segment(self, seg_id: str, segment: dict) -> Optional[str]:
+        """
+        Special handling for envelope segments (ISA, GS, ST, SE, GE, IEA).
+        These are critical and we try multiple strategies to encode them.
+        """
+        if not segment:
+            return None
+
+        # Strategy 1: Use raw_data
+        raw_data = segment.get("raw_data")
+        if raw_data and isinstance(raw_data, list) and len(raw_data) > 0:
+            elements = [str(el) for el in raw_data]
+            while len(elements) > 1 and elements[-1] == "":
+                elements.pop()
+            return self.element_sep.join(elements)
+
+        # Strategy 2: Reverse-map from _NN properties
+        max_index = 0
+        elements_map: dict[int, str] = {}
+
+        for key, value in segment.items():
+            if key in ("Segment_ID", "raw_data"):
+                continue
+
+            index = self._extract_element_index(key)
+            if index is not None:
+                elements_map[index] = self._encode_element_value(value)
+                max_index = max(max_index, index)
+
+        if max_index > 0:
+            elements = [seg_id]
+            for i in range(1, max_index + 1):
+                elements.append(elements_map.get(i, ""))
+            while len(elements) > 1 and elements[-1] == "":
+                elements.pop()
+            return self.element_sep.join(elements)
+
+        # Strategy 3: Build from known field names for envelope segments
+        if seg_id == "ISA":
+            return self._build_isa_segment(segment)
+        elif seg_id == "GS":
+            return self._build_gs_segment(segment)
+        elif seg_id == "ST":
+            return self._build_st_segment(segment)
+
+        return seg_id
+
+    def _build_isa_segment(self, isa: dict) -> str:
+        """
+        Builds ISA segment from known field mappings.
+        ISA is fixed-length with 16 elements.
+        """
+        # Try to get values from various possible key names
+        def get_val(keys: list, default: str = "") -> str:
+            for k in keys:
+                if k in isa and isa[k]:
+                    return str(isa[k])
+            return default
+
+        elements = [
+            "ISA",
+            get_val(["AuthorizationInformationQualifier_01", "ISA01"], "00"),
+            get_val(["AuthorizationInformation_02", "ISA02"], "          "),  # 10 spaces
+            get_val(["SecurityInformationQualifier_03", "ISA03"], "00"),
+            get_val(["SecurityInformation_04", "ISA04"], "          "),  # 10 spaces
+            get_val(["InterchangeIDQualifier_05", "ISA05"], "ZZ"),
+            get_val(["InterchangeSenderID_06", "ISA06", "sender_id"], "").ljust(15),
+            get_val(["InterchangeIDQualifier_07", "ISA07"], "ZZ"),
+            get_val(["InterchangeReceiverID_08", "ISA08", "receiver_id"], "").ljust(15),
+            get_val(["InterchangeDate_09", "ISA09"], ""),
+            get_val(["InterchangeTime_10", "ISA10"], ""),
+            get_val(["RepetitionSeparator_11", "ISA11"], "^"),
+            get_val(["InterchangeControlVersionNumber_12", "ISA12"], "00501"),
+            get_val(["InterchangeControlNumber_13", "ISA13", "control_number"], "000000001"),
+            get_val(["AcknowledgmentRequested_14", "ISA14"], "0"),
+            get_val(["UsageIndicator_15", "ISA15"], "T"),
+            get_val(["ComponentElementSeparator_16", "ISA16"], ":"),
+        ]
+        return self.element_sep.join(elements)
+
+    def _build_gs_segment(self, gs: dict) -> str:
+        """
+        Builds GS segment from known field mappings.
+        """
+        def get_val(keys: list, default: str = "") -> str:
+            for k in keys:
+                if k in gs and gs[k]:
+                    return str(gs[k])
+            return default
+
+        elements = [
+            "GS",
+            get_val(["FunctionalIdentifierCode_01", "GS01"], "HC"),
+            get_val(["ApplicationSenderCode_02", "GS02"], ""),
+            get_val(["ApplicationReceiverCode_03", "GS03"], ""),
+            get_val(["Date_04", "GS04"], ""),
+            get_val(["Time_05", "GS05"], ""),
+            get_val(["GroupControlNumber_06", "GS06"], "1"),
+            get_val(["ResponsibleAgencyCode_07", "GS07"], "X"),
+            get_val(["VersionReleaseIndustryIdentifierCode_08", "GS08"], "005010X222A1"),
+        ]
+        return self.element_sep.join(elements)
+
+    def _build_st_segment(self, st: dict) -> str:
+        """
+        Builds ST segment from known field mappings.
+        """
+        def get_val(keys: list, default: str = "") -> str:
+            for k in keys:
+                if k in st and st[k]:
+                    return str(st[k])
+            return default
+
+        txn_type = self.metadata.get("transaction_type", "837")
+        impl_ref = self.metadata.get("implementation_reference", "")
+
+        elements = [
+            "ST",
+            get_val(["TransactionSetIdentifierCode_01", "ST01"], txn_type),
+            get_val(["TransactionSetControlNumber_02", "ST02"], "0001"),
+            get_val(["ImplementationConventionReference_03", "ST03"], impl_ref),
+        ]
+        
+        # Trim empty trailing elements
+        while len(elements) > 2 and elements[-1] == "":
+            elements.pop()
+            
+        return self.element_sep.join(elements)
+
     def _extract_element_index(self, property_name: str) -> Optional[int]:
         """
         Extracts the element index from a property name suffix.
-        
-        Examples:
-            "PatientControlNumber_01" → 1
-            "TotalClaimChargeAmount_02" → 2
-            "HealthCareServiceInformation_01" → 1
-        
-        Args:
-            property_name: The JSON property key
-            
-        Returns:
-            Integer index or None if not found
         """
-        # Match _NN at the end of the property name
         match = re.search(r"_(\d+)$", property_name)
         if match:
             return int(match.group(1))
@@ -333,18 +395,12 @@ class EDIGenerator:
 
     def _encode_element_value(self, value: Any) -> str:
         """
-        Encodes a single element value, handling sub-elements.
-        
-        Args:
-            value: Can be a string, number, or list (for sub-elements)
-            
-        Returns:
-            Encoded string value
+        Encodes a single element value, handling sub-elements (lists).
         """
         if value is None:
             return ""
 
-        # Sub-elements are stored as lists — join with sub-element separator
+        # Sub-elements are stored as lists
         if isinstance(value, list):
             return self.subelement_sep.join(str(v) for v in value)
 
@@ -355,63 +411,36 @@ class EDIGenerator:
     # =========================================================================
 
     def _encode_se_segment(self) -> str:
-        """
-        Generates the SE (Transaction Set Trailer) segment with dynamic count.
-        
-        SE01: Number of included segments (ST through SE inclusive)
-        SE02: Transaction set control number (must match ST02)
-        """
+        """SE segment with dynamic count."""
         st_seg = self.envelope.get("ST", {})
-        
-        # SE02 must match ST02 (transaction set control number)
         st_control = (
             st_seg.get("TransactionSetControlNumber_02") or
             st_seg.get("ST02") or
             st_seg.get("ControlNumber_02") or
             "0001"
         )
-
-        # SE01 is the total segment count (dynamically calculated)
         return f"SE{self.element_sep}{self._segment_count}{self.element_sep}{st_control}"
 
     def _encode_ge_segment(self) -> str:
-        """
-        Generates the GE (Functional Group Trailer) segment with dynamic count.
-        
-        GE01: Number of transaction sets included (ST/SE pairs)
-        GE02: Group control number (must match GS06)
-        """
+        """GE segment with dynamic count."""
         gs_seg = self.envelope.get("GS", {})
-        
-        # GE02 must match GS06 (group control number)
         gs_control = (
             gs_seg.get("GroupControlNumber_06") or
             gs_seg.get("GS06") or
             gs_seg.get("ControlNumber_06") or
             "1"
         )
-
-        # GE01 is the number of transaction sets (ST/SE pairs)
         return f"GE{self.element_sep}{self._transaction_count}{self.element_sep}{gs_control}"
 
     def _encode_iea_segment(self) -> str:
-        """
-        Generates the IEA (Interchange Control Trailer) segment with dynamic count.
-        
-        IEA01: Number of included functional groups (GS/GE pairs)
-        IEA02: Interchange control number (must match ISA13)
-        """
+        """IEA segment with dynamic count."""
         isa_seg = self.envelope.get("ISA", {})
-        
-        # IEA02 must match ISA13 (interchange control number)
         isa_control = (
             isa_seg.get("InterchangeControlNumber_13") or
             isa_seg.get("ISA13") or
             isa_seg.get("ControlNumber_13") or
             "000000001"
         )
-
-        # IEA01 is the number of functional groups (GS/GE pairs)
         return f"IEA{self.element_sep}{self._group_count}{self.element_sep}{isa_control}"
 
     # =========================================================================
@@ -419,12 +448,6 @@ class EDIGenerator:
     # =========================================================================
 
     def get_delimiters(self) -> dict:
-        """
-        Returns the current delimiter configuration.
-        
-        Returns:
-            Dictionary with element_sep, subelement_sep, segment_sep
-        """
         return {
             "element_sep": self.element_sep,
             "subelement_sep": self.subelement_sep,
@@ -437,14 +460,6 @@ class EDIGenerator:
         subelement_sep: str = None,
         segment_sep: str = None
     ) -> None:
-        """
-        Manually override delimiters if needed.
-        
-        Args:
-            element_sep: Element separator (default: *)
-            subelement_sep: Sub-element separator (default: :)
-            segment_sep: Segment terminator (default: ~)
-        """
         if element_sep:
             self.element_sep = element_sep
         if subelement_sep:
@@ -453,28 +468,9 @@ class EDIGenerator:
             self.segment_sep = segment_sep
 
 
-# ─────────────────────────────────────────────────────────────────────────────
-# Convenience function for quick generation
-# ─────────────────────────────────────────────────────────────────────────────
-
 def generate_edi(tree: dict, delimiters: dict = None) -> str:
-    """
-    Convenience function to generate an EDI string from a JSON tree.
-    
-    Args:
-        tree: The parsed EDI JSON tree
-        delimiters: Optional dict with element_sep, subelement_sep, segment_sep
-        
-    Returns:
-        Formatted X12 EDI string
-    
-    Example:
-        edi_string = generate_edi(parsed_tree)
-        edi_string = generate_edi(parsed_tree, {"segment_sep": "\\n"})
-    """
+    """Convenience function to generate EDI from a tree."""
     generator = EDIGenerator(tree)
-    
     if delimiters:
         generator.set_delimiters(**delimiters)
-    
     return generator.generate()

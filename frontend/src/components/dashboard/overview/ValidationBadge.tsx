@@ -5,14 +5,15 @@ export default function ValidationBadge() {
   const { parseResult } = useAppStore()
   const { t, isDark } = useTheme()
 
-  const data = parseResult?.data as Record<string, unknown> | undefined
-  const validation = data?.validation as Record<string, unknown> | undefined
+  if (!parseResult) return null
 
-  if (!validation && !parseResult) return null
+  // FIX: Access the arrays directly depending on how deep the data is nested.
+  const root = parseResult as Record<string, any>
+  const data = root.data || {}
 
-  const errCount = (validation?.error_count as number) ?? 0
-  const warnCount = (validation?.warning_count as number) ?? 0
-  
+  const errCount = (root.errors ?? data.errors ?? []).length
+  const warnCount = (root.warnings ?? data.warnings ?? []).length
+
   // Strict logic: 0 errors AND 0 warnings = valid.
   const isValid = errCount === 0 && warnCount === 0
 

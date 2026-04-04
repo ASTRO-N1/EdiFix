@@ -12,7 +12,7 @@ interface NormalisedError {
 }
 
 function resolveTreePath(err: NormalisedError): string {
-  const el   = (err.element ?? '').toUpperCase()
+  const el = (err.element ?? '').toUpperCase()
   const loop = (err.loop ?? '').toUpperCase()
 
   if (loop.includes('2010AA') || (loop.includes('2000A') && el.includes('NM1'))) return 'loop_2010AA.NM1'
@@ -32,7 +32,7 @@ function resolveTreePath(err: NormalisedError): string {
 }
 
 function resolveFormField(err: NormalisedError): string {
-  const el   = (err.element ?? '').toUpperCase()
+  const el = (err.element ?? '').toUpperCase()
   const loop = (err.loop ?? '').toUpperCase()
   const code = (err.code ?? '').toLowerCase()
 
@@ -53,18 +53,27 @@ function resolveFormField(err: NormalisedError): string {
   if (el === 'N403') return 'billing-zip'
   if (el === 'DMG02') return 'sub-dob'
   if (el === 'DMG03') return 'sub-gender'
-  return 'clm-id'   
+  return 'clm-id'
 }
 
-function normaliseErrors(raw: unknown[]): NormalisedError[] {
-  return raw.map((e: any, i) => ({
-    id:      e.id ?? i,
-    type:    e.type === 'warning' ? 'warning' : 'error',
-    code:    e.code ?? e.error_code ?? 'ValidationError',
+function normaliseErrors(errs: unknown[], warns: unknown[]): NormalisedError[] {
+  const normE = errs.map((e: any, i) => ({
+    id: `e-${e.id ?? i}`,
+    type: 'error' as const,
+    code: e.code ?? e.error_code ?? e.type ?? 'ValidationError',
     element: e.element ?? e.field ?? e.segment ?? '',
-    loop:    e.loop ?? e.loop_id ?? e.location ?? '',
-    msg:     e.message ?? e.msg ?? e.description ?? 'Validation error.',
+    loop: e.loop ?? e.loop_id ?? e.location ?? '',
+    msg: e.message ?? e.msg ?? e.description ?? 'Validation error.',
   }))
+  const normW = warns.map((e: any, i) => ({
+    id: `w-${e.id ?? i}`,
+    type: 'warning' as const,
+    code: e.code ?? e.error_code ?? e.type ?? 'Warning',
+    element: e.element ?? e.field ?? e.segment ?? '',
+    loop: e.loop ?? e.loop_id ?? e.location ?? '',
+    msg: e.message ?? e.msg ?? e.description ?? 'Validation warning.',
+  }))
+  return [...normE, ...normW]
 }
 
 const PLACEHOLDER_ERRORS: NormalisedError[] = [
@@ -75,28 +84,26 @@ const PLACEHOLDER_ERRORS: NormalisedError[] = [
 // ── Component ─────────────────────────────────────────────────────────────────
 
 export default function ValidationDrawer() {
-  const parseResult        = useAppStore((s) => s.parseResult)
-  const ediFile            = useAppStore((s) => s.ediFile)
-  const setSelectedPath    = useAppStore((s) => s.setSelectedPath)
-  const setFocusFieldId    = useAppStore((s) => s.setFocusFieldId)
-  const setActiveTabId     = useAppStore((s) => s.setActiveTabId)
+  const parseResult = useAppStore((s) => s.parseResult)
+  const ediFile = useAppStore((s) => s.ediFile)
+  const setSelectedPath = useAppStore((s) => s.setSelectedPath)
+  const setFocusFieldId = useAppStore((s) => s.setFocusFieldId)
+  const setActiveTabId = useAppStore((s) => s.setActiveTabId)
   const [isMinimized, setIsMinimized] = useState(false)
-  // Height of the drawer when it is NOT minimized — the user can drag this
   const [expandedHeight, setExpandedHeight] = useState(220)
   const [isDragging, setIsDragging] = useState(false)
-  const dragStartY      = useRef(0)
+  const dragStartY = useRef(0)
   const dragStartHeight = useRef(220)
 
   const handleDragMouseDown = (e: React.MouseEvent) => {
     if (isMinimized) return
-    dragStartY.current      = e.clientY
+    dragStartY.current = e.clientY
     dragStartHeight.current = expandedHeight
     setIsDragging(true)
     e.preventDefault()
 
     const onMouseMove = (ev: MouseEvent) => {
-      // Moving the mouse UP (negative delta) increases the drawer height
-      const delta     = dragStartY.current - ev.clientY
+      const delta = dragStartY.current - ev.clientY
       const newHeight = Math.max(80, Math.min(600, dragStartHeight.current + delta))
       setExpandedHeight(newHeight)
     }
@@ -111,20 +118,24 @@ export default function ValidationDrawer() {
 
   const hasFile = !!(parseResult || ediFile.fileName)
 
+  // FIX: Properly extract BOTH arrays and map them safely
   const errors: NormalisedError[] = (() => {
     if (!parseResult) return PLACEHOLDER_ERRORS
-    const data = parseResult as Record<string, unknown>
-    const raw  = (data.validation_errors ?? data.errors ?? []) as unknown[]
-    if (raw.length === 0) return PLACEHOLDER_ERRORS
-    return normaliseErrors(raw)
+    const root = parseResult as Record<string, any>
+    const nested = root.data || {}
+    const e = root.errors ?? nested.errors ?? []
+    const w = root.warnings ?? nested.warnings ?? []
+
+    if (e.length === 0 && w.length === 0) return [] // Valid file, no errors
+    return normaliseErrors(e, w)
   })()
 
-  const errorCount   = errors.filter((e) => e.type === 'error').length
+  const errorCount = errors.filter((e) => e.type === 'error').length
   const warningCount = errors.filter((e) => e.type === 'warning').length
 
   const handleErrorClick = (err: NormalisedError) => {
-    const treePath  = resolveTreePath(err)
-    const fieldId   = resolveFormField(err)
+    const treePath = resolveTreePath(err)
+    const fieldId = resolveFormField(err)
     setSelectedPath(treePath)
     setFocusFieldId(fieldId)
     setActiveTabId('form')
@@ -138,12 +149,10 @@ export default function ValidationDrawer() {
         background: '#FDFAF4',
         overflow: 'hidden',
         flexShrink: 0,
-        // Height drives both minimize animation and user-drag; suppress transition during drag
         height: isMinimized ? 44 : expandedHeight,
         transition: isDragging ? 'none' : 'height 0.3s ease-in-out',
       }}
     >
-      {/* ── Drag-resize handle (top edge of the drawer) ────────────── */}
       <div
         onMouseDown={handleDragMouseDown}
         style={{
@@ -220,8 +229,6 @@ export default function ValidationDrawer() {
         </button>
       </div>
 
-      {/* ✅ FIX 2: Removed {!isMinimized && ( ... )} around the body. 
-          It stays mounted, and just slides out of view gracefully. */}
       <div style={{ flex: 1, overflowY: 'auto', padding: '12px 16px' }} className="custom-scrollbar">
         {!hasFile ? (
           <div style={{
@@ -236,26 +243,39 @@ export default function ValidationDrawer() {
           }}>
             No validation data. Upload a file to see errors.
           </div>
+        ) : errors.length === 0 ? (
+          <div style={{
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            height: '100%',
+            fontFamily: 'Nunito, sans-serif',
+            fontSize: 13,
+            fontWeight: 700,
+            color: '#4ECDC4',
+          }}>
+            ✨ All checks passed. No errors or warnings found.
+          </div>
         ) : (
           <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
             {errors.map((err) => (
-                <button
+              <button
                 key={err.id}
-                  onClick={() => handleErrorClick(err)}
-                  style={{
-                    display: 'flex',
-                    alignItems: 'baseline',
-                    gap: 12,
-                    padding: '8px 12px',
-                    background: '#FFFFFF',
-                    border: '1.5px solid rgba(26,26,46,0.1)',
-                    borderRadius: 6,
-                    boxShadow: '1px 1px 0px rgba(26,26,46,0.05)',
-                    cursor: 'pointer',
-                    transition: 'background 0.1s, box-shadow 0.1s, transform 0.1s',
-                    width: '100%',
-                    textAlign: 'left',
-                  }}
+                onClick={() => handleErrorClick(err)}
+                style={{
+                  display: 'flex',
+                  alignItems: 'baseline',
+                  gap: 12,
+                  padding: '8px 12px',
+                  background: '#FFFFFF',
+                  border: '1.5px solid rgba(26,26,46,0.1)',
+                  borderRadius: 6,
+                  boxShadow: '1px 1px 0px rgba(26,26,46,0.05)',
+                  cursor: 'pointer',
+                  transition: 'background 0.1s, box-shadow 0.1s, transform 0.1s',
+                  width: '100%',
+                  textAlign: 'left',
+                }}
                 onMouseEnter={(e) => {
                   e.currentTarget.style.background = 'rgba(78,205,196,0.07)'
                   e.currentTarget.style.boxShadow = '2px 2px 0px rgba(78,205,196,0.3)'
@@ -310,7 +330,6 @@ export default function ValidationDrawer() {
         )}
       </div>
 
-      {/* ✅ FIX 3: Removed {!isMinimized && ( ... )} around the footer. */}
       <div style={{
         padding: '4px 16px',
         background: '#FFFFFF',

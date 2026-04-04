@@ -1,11 +1,21 @@
 import { create } from 'zustand'
 import type { Session } from '@supabase/supabase-js'
+import { supabase } from '../lib/supabase'
 
 interface EDIFile {
   file: File | null
   fileName: string
   fileType: string
   parseResult: Record<string, unknown> | null
+}
+
+export interface HistoryItem {
+  id: string
+  file_name: string
+  file_type: string
+  transaction_type: string | null
+  parse_result: Record<string, unknown>
+  created_at: string
 }
 
 export interface WorkspaceTab {
@@ -26,6 +36,13 @@ interface AppState {
   ediFile: EDIFile
   setEdiFile: (file: File) => void
   clearFile: () => void
+
+  historyItems: HistoryItem[]
+  isHistoryLoading: boolean
+  fetchHistory: () => Promise<void>
+  saveCurrentWorkspace: () => Promise<void>
+  loadWorkspace: (item: HistoryItem) => void
+  deleteWorkspace: (id: string) => Promise<void>
 
   file: File | null
   setFile: (file: File) => void
@@ -117,6 +134,93 @@ const useAppStore = create<AppState>((set, get) => ({
       parseResult: null,
       transactionType: null,
     }),
+
+
+    historyItems: [],
+  isHistoryLoading: false,
+
+  fetchHistory: async () => {
+    const session = get().session
+    if (!session?.user?.id) return
+
+    set({ isHistoryLoading: true })
+    try {
+      const { data, error } = await supabase
+        .from('saved_workspaces')
+        .select('*')
+        .order('created_at', { ascending: false })
+
+      if (error) throw error
+      set({ historyItems: data as HistoryItem[] })
+    } catch (err) {
+      console.error('Failed to fetch history:', err)
+    } finally {
+      set({ isHistoryLoading: false })
+    }
+  },
+
+  saveCurrentWorkspace: async () => {
+    const state = get()
+    if (!state.session?.user?.id || !state.parseResult) {
+      set({ error: 'No active session or data to save.' })
+      return
+    }
+
+    set({ isLoading: true, error: null })
+    try {
+      const { error } = await supabase
+        .from('saved_workspaces')
+        .insert({
+          user_id: state.session.user.id,
+          file_name: state.ediFile.fileName || 'Untitled.edi',
+          file_type: state.ediFile.fileType || 'unknown',
+          transaction_type: state.transactionType,
+          parse_result: state.parseResult,
+        })
+
+      if (error) throw error
+      
+      // Refresh history so the new item appears
+      await state.fetchHistory()
+    } catch (err: any) {
+      set({ error: err.message })
+      console.error('Save failed:', err)
+    } finally {
+      set({ isLoading: false })
+    }
+  },
+
+  loadWorkspace: (item: HistoryItem) => {
+    set({
+      ediFile: {
+        file: null, // We don't have the raw File object anymore, just the data
+        fileName: item.file_name,
+        fileType: item.file_type,
+        parseResult: item.parse_result
+      },
+      parseResult: item.parse_result,
+      transactionType: item.transaction_type,
+      activeMainView: 'editor',
+      selectedPath: null // Reset tree selection
+    })
+  },
+  deleteWorkspace: async (id: string) => {
+    try {
+      const { error } = await supabase
+        .from('saved_workspaces')
+        .delete()
+        .eq('id', id)
+        
+      if (error) throw error
+      
+      // Remove it from the local state immediately so the UI updates
+      set((state) => ({
+        historyItems: state.historyItems.filter((item) => item.id !== id)
+      }))
+    } catch (err) {
+      console.error('Failed to delete workspace:', err)
+    }
+  },
 
   file: null,
   setFile: (file) => set({ file }),

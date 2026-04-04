@@ -402,9 +402,6 @@ function SummaryContent() {
                 </thead>
                 <tbody>
                   {rows.map((row, i) => {
-                    const adjText = row.adjustments.length > 0
-                      ? row.adjustments.map((a) => `${a.group}-${a.reason} $${fmt(a.amount)}`).join(' · ')
-                      : '—'
                     const isPaid = row.paid >= row.billed && row.billed > 0
                     const isDenied = row.paid === 0 && row.billed > 0
 

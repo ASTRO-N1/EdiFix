@@ -12,6 +12,7 @@ import AIPanel from '../components/workspace/AIPanel'
 import DoodleResizeHandle from '../components/workspace/DoodleResizeHandle'
 import OverviewPage from '../components/dashboard/overview/OverviewPage'
 import WorkspaceWelcome from '../components/workspace/WorkspaceWelcome'
+import ExportPage from '../components/workspace/ExportPage'
 
 const FlexPanelGroup = PanelGroup as any
 
@@ -79,6 +80,10 @@ export default function WorkspacePage() {
         ) : activeMainView === 'dashboard' ? (
           <div style={{ flex: 1, overflowY: 'auto' }} className="custom-scrollbar">
             <OverviewPage />
+          </div>
+        ) : activeMainView === 'export' ? (
+          <div style={{ flex: 1, overflowY: 'auto' }} className="custom-scrollbar">
+            <ExportPage />
           </div>
         ) : (
           <FlexPanelGroup orientation="horizontal" autoSaveId="workspace-layout-v1">

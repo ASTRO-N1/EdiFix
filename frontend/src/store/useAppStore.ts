@@ -11,7 +11,7 @@ interface EDIFile {
 export interface WorkspaceTab {
   id: string
   label: string
-  type: 'form' | 'raw' | 'summary' | 'remittance' | 'roster'
+  type: 'form' | 'raw' | 'summary' | 'remittance' | 'roster' | 'audit'
   closable: boolean
 }
 
@@ -51,8 +51,8 @@ interface AppState {
 
   // ── Workspace IDE State ────────────────────────────────
 
-  activeMainView: 'welcome' | 'dashboard' | 'editor'
-  setActiveMainView: (view: 'welcome' | 'dashboard' | 'editor') => void
+  activeMainView: 'welcome' | 'dashboard' | 'editor' | 'reconcile'
+  setActiveMainView: (view: 'welcome' | 'dashboard' | 'editor' | 'reconcile') => void
 
   activePanelView: ActivePanelView
   setActivePanelView: (view: ActivePanelView) => void
@@ -76,6 +76,18 @@ interface AppState {
 
   aiPromptContext: string | null
   setAiPromptContext: (ctx: string | null) => void
+
+  // ── Reconciliation State ────────────────────────────────────────────────
+  auditParsed837: Record<string, unknown> | null
+  setAuditParsed837: (data: Record<string, unknown> | null) => void
+  auditParsed835: Record<string, unknown> | null
+  setAuditParsed835: (data: Record<string, unknown> | null) => void
+  reconciliationResult: Record<string, unknown> | null
+  setReconciliationResult: (data: Record<string, unknown> | null) => void
+  isReconciling: boolean
+  setIsReconciling: (v: boolean) => void
+  isReconcileModalOpen: boolean
+  setIsReconcileModalOpen: (v: boolean) => void
 
   openTabs: WorkspaceTab[]
   activeTabId: string
@@ -217,6 +229,18 @@ const useAppStore = create<AppState>((set, get) => ({
 
   aiPromptContext: null,
   setAiPromptContext: (ctx) => set({ aiPromptContext: ctx }),
+
+  // ── Reconciliation State ────────────────────────────────────────────────
+  auditParsed837: null,
+  setAuditParsed837: (data) => set({ auditParsed837: data }),
+  auditParsed835: null,
+  setAuditParsed835: (data) => set({ auditParsed835: data }),
+  reconciliationResult: null,
+  setReconciliationResult: (data) => set({ reconciliationResult: data }),
+  isReconciling: false,
+  setIsReconciling: (v) => set({ isReconciling: v }),
+  isReconcileModalOpen: false,
+  setIsReconcileModalOpen: (v) => set({ isReconcileModalOpen: v }),
 
   openTabs: DEFAULT_TABS,
   activeTabId: 'form',

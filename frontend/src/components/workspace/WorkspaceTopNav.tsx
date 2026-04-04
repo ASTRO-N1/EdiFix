@@ -2,6 +2,7 @@ import { useState, useRef, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { supabase } from '../../lib/supabase'
 import useAppStore from '../../store/useAppStore'
+import { generateReport } from '../../utils/generateReport'
 
 function LogoIcon() {
   return (
@@ -21,7 +22,7 @@ export default function WorkspaceTopNav() {
   const navigate = useNavigate()
 
   // Bring in saveCurrentWorkspace from the store
-  const { session, parseResult, ediFile, clearFile, setActiveMainView, processFileInWorkspace, saveCurrentWorkspace } = useAppStore()
+  const { session, parseResult, ediFile, transactionType, clearFile, setActiveMainView, processFileInWorkspace, saveCurrentWorkspace } = useAppStore()
   const [dropdownOpen, setDropdownOpen] = useState(false)
   const [isSaving, setIsSaving] = useState(false)
   const dropdownRef = useRef<HTMLDivElement>(null)
@@ -79,6 +80,16 @@ export default function WorkspaceTopNav() {
     setIsSaving(true)
     await saveCurrentWorkspace()
     setIsSaving(false)
+  }
+
+  // ── Handle Download Report ──
+  const handleDownloadReport = () => {
+    if (!parseResult) return
+    generateReport({
+      fileName: ediFile.fileName || 'file.edi',
+      transactionType,
+      parseResult,
+    })
   }
 
   return (
@@ -139,6 +150,28 @@ export default function WorkspaceTopNav() {
         accept=".edi,.txt,.dat,.x12,.zip"
       />
 
+      {/* DOWNLOAD REPORT BUTTON */}
+      {hasFile && parseResult && (
+        <button
+          onClick={handleDownloadReport}
+          style={{
+            display: 'flex', alignItems: 'center', gap: 6, padding: '5px 14px',
+            background: '#FFFFFF', border: '2px solid #1A1A2E', borderRadius: 8,
+            boxShadow: '3px 3px 0px #1A1A2E', fontFamily: 'Nunito, sans-serif',
+            fontWeight: 800, fontSize: 13, color: '#1A1A2E', cursor: 'pointer',
+            flexShrink: 0, transition: 'transform 0.1s, box-shadow 0.1s',
+          }}
+          onMouseEnter={e => { e.currentTarget.style.transform = 'translateY(-1px)'; e.currentTarget.style.boxShadow = '4px 4px 0px #1A1A2E' }}
+          onMouseLeave={e => { e.currentTarget.style.transform = 'none'; e.currentTarget.style.boxShadow = '3px 3px 0px #1A1A2E' }}
+        >
+          <svg width="13" height="13" viewBox="0 0 14 14" fill="none">
+            <path d="M7 1v8M4 6l3 3 3-3" stroke="#1A1A2E" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+            <path d="M1 10v2a1 1 0 001 1h10a1 1 0 001-1v-2" stroke="#1A1A2E" strokeWidth="1.5" strokeLinecap="round"/>
+          </svg>
+          Report
+        </button>
+      )}
+
       {/* SAVE PROGRESS BUTTON */}
       {session && hasFile && (
         <button
@@ -166,7 +199,6 @@ export default function WorkspaceTopNav() {
       {/* TRIGGER BUTTON */}
       <button
         onClick={handleNewParse}
-        // onClick={() => fileInputRef.current?.click()}
         style={{
           display: 'flex', alignItems: 'center', gap: 6, padding: '5px 14px',
           background: '#4ECDC4', border: '2px solid #1A1A2E', borderRadius: 8,

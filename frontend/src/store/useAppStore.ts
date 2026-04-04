@@ -311,7 +311,7 @@ const useAppStore = create<AppState>((set, get) => ({
   activeSection: 'overview',
   setActiveSection: (section) => set({ activeSection: section }),
 
-  activeMainView: 'dashboard',
+  activeMainView: 'welcome',
   setActiveMainView: (view) => set({ activeMainView: view }),
 
   activePanelView: 'explorer',

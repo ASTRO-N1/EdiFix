@@ -41,14 +41,7 @@ function HistoryIcon({ active }: { active: boolean }) {
   )
 }
 
-function SearchIcon({ active }: { active: boolean }) {
-  return (
-    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke={active ? '#4ECDC4' : 'rgba(26,26,46,0.45)'} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-      <circle cx="11" cy="11" r="7" />
-      <line x1="16.5" y1="16.5" x2="21" y2="21" />
-    </svg>
-  )
-}
+
 
 interface ActivityItem {
   id: ActivePanelView | 'search' | 'dashboard' | 'welcome'
@@ -72,7 +65,6 @@ export default function ActivityBar() {
     { id: 'dashboard', label: 'Dashboard', icon: (a: boolean) => <DashboardIcon active={a} />, isMainViewToggle: true },
     { id: 'explorer', label: 'Explorer', icon: (a: boolean) => <ExplorerIcon active={a} /> },
     { id: 'history', label: 'History', icon: (a: boolean) => <HistoryIcon active={a} /> },
-    { id: 'search', label: 'Search', icon: (a: boolean) => <SearchIcon active={a} /> },
   ]
 
   // Filter out the Welcome tab if the user is a guest
@@ -92,7 +84,7 @@ export default function ActivityBar() {
             onClick={() => {
               if (item.isMainViewToggle) {
                 setActiveMainView(item.id as 'welcome' | 'dashboard')
-              } else if (item.id !== 'search') {
+              } else {
                 setActiveMainView('editor')
                 if (isActive) {
                   setIsLeftSidebarOpen(!isLeftSidebarOpen)

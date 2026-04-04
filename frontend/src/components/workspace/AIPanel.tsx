@@ -14,6 +14,7 @@ export default function AIPanel() {
   ])
   const [input, setInput] = useState('')
   const [isTyping, setIsTyping] = useState(false)
+  const [isFixing, setIsFixing] = useState(false)
 
   // Store connections
   const setIsAIPanelOpen = useAppStore(s => s.setIsAIPanelOpen)
@@ -24,6 +25,68 @@ export default function AIPanel() {
 
   const inputRef = useRef<HTMLInputElement>(null)
   const msgsEndRef = useRef<HTMLDivElement>(null)
+
+  // ── Auto-fix handler ────────────────────────────────────────────────────────
+  const handleFixAllErrors = async () => {
+    const errors: any[] = (parseResult as any)?.data?.errors ?? []
+    if (!errors.length) return
+
+    setIsFixing(true)
+
+    // Build a numbered list of errors as context for the AI
+    const errorList = errors
+      .slice(0, 20) // cap at 20 to avoid token overflow
+      .map((e: any, i: number) => {
+        const segment   = e.segment  || 'Unknown'
+        const field     = e.field    || ''
+        const loop      = e.loop     || ''
+        const msg       = e.message  || ''
+        const suggest   = e.suggestion || ''
+        return `${i + 1}. [${segment}${field ? `/${field}` : ''}${loop ? ` in loop ${loop}` : ''}] ${msg}${suggest ? ` → FIX: ${suggest}` : ''}`
+      })
+      .join('\n')
+
+    const fixPrompt = `I have ${errors.length} validation errors in my ${transactionType || 'EDI'} file. Please go through each one and tell me exactly how to fix it in plain language. Here are the errors:\n\n${errorList}\n\nFor each error, give me: what the problem is, what value is wrong, and the exact correction needed.`
+
+    // Show the user's trigger message in chat
+    setMessages(s => [...s, {
+      id: Date.now().toString(),
+      role: 'user',
+      text: `🔧 Fix all ${errors.length} error${errors.length !== 1 ? 's' : ''} automatically`
+    }])
+    setIsTyping(true)
+
+    try {
+      const apiUrl = 'https://edi-parser-production.up.railway.app'
+      const res = await fetch(`${apiUrl}/chat`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          message: fixPrompt,
+          parseResult: parseResult,
+          transactionType: transactionType,
+        })
+      })
+      if (!res.ok) throw new Error('AI backend unreachable.')
+      const data = await res.json()
+      setMessages(s => [...s, {
+        id: Date.now().toString(),
+        role: 'assistant',
+        text: `**🔧 Auto-Fix Report**\n\n${data.reply}`
+      }])
+    } catch (err: any) {
+      setMessages(s => [...s, {
+        id: Date.now().toString(),
+        role: 'assistant',
+        text: `⚠️ Could not reach the AI: ${err.message}`
+      }])
+    } finally {
+      setIsTyping(false)
+      setIsFixing(false)
+    }
+  }
+
+
 
   // When a form field's "Ask AI to Fix" triggers a context, pre-fill the input
   useEffect(() => {
@@ -212,7 +275,64 @@ export default function AIPanel() {
         <div ref={msgsEndRef} />
       </div>
 
+      {/* Fix All Errors Button */}
+      {parseResult && (parseResult as any)?.data?.errors?.length > 0 && (
+        <div style={{ padding: '0 12px 8px', flexShrink: 0 }}>
+          <button
+            id="ai-fix-all-errors-btn"
+            onClick={handleFixAllErrors}
+            disabled={isTyping || isFixing}
+            style={{
+              width: '100%',
+              padding: '9px 14px',
+              background: isFixing ? 'rgba(255,107,107,0.12)' : '#FF6B6B',
+              color: isFixing ? '#FF6B6B' : '#FFFFFF',
+              fontFamily: 'Nunito, sans-serif',
+              fontWeight: 800,
+              fontSize: 12,
+              letterSpacing: '0.3px',
+              border: '2px solid #FF6B6B',
+              borderRadius: 10,
+              boxShadow: isFixing ? 'none' : '3px 3px 0px #1A1A2E',
+              cursor: isFixing || isTyping ? 'not-allowed' : 'pointer',
+              transform: isFixing ? 'none' : 'rotate(-0.3deg)',
+              transition: 'all 0.15s ease',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              gap: 6,
+              opacity: isTyping ? 0.5 : 1,
+            }}
+            onMouseEnter={(e) => {
+              if (!isFixing && !isTyping) {
+                e.currentTarget.style.boxShadow = '5px 5px 0px #1A1A2E'
+                e.currentTarget.style.transform = 'rotate(0.3deg) translateY(-2px)'
+              }
+            }}
+            onMouseLeave={(e) => {
+              if (!isFixing && !isTyping) {
+                e.currentTarget.style.boxShadow = '3px 3px 0px #1A1A2E'
+                e.currentTarget.style.transform = 'rotate(-0.3deg)'
+              }
+            }}
+          >
+            {isFixing ? (
+              <>
+                <span style={{ display: 'inline-block', animation: 'spin 1s linear infinite', fontSize: 13 }}>⟳</span>
+                Analysing errors…
+              </>
+            ) : (
+              <>
+                🔧 Fix All {(parseResult as any)?.data?.errors?.length} Error{(parseResult as any)?.data?.errors?.length !== 1 ? 's' : ''}
+              </>
+            )}
+          </button>
+          <style>{`@keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }`}</style>
+        </div>
+      )}
+
       {/* Input Box */}
+
       <div style={{
         padding: '12px',
         borderTop: '2.5px solid #1A1A2E',

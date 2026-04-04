@@ -31,9 +31,6 @@ export default function WorkspaceWelcome() {
         setEdiFile(file)
         setFile(file)
 
-        // Switch view to dashboard so it's ready when data arrives
-        setActiveMainView('dashboard')
-
         try {
             const formData = new FormData()
             formData.append('file', file)
@@ -49,10 +46,16 @@ export default function WorkspaceWelcome() {
 
             const data = await response.json()
 
-            // Update global store with parsed results
-            setParseResult(data)
-            const type = data.transaction_type || data.metadata?.transaction_type || data.file_info?.transaction_type || "EDI File"
+            // data = { status, filename, data: { metadata, loops, errors, ... } }
+            const innerTree = data.data || data
+            const type =
+              innerTree?.metadata?.transaction_type ||
+              data.transaction_type ||
+              'EDI File'
+
+            setParseResult(innerTree)
             setTransactionType(type)
+            setActiveMainView('editor')
 
         } catch (err: any) {
             setError(err.message || 'An error occurred during parsing')

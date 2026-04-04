@@ -126,9 +126,11 @@ function RawEDIContent() {
 
       const data = await response.json()
 
+      // Unwrap the API response envelope
+      const innerTree = data.data || data
       setEdiFile(newFile)
-      setParseResult(data)
-      setTransactionType(data.metadata?.transaction_type || null)
+      setParseResult(innerTree)
+      setTransactionType(innerTree?.metadata?.transaction_type || null)
       setActiveTabId('form')
 
     } catch (err: any) {

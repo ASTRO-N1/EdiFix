@@ -5,22 +5,33 @@ export default function ValidationBadge() {
   const { parseResult } = useAppStore()
   const { t, isDark } = useTheme()
 
-  const data = parseResult?.data as Record<string, unknown> | undefined
-  const validation = data?.validation as Record<string, unknown> | undefined
+  if (!parseResult) return null
 
-  if (!validation && !parseResult) return null
+  const root = parseResult as Record<string, any>
+  const nested = root.data || {}
 
-  const errCount = (validation?.error_count as number) ?? 0
-  const warnCount = (validation?.warning_count as number) ?? 0
-  
+  const e = root.validation_errors ?? root.errors ?? nested.validation_errors ?? nested.errors ?? []
+  const w = root.warnings ?? nested.warnings ?? []
+  const rawErrors = [...(e as any[]), ...(w as any[])]
+
+  let errCount = 0
+  let warnCount = 0
+  rawErrors.forEach((err: any) => {
+    if (err.type === 'warning' || err.type === 'SituationalWarning') {
+      warnCount++
+    } else {
+      errCount++
+    }
+  })
+
   // Strict logic: 0 errors AND 0 warnings = valid.
   const isValid = errCount === 0 && warnCount === 0
 
   return (
     <div style={{
-      background: isValid ? (isDark ? 'rgba(149,225,211,0.2)' : t.mint) : t.coral,
+      background: isValid ? (isDark ? 'rgba(149,225,211,0.2)' : t.mint) : (errCount > 0 ? t.coral : t.yellow),
       border: `2px solid ${t.ink}`,
-      color: isValid ? t.ink : 'white',
+      color: isValid || errCount === 0 ? t.ink : 'white',
       fontFamily: 'Nunito, sans-serif',
       fontWeight: 700,
       fontSize: 12,
@@ -31,7 +42,7 @@ export default function ValidationBadge() {
       gap: 6,
       boxShadow: `2px 2px 0px ${t.shadow}`,
     }}>
-      {isValid ? '✓ Valid' : `✗ ${errCount} Errors`}
+      {isValid ? '✓ Valid' : (errCount > 0 ? `✗ ${errCount} Errors` : `⚠️ ${warnCount} Warnings`)}
     </div>
   )
 }

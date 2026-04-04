@@ -1045,3 +1045,197 @@ class EDIParser:
             self._header_check_number = ref
             if self._pending_clp is not None:
                 self._pending_clp["check_number"] = ref
+
+    # =========================================================================
+    # 9. REMITTANCE HELPERS  (called from _run_domain_validations)
+    # =========================================================================
+
+    def _commit_pending_clp(self):
+        """
+        Finalises the in-flight CLP record and moves it into _clp_records.
+        Called whenever a new CLP segment is encountered, or at end-of-parse.
+        Safe to call with no pending record (no-op).
+        """
+        if self._pending_clp is None:
+            return
+        clp = self._pending_clp
+        self._clp_records[clp["claim_id"]] = clp
+        self._pending_clp = None
+
+    def build_remittance_summary(self) -> list:
+        """
+        Returns a clean, serialisation-safe list of CLP claim records.
+        Called by the /api/v1/parse-835 endpoint after parse() completes.
+        Each record shape:
+          {
+            claim_id, status_code, billed, paid,
+            patient_responsibility, adjustments, services,
+            check_eft_number
+          }
+        """
+        # Commit any still-open record (last CLP in file has no following CLP to trigger commit)
+        self._commit_pending_clp()
+
+        result = []
+        for claim_id, rec in self._clp_records.items():
+            result.append({
+                "claim_id":               rec.get("claim_id",    claim_id),
+                "status_code":            rec.get("status_code", ""),
+                "billed":                 rec.get("billed",      0.0),
+                "paid":                   rec.get("paid",        0.0),
+                "patient_responsibility": rec.get("patient_resp", 0.0),
+                "adjustments":            rec.get("adjustments", []),
+                "services":               rec.get("services",    []),
+                "check_eft_number":       rec.get("check_number", self._header_check_number),
+            })
+        return result
+
+    # =========================================================================
+    # 10. TOP-LEVEL PARSE ENTRY POINT
+    # =========================================================================
+
+    def parse(self) -> dict:
+        """
+        Full parse pipeline:
+          1. Lex → token stream
+          2. Per-segment: update metadata, loop state, domain validations
+          3. Layer-3 presence checks on closed loops
+          4. Cross-segment reconciliation
+        Returns the complete JSON tree dict.
+        """
+        loops:    dict = {}
+        envelope: dict = {}
+        line = 0
+
+        for elements in self.stream_and_tokenize():
+            if not elements:
+                continue
+
+            line      += 1
+            seg_id     = elements[0].strip().upper()
+            self.metrics["total_segments"] += 1
+
+            # ── Envelope / metadata segments ─────────────────────────────────
+            if seg_id == "ISA":
+                self.isa_control = elements[13].strip() if len(elements) > 13 else ""
+                self.metadata["sender_id"]   = elements[6].strip()  if len(elements) > 6  else ""
+                self.metadata["receiver_id"] = elements[8].strip()  if len(elements) > 8  else ""
+                self.metadata["control_number"] = self.isa_control
+                envelope["ISA"] = {f"ISA{i:02d}": v for i, v in enumerate(elements[1:], 1)}
+
+            elif seg_id == "GS":
+                self.gs_control = elements[6].strip() if len(elements) > 6 else ""
+                envelope["GS"]  = {f"GS{i:02d}": v for i, v in enumerate(elements[1:], 1)}
+
+            elif seg_id == "ST":
+                self.st_control = elements[2].strip() if len(elements) > 2 else ""
+                txn_set_id      = elements[1].strip() if len(elements) > 1 else ""
+                txn_map         = {"837": "837", "835": "835", "834": "834"}
+                self.metadata["transaction_type"] = txn_map.get(txn_set_id, txn_set_id)
+                impl = elements[3].strip() if len(elements) > 3 else ""
+                if impl:
+                    self.metadata["implementation_reference"] = impl
+                envelope["ST"] = {f"ST{i:02d}": v for i, v in enumerate(elements[1:], 1)}
+
+                # Load matching schema now that we know the transaction type
+                schema_file = self.determine_schema_filename()
+                if schema_file:
+                    self.load_schema(schema_file)
+
+            elif seg_id == "GS":
+                impl_ref = elements[8].strip() if len(elements) > 8 else ""
+                if impl_ref and "implementation_reference" not in self.metadata:
+                    self.metadata["implementation_reference"] = impl_ref
+
+            elif seg_id in ("SE", "GE", "IEA"):
+                envelope[seg_id] = {f"{seg_id}{i:02d}": v for i, v in enumerate(elements[1:], 1)}
+
+            # ── Loop state machine ────────────────────────────────────────────
+            self.update_loop_state(seg_id, elements, line)
+
+            # ── Segment → loop instance tree ──────────────────────────────────
+            current_loop = self.get_current_loop()
+            if current_loop and seg_id not in ("ISA", "GS", "ST", "SE", "GE", "IEA"):
+                seg_dict: dict = {"raw_data": elements}
+
+                # Decode named fields from schema if available
+                schema_key = seg_id
+                seg_schema  = self.schemas.get(schema_key, {})
+                if seg_schema:
+                    props = seg_schema.get("properties", {})
+                    for field_name, field_def in props.items():
+                        idx = field_def.get("x-index")
+                        if idx is not None and idx < len(elements):
+                            seg_dict[field_name] = elements[idx]
+
+                # Place segment into the correct loop bucket
+                if current_loop not in loops:
+                    loops[current_loop] = []
+
+                bucket = loops[current_loop]
+                # Always work with the last instance in the bucket
+                if not bucket or seg_id in bucket[-1]:
+                    bucket.append({})
+                bucket[-1][seg_id] = seg_dict
+
+            # ── Domain validations ────────────────────────────────────────────
+            self._run_domain_validations(seg_id, elements, line)
+
+        # ── Post-parse steps ──────────────────────────────────────────────────
+        self._close_all_loops(line)
+        self.check_required_segments()
+        self._commit_pending_clp()          # finalise last open CLP record
+        self._run_cross_segment_checks()
+
+        return {
+            "metadata": self.metadata,
+            "envelope": envelope,
+            "loops":    loops,
+            "errors":   self.errors,
+            "warnings": self.warnings,
+            "metrics":  self.metrics,
+        }
+
+    # =========================================================================
+    # 11. CROSS-SEGMENT RECONCILIATION  (Layer 4)
+    # =========================================================================
+
+    def _run_cross_segment_checks(self):
+        """Layer-4: checks that span multiple segments / loops."""
+
+        # ── 837: Service-line totals must equal CLM02 ────────────────────────
+        for cid, rec in self._claim_amounts.items():
+            claimed  = rec.get("claimed")
+            services = rec.get("services", [])
+            node     = rec.get("node", {})
+            if claimed is None or not services:
+                continue
+            total_svc = round(sum(services), 2)
+            if abs(total_svc - claimed) > 0.02:
+                pcn = node.get("PatientControlNumber_01", "unknown")
+                self.warnings.append({
+                    "line":       0,
+                    "segment":    "CLM",
+                    "field":      "CLM02",
+                    "type":       "AmountMismatch",
+                    "loop":       "2300",
+                    "message":    (
+                        f"Claim {pcn}: CLM02 billed amount ${claimed:,.2f} does not match "
+                        f"sum of service line charges ${total_svc:,.2f}."
+                    ),
+                    "suggestion": "Ensure SV1/SV2 line amounts add up to the CLM02 total.",
+                })
+
+        # ── 834: Duplicate member IDs ────────────────────────────────────────
+        for key, lines in self._member_registry.items():
+            if len(lines) > 2:          # more than one INS+REF pair with same ID
+                ref_val, qualifier = key
+                self.warnings.append({
+                    "line":       lines[0],
+                    "segment":    "REF",
+                    "field":      "REF02",
+                    "type":       "DuplicateMemberID",
+                    "loop":       "834_2000",
+                    "message":    f"Member ID '{ref_val}' ({qualifier}) appears on multiple INS loops (lines {lines}).",
+                    "suggestion": "Verify that each member has a unique subscriber identifier.",
+                })

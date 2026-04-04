@@ -235,8 +235,8 @@ function SummaryContent() {
 
   if (!parseResult) {
     return (
-      <div style={{ padding: 24 }}>
-        <p style={{ fontFamily: 'Nunito, sans-serif', fontSize: 12, color: 'rgba(26,26,46,0.4)' }}>
+      <div style={{ padding: 32, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+        <p style={{ fontFamily: 'Nunito, sans-serif', fontSize: 13, color: 'rgba(26,26,46,0.4)' }}>
           No data available. Upload an EDI file.
         </p>
       </div>
@@ -245,140 +245,357 @@ function SummaryContent() {
 
   const data = (parseResult as any).data || parseResult
   const metadata = data.metadata || {}
-  const loops = data.loops || {}
+  const loops   = data.loops   || {}
   const txnType = metadata.transaction_type
 
+  // ──────────────────────────────────────────────────────────────────────────
+  // 835 — Remittance Summary
+  // ──────────────────────────────────────────────────────────────────────────
   if (txnType === '835') {
-    const clpLoops = loops['835_2100'] || []
-    const headerLoop = loops['835_HEADER']?.[0] || {}
-    const trn = headerLoop['TRN'] || data.envelope?.TRN
-    const checkNumber = trn?.TRN02 || 'N/A'
+    // Prefer the pre-built remittance_summary emitted by the parser
+    const remit: any[] = (parseResult as any).remittance_summary || data.remittance_summary || []
+
+    // Fallback: reconstruct from raw CLP loop instances if remittance_summary is absent
+    const clpInstances: any[] = (() => {
+      const raw = loops['835_2100'] || []
+      return Array.isArray(raw) ? raw : [raw]
+    })()
+
+    // Derive a display-ready record list from whichever source is available
+    type ClaimRow = {
+      claimId: string
+      billed: number
+      paid: number
+      patResp: number
+      checkEft: string
+      adjustments: { group: string; reason: string; amount: number }[]
+    }
+
+    const rows: ClaimRow[] = remit.length > 0
+      ? remit.map((r: any) => ({
+          claimId:  String(r.claim_id   ?? 'N/A'),
+          billed:   Number(r.billed     ?? 0),
+          paid:     Number(r.paid       ?? 0),
+          patResp:  Number(r.patient_responsibility ?? r.patient_resp ?? 0),
+          checkEft: String(r.check_eft_number ?? r.check_number ?? 'N/A'),
+          adjustments: (r.adjustments ?? []).map((a: any) => ({
+            group:  String(a.group_code  ?? a.group  ?? ''),
+            reason: String(a.reason_code ?? a.reason ?? ''),
+            amount: Number(a.amount ?? 0),
+          })),
+        }))
+      : clpInstances
+          .filter((inst: any) => inst?.CLP)
+          .map((inst: any) => {
+            const clp = inst.CLP || {}
+            const rd: string[] = clp.raw_data || []
+            const casVal = inst.CAS
+            const casList = Array.isArray(casVal) ? casVal : (casVal ? [casVal] : [])
+
+            // Extract check/EFT from TRN in the same loop instance or header
+            const trnInst = inst.TRN
+            const trnRd: string[] = trnInst?.raw_data || []
+            const checkEft = trnRd[2] || 'N/A'
+
+            const adjustments = casList.flatMap((c: any) => {
+              const crd: string[] = c.raw_data || []
+              // CAS raw_data: [CAS, group, reason1, amt1, reason2, amt2, ...]
+              const group = crd[1] || ''
+              const adjs = []
+              for (let i = 2; i + 1 < crd.length; i += 2) {
+                if (crd[i]) adjs.push({ group, reason: crd[i], amount: Number(crd[i + 1]) || 0 })
+              }
+              return adjs
+            })
+
+            return {
+              claimId:  rd[1] || 'N/A',
+              billed:   Number(rd[3]) || 0,
+              paid:     Number(rd[4]) || 0,
+              patResp:  Number(rd[5]) || 0,
+              checkEft,
+              adjustments,
+            } as ClaimRow
+          })
+
+    // ── Aggregate totals ────────────────────────────────────────────────────
+    const totalBilled  = rows.reduce((s, r) => s + r.billed,  0)
+    const totalPaid    = rows.reduce((s, r) => s + r.paid,    0)
+    const totalPatResp = rows.reduce((s, r) => s + r.patResp, 0)
+
+    const fmt = (n: number) =>
+      n.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+
+    // ── KPI cards ───────────────────────────────────────────────────────────
+    const kpis = [
+      { label: 'Total Billed',   value: `$${fmt(totalBilled)}`,  color: '#1A1A2E' },
+      { label: 'Total Paid',     value: `$${fmt(totalPaid)}`,    color: '#4ECDC4' },
+      { label: 'Pt Resp',        value: `$${fmt(totalPatResp)}`, color: '#FFE66D' },
+      { label: 'Claims',         value: String(rows.length),     color: '#1A1A2E' },
+    ]
 
     return (
-      <div style={{ padding: 24, display: 'flex', flexDirection: 'column', gap: 16 }}>
-        <h3 style={{ fontFamily: 'Nunito, sans-serif', fontWeight: 800, margin: 0, color: '#1A1A2E' }}>
-          835 Remittance Summary
-        </h3>
-        <div style={{ overflowX: 'auto', background: '#FFFFFF', border: '2px solid rgba(26,26,46,0.12)', borderRadius: 10, boxShadow: '3px 3px 0px rgba(26,26,46,0.06)' }} className="custom-scrollbar">
-          <table style={{ width: '100%', borderCollapse: 'collapse', fontFamily: 'Nunito, sans-serif', fontSize: 13, textAlign: 'left' }}>
-            <thead style={{ background: '#1A1A2E', color: '#4ECDC4' }}>
-              <tr>
-                <th style={{ padding: '12px 16px', whiteSpace: 'nowrap' }}>Claim ID</th>
-                <th style={{ padding: '12px 16px', whiteSpace: 'nowrap' }}>Billed</th>
-                <th style={{ padding: '12px 16px', whiteSpace: 'nowrap' }}>Paid</th>
-                <th style={{ padding: '12px 16px', whiteSpace: 'nowrap' }}>Pt Resp</th>
-                <th style={{ padding: '12px 16px', whiteSpace: 'nowrap' }}>Check/EFT</th>
-                <th style={{ padding: '12px 16px' }}>Adj Reasons</th>
-              </tr>
-            </thead>
-            <tbody>
-              {clpLoops.length === 0 && (
-                <tr><td colSpan={6} style={{ padding: 16, textAlign: 'center' }}>No Claims Found</td></tr>
-              )}
-              {clpLoops.map((loop: any, i: number) => {
-                const clp = loop['CLP'] || {}
-                const cas = loop['CAS']
-                const casList = Array.isArray(cas) ? cas : (cas ? [cas] : [])
-                const adjs = casList.map((c: any) => `${c.CAS01 || ''}:${c.CAS02 || ''}`).filter(Boolean).join(', ') || 'None'
+      <div style={{ padding: '24px 28px', display: 'flex', flexDirection: 'column', gap: 24, fontFamily: 'Nunito, sans-serif' }}>
 
-                return (
-                  <tr key={i} style={{ borderTop: '1px solid rgba(26,26,46,0.08)' }}>
-                    <td style={{ padding: '12px 16px', fontWeight: 700 }}>{clp.CLP01 || 'Unknown'}</td>
-                    <td style={{ padding: '12px 16px' }}>${parseFloat(clp.CLP03 || '0').toFixed(2)}</td>
-                    <td style={{ padding: '12px 16px', color: '#4ECDC4', fontWeight: 800 }}>${parseFloat(clp.CLP04 || '0').toFixed(2)}</td>
-                    <td style={{ padding: '12px 16px' }}>${parseFloat(clp.CLP05 || '0').toFixed(2)}</td>
-                    <td style={{ padding: '12px 16px' }}>{checkNumber}</td>
-                    <td style={{ padding: '12px 16px', fontSize: 11, color: 'rgba(26,26,46,0.6)' }}>{adjs}</td>
-                  </tr>
-                )
-              })}
-            </tbody>
-          </table>
+        {/* ── Header ── */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+          <div style={{
+            width: 36, height: 36, borderRadius: 10, background: '#4ECDC4',
+            border: '2.5px solid #1A1A2E', boxShadow: '3px 3px 0px rgba(26,26,46,0.2)',
+            display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 18, flexShrink: 0,
+          }}>💸</div>
+          <div>
+            <h2 style={{ margin: 0, fontWeight: 900, fontSize: 16, color: '#1A1A2E' }}>
+              835 Remittance Summary
+            </h2>
+            <p style={{ margin: 0, fontSize: 11, color: 'rgba(26,26,46,0.45)' }}>
+              {metadata.sender_id ? `Payer: ${metadata.sender_id}` : 'All CLP claim loops'}
+              {metadata.control_number ? ` · Control: ${metadata.control_number}` : ''}
+            </p>
+          </div>
         </div>
+
+        {/* ── KPI cards ── */}
+        <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap' }}>
+          {kpis.map((k) => (
+            <div key={k.label} style={{
+              flex: '1 1 130px', minWidth: 120, padding: '14px 16px',
+              background: '#FFFFFF', border: '2px solid #1A1A2E', borderRadius: 10,
+              boxShadow: '3px 3px 0px rgba(26,26,46,0.15)',
+            }}>
+              <div style={{ fontSize: 10, fontWeight: 800, color: 'rgba(26,26,46,0.45)', textTransform: 'uppercase', letterSpacing: '0.07em', marginBottom: 4 }}>
+                {k.label}
+              </div>
+              <div style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: 18, fontWeight: 700, color: k.color }}>
+                {k.value}
+              </div>
+            </div>
+          ))}
+        </div>
+
+        {/* ── Claims table ── */}
+        {rows.length === 0 ? (
+          <div style={{
+            padding: '32px 24px', background: '#FFFFFF',
+            border: '2px solid rgba(26,26,46,0.1)', borderRadius: 12,
+            textAlign: 'center', color: 'rgba(26,26,46,0.4)', fontSize: 13,
+          }}>
+            No CLP claim loops found in this 835 file.
+          </div>
+        ) : (
+          <div style={{
+            background: '#FFFFFF', border: '2px solid #1A1A2E', borderRadius: 12,
+            boxShadow: '4px 4px 0px rgba(26,26,46,0.08)', overflow: 'hidden',
+          }}>
+            <div style={{ overflowX: 'auto' }} className="custom-scrollbar">
+              <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
+                <thead>
+                  <tr style={{ background: '#1A1A2E' }}>
+                    {['Claim ID', 'Billed', 'Paid', 'Pt Resp', 'Check / EFT', 'Adjustments'].map((h) => (
+                      <th key={h} style={{
+                        padding: '11px 16px', textAlign: 'left', whiteSpace: 'nowrap',
+                        fontFamily: 'Nunito, sans-serif', fontWeight: 800, fontSize: 11,
+                        color: '#4ECDC4', letterSpacing: '0.05em', textTransform: 'uppercase',
+                      }}>{h}</th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody>
+                  {rows.map((row, i) => {
+                    const adjText = row.adjustments.length > 0
+                      ? row.adjustments.map((a) => `${a.group}-${a.reason} $${fmt(a.amount)}`).join(' · ')
+                      : '—'
+                    const isPaid = row.paid >= row.billed && row.billed > 0
+                    const isDenied = row.paid === 0 && row.billed > 0
+
+                    return (
+                      <tr key={i} style={{
+                        borderTop: '1.5px solid rgba(26,26,46,0.07)',
+                        background: i % 2 === 0 ? '#FFFFFF' : 'rgba(78,205,196,0.03)',
+                      }}>
+                        {/* Claim ID */}
+                        <td style={{ padding: '12px 16px' }}>
+                          <span style={{
+                            fontFamily: 'JetBrains Mono, monospace', fontSize: 12, fontWeight: 700,
+                            background: 'rgba(78,205,196,0.1)', border: '1px solid rgba(78,205,196,0.3)',
+                            borderRadius: 5, padding: '2px 8px', color: '#1A1A2E',
+                          }}>{row.claimId}</span>
+                        </td>
+                        {/* Billed */}
+                        <td style={{ padding: '12px 16px', fontFamily: 'JetBrains Mono, monospace', fontSize: 12, color: 'rgba(26,26,46,0.7)' }}>
+                          ${fmt(row.billed)}
+                        </td>
+                        {/* Paid */}
+                        <td style={{ padding: '12px 16px' }}>
+                          <span style={{
+                            fontFamily: 'JetBrains Mono, monospace', fontSize: 13, fontWeight: 800,
+                            color: isDenied ? '#FF6B6B' : isPaid ? '#27AE60' : '#4ECDC4',
+                          }}>
+                            ${fmt(row.paid)}
+                          </span>
+                        </td>
+                        {/* Patient Responsibility */}
+                        <td style={{ padding: '12px 16px', fontFamily: 'JetBrains Mono, monospace', fontSize: 12, color: row.patResp > 0 ? '#B89000' : 'rgba(26,26,46,0.4)' }}>
+                          ${fmt(row.patResp)}
+                        </td>
+                        {/* Check / EFT */}
+                        <td style={{ padding: '12px 16px' }}>
+                          <span style={{
+                            fontFamily: 'JetBrains Mono, monospace', fontSize: 11,
+                            color: 'rgba(26,26,46,0.55)', background: 'rgba(26,26,46,0.05)',
+                            padding: '2px 7px', borderRadius: 4,
+                          }}>{row.checkEft}</span>
+                        </td>
+                        {/* Adjustments */}
+                        <td style={{ padding: '12px 16px', fontSize: 11, color: 'rgba(26,26,46,0.55)', maxWidth: 280, wordBreak: 'break-word' }}>
+                          {row.adjustments.length > 0 ? (
+                            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4 }}>
+                              {row.adjustments.map((a, ai) => (
+                                <span key={ai} style={{
+                                  background: a.group === 'CO' ? 'rgba(78,205,196,0.12)' :
+                                              a.group === 'PR' ? 'rgba(255,230,109,0.25)' :
+                                              a.group === 'OA' ? 'rgba(255,107,107,0.12)' : 'rgba(26,26,46,0.07)',
+                                  color: a.group === 'CO' ? '#2B9B93' :
+                                         a.group === 'PR' ? '#8A6F00' :
+                                         a.group === 'OA' ? '#C0392B' : '#1A1A2E',
+                                  fontFamily: 'JetBrains Mono, monospace', fontSize: 10, fontWeight: 700,
+                                  padding: '2px 6px', borderRadius: 4, whiteSpace: 'nowrap',
+                                }}>
+                                  {a.group}-{a.reason} ${fmt(a.amount)}
+                                </span>
+                              ))}
+                            </div>
+                          ) : (
+                            <span style={{ color: 'rgba(26,26,46,0.3)' }}>—</span>
+                          )}
+                        </td>
+                      </tr>
+                    )
+                  })}
+                </tbody>
+
+                {/* Totals footer */}
+                {rows.length > 1 && (
+                  <tfoot>
+                    <tr style={{ background: 'rgba(26,26,46,0.04)', borderTop: '2px solid rgba(26,26,46,0.15)' }}>
+                      <td style={{ padding: '11px 16px', fontWeight: 800, fontSize: 12, color: 'rgba(26,26,46,0.5)' }}>TOTALS</td>
+                      <td style={{ padding: '11px 16px', fontFamily: 'JetBrains Mono, monospace', fontSize: 12, fontWeight: 700 }}>${fmt(totalBilled)}</td>
+                      <td style={{ padding: '11px 16px', fontFamily: 'JetBrains Mono, monospace', fontSize: 12, fontWeight: 700, color: '#4ECDC4' }}>${fmt(totalPaid)}</td>
+                      <td style={{ padding: '11px 16px', fontFamily: 'JetBrains Mono, monospace', fontSize: 12, fontWeight: 700, color: '#B89000' }}>${fmt(totalPatResp)}</td>
+                      <td colSpan={2} />
+                    </tr>
+                  </tfoot>
+                )}
+              </table>
+            </div>
+          </div>
+        )}
       </div>
     )
   }
 
+  // ──────────────────────────────────────────────────────────────────────────
+  // 834 — Member Enrollment Roster  (unchanged logic, polished layout)
+  // ──────────────────────────────────────────────────────────────────────────
   if (txnType === '834') {
-    const memberLoops = loops['834_2000'] || []
-    const nameLoops = loops['834_2100A'] || []
+    const memberLoops: any[] = (() => { const r = loops['834_2000'] || []; return Array.isArray(r) ? r : [r] })()
+    const nameLoops:   any[] = (() => { const r = loops['834_2100A'] || []; return Array.isArray(r) ? r : [r] })()
+
+    const MAINT: Record<string, { label: string; bg: string; color: string }> = {
+      '021': { label: '021 — Addition',      bg: 'rgba(78,205,196,0.2)',  color: '#2B9B93' },
+      '024': { label: '024 — Termination',   bg: 'rgba(255,107,107,0.2)', color: '#C92A2A' },
+      '030': { label: '030 — Audit / Active',bg: 'rgba(255,230,109,0.3)', color: '#B89B00' },
+      '001': { label: '001 — Change',        bg: 'rgba(26,26,46,0.07)',   color: '#1A1A2E' },
+    }
 
     return (
-      <div style={{ padding: 24, display: 'flex', flexDirection: 'column', gap: 16 }}>
-        <h3 style={{ fontFamily: 'Nunito, sans-serif', fontWeight: 800, margin: 0, color: '#1A1A2E' }}>
-          834 Member Enrollment Roster
-        </h3>
-        <div style={{ overflowX: 'auto', background: '#FFFFFF', border: '2px solid rgba(26,26,46,0.12)', borderRadius: 10, boxShadow: '3px 3px 0px rgba(26,26,46,0.06)' }} className="custom-scrollbar">
-          <table style={{ width: '100%', borderCollapse: 'collapse', fontFamily: 'Nunito, sans-serif', fontSize: 13, textAlign: 'left' }}>
-            <thead style={{ background: '#1A1A2E', color: '#FFE66D' }}>
-              <tr>
-                <th style={{ padding: '12px 16px', whiteSpace: 'nowrap' }}>Member ID</th>
-                <th style={{ padding: '12px 16px', whiteSpace: 'nowrap' }}>Name</th>
-                <th style={{ padding: '12px 16px', whiteSpace: 'nowrap' }}>Rel</th>
-                <th style={{ padding: '12px 16px', whiteSpace: 'nowrap' }}>Status / Maintenance</th>
-              </tr>
-            </thead>
-            <tbody>
-              {memberLoops.length === 0 && (
-                <tr><td colSpan={4} style={{ padding: 16, textAlign: 'center' }}>No Members Found</td></tr>
-              )}
-              {memberLoops.map((loop: any, i: number) => {
-                const ins = loop['INS'] || {}
-                const ref = loop['REF'] || {}
-                const nm1 = nameLoops[i]?.['NM1'] || {}
+      <div style={{ padding: '24px 28px', display: 'flex', flexDirection: 'column', gap: 24, fontFamily: 'Nunito, sans-serif' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+          <div style={{
+            width: 36, height: 36, borderRadius: 10, background: '#FFE66D',
+            border: '2.5px solid #1A1A2E', boxShadow: '3px 3px 0px rgba(26,26,46,0.2)',
+            display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 18, flexShrink: 0,
+          }}>🧑‍🤝‍🧑</div>
+          <div>
+            <h2 style={{ margin: 0, fontWeight: 900, fontSize: 16, color: '#1A1A2E' }}>834 Member Enrollment Roster</h2>
+            <p style={{ margin: 0, fontSize: 11, color: 'rgba(26,26,46,0.45)' }}>{memberLoops.length} member{memberLoops.length !== 1 ? 's' : ''} found</p>
+          </div>
+        </div>
 
-                const memberId = ref.REF02 || 'N/A'
-                const name = `${nm1.NM104 || ''} ${nm1.NM103 || ''}`.trim() || 'Unknown'
-                const rel = ins.INS02 === '18' ? 'Self' : (ins.INS02 || 'Dep')
-                const maintCode = ins.INS03 || '030'
+        <div style={{ background: '#FFFFFF', border: '2px solid #1A1A2E', borderRadius: 12, boxShadow: '4px 4px 0px rgba(26,26,46,0.08)', overflow: 'hidden' }}>
+          <div style={{ overflowX: 'auto' }} className="custom-scrollbar">
+            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
+              <thead>
+                <tr style={{ background: '#1A1A2E' }}>
+                  {['Member ID', 'Name', 'Relationship', 'Maintenance Status'].map((h) => (
+                    <th key={h} style={{ padding: '11px 16px', textAlign: 'left', fontFamily: 'Nunito, sans-serif', fontWeight: 800, fontSize: 11, color: '#FFE66D', letterSpacing: '0.05em', textTransform: 'uppercase', whiteSpace: 'nowrap' }}>{h}</th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {memberLoops.length === 0 && (
+                  <tr><td colSpan={4} style={{ padding: 16, textAlign: 'center', color: 'rgba(26,26,46,0.4)' }}>No Members Found</td></tr>
+                )}
+                {memberLoops.map((loop: any, i: number) => {
+                  const ins = loop['INS'] || {}
+                  const ref = loop['REF'] || {}
+                  const nm1 = nameLoops[i]?.['NM1'] || {}
+                  const memberId = ref.REF02 || (ref.raw_data?.[2]) || 'N/A'
+                  const first = nm1.NM104 || nm1.raw_data?.[4] || ''
+                  const last  = nm1.NM103 || nm1.raw_data?.[3] || ''
+                  const name  = `${first} ${last}`.trim() || 'Unknown'
+                  const relCode = ins.INS02 || ins.raw_data?.[2] || ''
+                  const rel = relCode === '18' ? 'Self' : relCode === '01' ? 'Spouse' : relCode === '19' ? 'Child' : (relCode || 'Dep')
+                  const maintCode = ins.INS03 || ins.raw_data?.[3] || '030'
+                  const maint = MAINT[maintCode] || { label: maintCode, bg: 'rgba(26,26,46,0.07)', color: '#1A1A2E' }
 
-                let maintColor = '#1A1A2E'
-                let bg = '#EEEEEE'
-                let label = maintCode
-                if (maintCode === '021') { bg = 'rgba(78,205,196,0.2)'; maintColor = '#2B9B93'; label = '021 - Addition' }
-                if (maintCode === '024') { bg = 'rgba(255,107,107,0.2)'; maintColor = '#C92A2A'; label = '024 - Termination' }
-                if (maintCode === '030') { bg = 'rgba(255,230,109,0.3)'; maintColor = '#B89B00'; label = '030 - Audit/Active' }
-                if (maintCode === '001') { bg = '#E0F7FA'; maintColor = '#006064'; label = '001 - Change' }
-
-                return (
-                  <tr key={i} style={{ borderTop: '1px solid rgba(26,26,46,0.08)' }}>
-                    <td style={{ padding: '12px 16px', fontWeight: 700, fontFamily: 'JetBrains Mono, monospace', fontSize: 12 }}>{memberId}</td>
-                    <td style={{ padding: '12px 16px', fontWeight: 600 }}>{name}</td>
-                    <td style={{ padding: '12px 16px' }}>{rel}</td>
-                    <td style={{ padding: '12px 16px' }}>
-                      <span style={{ background: bg, color: maintColor, padding: '4px 8px', borderRadius: 6, fontWeight: 800, fontSize: 11, textTransform: 'uppercase' }}>
-                        {label}
-                      </span>
-                    </td>
-                  </tr>
-                )
-              })}
-            </tbody>
-          </table>
+                  return (
+                    <tr key={i} style={{ borderTop: '1.5px solid rgba(26,26,46,0.07)', background: i % 2 === 0 ? '#FFFFFF' : 'rgba(255,230,109,0.03)' }}>
+                      <td style={{ padding: '12px 16px', fontFamily: 'JetBrains Mono, monospace', fontSize: 12, fontWeight: 700 }}>{memberId}</td>
+                      <td style={{ padding: '12px 16px', fontWeight: 700 }}>{name}</td>
+                      <td style={{ padding: '12px 16px', color: 'rgba(26,26,46,0.65)' }}>{rel}</td>
+                      <td style={{ padding: '12px 16px' }}>
+                        <span style={{ background: maint.bg, color: maint.color, padding: '4px 10px', borderRadius: 6, fontWeight: 800, fontSize: 11, textTransform: 'uppercase' }}>
+                          {maint.label}
+                        </span>
+                      </td>
+                    </tr>
+                  )
+                })}
+              </tbody>
+            </table>
+          </div>
         </div>
       </div>
     )
   }
+
+  // ──────────────────────────────────────────────────────────────────────────
+  // 837 / Generic fallback
+  // ──────────────────────────────────────────────────────────────────────────
+  const rows = [
+    { label: 'Transaction Type',    value: txnType || 'Unknown' },
+    { label: 'Implementation Ref',  value: metadata.implementation_reference || 'N/A' },
+    { label: 'Sender ID',           value: metadata.sender_id  || 'N/A' },
+    { label: 'Receiver ID',         value: metadata.receiver_id || 'N/A' },
+    { label: 'Control Number',      value: metadata.control_number || 'N/A' },
+  ]
 
   return (
-    <div style={{ padding: 24, display: 'flex', flexDirection: 'column', gap: 16 }}>
-      <p style={{ fontFamily: 'Nunito, sans-serif', fontSize: 12, color: 'rgba(26,26,46,0.4)', fontStyle: 'italic' }}>
-        File Overview Summary
-      </p>
-      {[
-        { label: 'Transaction Type', value: txnType || 'Unknown' },
-        { label: 'Implementation Ref', value: metadata.implementation_reference || 'N/A' },
-        { label: 'Sender ID', value: metadata.sender_id || 'N/A' },
-        { label: 'Receiver ID', value: metadata.receiver_id || 'N/A' },
-      ].map((row) => (
+    <div style={{ padding: '24px 28px', display: 'flex', flexDirection: 'column', gap: 16, fontFamily: 'Nunito, sans-serif' }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 4 }}>
+        <div style={{ width: 4, height: 20, borderRadius: 2, background: '#4ECDC4', flexShrink: 0 }} />
+        <h2 style={{ margin: 0, fontWeight: 900, fontSize: 15, color: '#1A1A2E' }}>File Overview</h2>
+      </div>
+      {rows.map((row) => (
         <div key={row.label} style={{
           display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-          padding: '12px 16px', background: '#FFFFFF',
+          padding: '12px 18px', background: '#FFFFFF',
           border: '2px solid rgba(26,26,46,0.12)', borderRadius: 10,
           boxShadow: '3px 3px 0px rgba(26,26,46,0.06)',
         }}>
-          <span style={{ fontFamily: 'Nunito, sans-serif', fontWeight: 700, fontSize: 13, color: 'rgba(26,26,46,0.55)' }}>{row.label}</span>
-          <span style={{ fontFamily: 'Nunito, sans-serif', fontWeight: 800, fontSize: 14, color: '#1A1A2E' }}>{row.value}</span>
+          <span style={{ fontWeight: 700, fontSize: 13, color: 'rgba(26,26,46,0.55)' }}>{row.label}</span>
+          <span style={{ fontFamily: 'JetBrains Mono, monospace', fontWeight: 700, fontSize: 13, color: '#1A1A2E' }}>{row.value}</span>
         </div>
       ))}
     </div>

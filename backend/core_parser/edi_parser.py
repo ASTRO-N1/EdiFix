@@ -732,6 +732,7 @@ class EDIParser:
         elif re.fullmatch(r"[A-Z]\d{4}", code):
             self._codeset_check("hcpcs", code, line, segment, field, "InvalidHCPCS", "HCPCS Level II code", "Verify at cms.gov/medicare/coding-billing/HCPCS")
 
+    @staticmethod
     def _safe_float(value) -> float:
         try: return float(str(value).strip())
         except (ValueError, TypeError): return 0.0

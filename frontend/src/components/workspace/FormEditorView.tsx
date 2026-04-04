@@ -16,15 +16,6 @@ interface ValidationError {
 
 // ── EDI helpers ───────────────────────────────────────────────────────────────
 
-function getErrors(errors: ValidationError[], targetLoop: string, ...keys: string[]): ValidationError[] {
-  return errors.filter((e) => {
-    if (e.loop && !e.loop.toUpperCase().startsWith(targetLoop.toUpperCase())) return false
-    const el = (e.element ?? e.field ?? '').toUpperCase()
-    const typ = (e.type ?? '').toUpperCase()
-    return keys.some((k) => el.includes(k.toUpperCase()) || typ.includes(k.toUpperCase()))
-  })
-}
-
 function isFieldActive(activePath: string | null, targetLoop: string, fieldKey: string): boolean {
   if (!activePath) return false
   const path = activePath.toUpperCase()
@@ -353,11 +344,12 @@ interface ExtractedField {
 /**
  * Extract all editable fields from a segment object.
  * Prefers schema-decoded named props; falls back to raw_data positions.
+ * Skips blank/empty values so empty optional elements are not rendered.
  */
 function extractSegmentFields(
   segObj: Record<string, unknown>,
   segId: string,
-  segIndex: number, // which occurrence of this segment in the loop instance
+  segIndex: number,
   loopKey: string,
   idSuffix: string,
 ): ExtractedField[] {
@@ -368,9 +360,11 @@ function extractSegmentFields(
     if (SKIP_KEYS.has(fieldKey)) continue
     const val = segObj[fieldKey]
     if (Array.isArray(val)) {
-      // composite element — ok
+      // composite element — ok, but skip if all parts are empty
+      if (val.every(v => String(v ?? '').trim() === '')) continue
     } else if (val != null && typeof val !== 'object') {
-      // scalar — ok
+      // scalar — skip if blank
+      if (String(val).trim() === '') continue
     } else {
       continue
     }
@@ -384,10 +378,11 @@ function extractSegmentFields(
     })
   }
 
-  // Fallback to raw_data when no named fields exist
+  // Fallback to raw_data — skip empty positional elements
   if (!hasNamedFields && Array.isArray(segObj.raw_data)) {
     const rawArr = segObj.raw_data as unknown[]
     for (let ri = 1; ri < rawArr.length; ri++) {
+      if (String(rawArr[ri] ?? '').trim() === '') continue
       const padIdx = String(ri).padStart(2, '0')
       fields.push({
         segObj,
@@ -513,6 +508,20 @@ function renderField(
     displayVal = Array.isArray(raw) ? raw.join(':') : String(raw ?? '')
   }
 
+  // ── Error matching: scope to THIS field's segment and position only ──────
+  // Errors are keyed on segment+field (e.g. NM109, CLM02).
+  // We build a narrow key like "NM1_09" or "NM109" so a NPI error on NM109
+  // does NOT bleed onto NM101, NM102, etc.
+  const narrowKey = f.fieldKey.startsWith('__raw_')
+    ? `${f.segId}${f.fieldKey.replace('__raw_', '').padStart(2, '0')}`
+    : `${f.segId}${f.fieldKey.replace(/^.*?_(\d+)$/, '$1').padStart(2, '0')}`
+
+  const fieldErrors = errors.filter((e) => {
+    if (e.loop && !e.loop.toUpperCase().startsWith(loopKey.toUpperCase())) return false
+    const el = (e.element ?? e.field ?? '').toUpperCase().replace(/[^A-Z0-9]/g, '')
+    return el === narrowKey.toUpperCase()
+  })
+
   return (
     <div key={f.fieldId} style={{ minWidth: 0, overflow: 'hidden' }}>
       <FormField
@@ -533,7 +542,7 @@ function renderField(
           }
           handleCommit(f.segObj, [f.fieldKey], v)
         }}
-        errors={getErrors(errors, loopKey, f.fieldKey.replace('__raw_', ''), f.segId)}
+        errors={fieldErrors}
         isActive={isFieldActive(activeFieldPath, loopKey, f.fieldKey)}
       />
     </div>

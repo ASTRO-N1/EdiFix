@@ -2,7 +2,7 @@ import { useRef, useEffect, useState, useCallback } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import useAppStore from '../../store/useAppStore'
 
-// ── Types ──────────────────────────────────────────────────────────────────────
+// ── Types ─────────────────────────────────────────────────────────────────────
 
 interface ValidationError {
   element?: string
@@ -14,14 +14,14 @@ interface ValidationError {
   loop?: string
 }
 
-// ── EDI data accessor helpers ─────────────────────────────────────────────────
+// ── EDI helpers ───────────────────────────────────────────────────────────────
 
-function getErrors(errors: ValidationError[], targetLoop: string, ...elementKeys: string[]): ValidationError[] {
+function getErrors(errors: ValidationError[], targetLoop: string, ...keys: string[]): ValidationError[] {
   return errors.filter((e) => {
     if (e.loop && !e.loop.toUpperCase().startsWith(targetLoop.toUpperCase())) return false
     const el = (e.element ?? e.field ?? '').toUpperCase()
     const typ = (e.type ?? '').toUpperCase()
-    return elementKeys.some((k) => el.includes(k.toUpperCase()) || typ.includes(k.toUpperCase()))
+    return keys.some((k) => el.includes(k.toUpperCase()) || typ.includes(k.toUpperCase()))
   })
 }
 
@@ -32,7 +32,7 @@ function isFieldActive(activePath: string | null, targetLoop: string, fieldKey: 
   return path.replace(/_/g, '').replace(/\./g, '').includes(fieldKey.toUpperCase().replace(/_/g, ''))
 }
 
-// ── Shared styled input ─────────────────────────────────────────────────────
+// ── FormField ─────────────────────────────────────────────────────────────────
 
 interface FieldProps {
   id: string; label: string; value: string
@@ -50,12 +50,12 @@ function FormField({ id, label, value, onCommit, errors = [], isActive, mono, hi
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 5 }}>
-      <div style={{ display: 'flex', alignItems: 'center', gap: 8, minWidth: 0 }}>
-        <label htmlFor={id} style={{ fontFamily: 'Nunito, sans-serif', fontWeight: 700, fontSize: 11, color: hasError ? '#FF6B6B' : 'rgba(26,26,46,0.6)', letterSpacing: '0.04em', textTransform: 'uppercase', cursor: 'pointer', wordBreak: 'break-word', overflowWrap: 'anywhere', minWidth: 0, maxWidth: '100%', lineHeight: 1.3 }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 6, minWidth: 0, flexWrap: 'wrap' }}>
+        <label htmlFor={id} style={{ fontFamily: 'Nunito, sans-serif', fontWeight: 700, fontSize: 11, color: hasError ? '#FF6B6B' : 'rgba(26,26,46,0.6)', letterSpacing: '0.04em', textTransform: 'uppercase', cursor: 'pointer', lineHeight: 1.3 }}>
           {label}
         </label>
         {techRef && (
-          <span style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: 9, color: 'rgba(26,26,46,0.3)', flexShrink: 0 }}>{techRef}</span>
+          <span style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: 9, color: 'rgba(26,26,46,0.28)', flexShrink: 0 }}>{techRef}</span>
         )}
         {hasError && !isDirty && (
           <span style={{ fontFamily: 'Nunito, sans-serif', fontSize: 9, fontWeight: 800, color: '#FF6B6B', background: 'rgba(255,107,107,0.1)', border: '1.5px solid #FF6B6B', borderRadius: 4, padding: '1px 6px', flexShrink: 0 }}>⚠ ERROR</span>
@@ -94,7 +94,7 @@ function FormField({ id, label, value, onCommit, errors = [], isActive, mono, hi
   )
 }
 
-// ── Layout Components ─────────────────────────────────────────────────────────
+// ── Layout helpers ────────────────────────────────────────────────────────────
 
 function SectionHeader({ title, icon, rotate = 0, description }: { title: string; icon: string; rotate?: number; description?: string }) {
   return (
@@ -104,7 +104,7 @@ function SectionHeader({ title, icon, rotate = 0, description }: { title: string
         <div style={{ display: 'flex', alignItems: 'baseline', gap: 8, flexWrap: 'wrap' }}>
           <h2 style={{ fontFamily: 'Nunito, sans-serif', fontWeight: 900, fontSize: 14, color: '#1A1A2E', letterSpacing: '0.07em', textTransform: 'uppercase', margin: 0 }}>{title}</h2>
           {description && (
-            <span style={{ fontFamily: 'Nunito, sans-serif', fontWeight: 600, fontSize: 11, color: 'rgba(26,26,46,0.45)', letterSpacing: '0.02em', fontStyle: 'italic' }}>— {description}</span>
+            <span style={{ fontFamily: 'Nunito, sans-serif', fontWeight: 600, fontSize: 11, color: 'rgba(26,26,46,0.45)', fontStyle: 'italic' }}>— {description}</span>
           )}
         </div>
         <div style={{ height: 3, width: '100%', background: 'linear-gradient(90deg, #4ECDC4, transparent)', borderRadius: 999, marginTop: 3 }} />
@@ -142,11 +142,11 @@ function FormEmptyState() {
   )
 }
 
-// ── Transaction-type badge ────────────────────────────────────────────────────
+// ── Badges ────────────────────────────────────────────────────────────────────
 
 const TX_META: Record<string, { label: string; color: string; bg: string }> = {
-  '837': { label: '837 — Healthcare Claim', color: '#1A1A2E', bg: '#4ECDC4' },
-  '835': { label: '835 — Remittance Advice', color: '#1A1A2E', bg: '#FFE66D' },
+  '837': { label: '837 — Healthcare Claim',   color: '#1A1A2E', bg: '#4ECDC4' },
+  '835': { label: '835 — Remittance Advice',  color: '#1A1A2E', bg: '#FFE66D' },
   '834': { label: '834 — Benefit Enrollment', color: '#FFFFFF', bg: '#6C63FF' },
 }
 
@@ -159,221 +159,176 @@ function TxBadge({ type }: { type: string }) {
   )
 }
 
-// ── Loop titles & descriptions ──────────────────────────────────────────────
+// ── Loop metadata ─────────────────────────────────────────────────────────────
 
 const LOOP_META: Record<string, { title: string; icon: string; desc: string }> = {
-  HEADER:      { title: 'Interchange Envelope',       icon: '📨', desc: 'ISA/GS/ST envelope containing sender, receiver, and control information' },
-  '1000A':     { title: 'Submitter Information',       icon: '📤', desc: 'Organization or entity submitting this transaction' },
-  '1000B':     { title: 'Receiver Information',        icon: '📥', desc: 'Organization or entity receiving this transaction' },
-  '2000A':     { title: 'Billing Provider',            icon: '🏥', desc: 'Hierarchical level for the billing/rendering provider' },
-  '2000B':     { title: 'Subscriber',                  icon: '👤', desc: 'Hierarchical level for the insurance subscriber' },
-  '2000C':     { title: 'Patient',                     icon: '🧑‍⚕️', desc: 'Hierarchical level for the patient (if different from subscriber)' },
-  '2010AA':    { title: 'Billing Provider Details',    icon: '🏥', desc: 'Name, address, NPI, and Tax ID of the billing provider' },
-  '2010AB':    { title: 'Pay-To Provider',             icon: '💰', desc: 'Provider to whom payment should be sent (if different)' },
-  '2010BA':    { title: 'Subscriber Name & Info',      icon: '👤', desc: 'Subscriber name, member ID, address, and demographics' },
-  '2010BB':    { title: 'Payer Information',           icon: '🏦', desc: 'Insurance payer name and identification' },
-  '2010CA':    { title: 'Patient Name & Info',         icon: '🧑', desc: 'Patient name, address, and demographics' },
-  '2010CB':    { title: 'Responsible Party',           icon: '👥', desc: 'Responsible party when different from patient' },
-  '2300':      { title: 'Claim Information',           icon: '📋', desc: 'Claim ID, total charge, facility code, and diagnosis codes' },
-  '2310A':     { title: 'Referring Provider',          icon: '🩺', desc: 'Provider who referred the patient for services' },
-  '2310B':     { title: 'Rendering Provider',          icon: '🩺', desc: 'Provider who rendered the services on the claim' },
-  '2310E':     { title: 'Service Facility',            icon: '🏢', desc: 'Location where services were performed' },
-  '2320':      { title: 'Other Subscriber',            icon: '👥', desc: 'Secondary/tertiary payer information for coordination of benefits' },
-  '2400':      { title: 'Service Line Items',          icon: '💊', desc: 'Individual procedure codes, charges, units, and service dates' },
-  '2420A':     { title: 'Rendering Provider (Line)',   icon: '🩺', desc: 'Rendering provider at the service line level' },
-  '2420B':     { title: 'Purchased Service Provider',  icon: '🔗', desc: 'Provider from whom services were purchased' },
-  '835_HEADER':{ title: 'Payment Header',              icon: '💳', desc: 'Payment amount, method (ACH/check), and trace number' },
-  '835_1000A': { title: 'Payer Identification',        icon: '🏦', desc: 'Insurance payer name and address' },
-  '835_1000B': { title: 'Payee Identification',        icon: '🏥', desc: 'Provider/payee name and address' },
-  '835_2000':  { title: 'Claim Summary',               icon: '📊', desc: 'Header-level claim summary grouping' },
-  '835_2100':  { title: 'Claim Payment Detail',        icon: '📋', desc: 'Claim ID, billed amount, paid amount, and patient responsibility' },
-  '835_2110':  { title: 'Service Line Payments',       icon: '💊', desc: 'Service-level payment, adjustments, and procedure codes' },
-  '834_HEADER':{ title: 'Enrollment File Header',      icon: '📨', desc: 'BGN segment with file purpose, date, and action code' },
-  '834_1000A': { title: 'Sponsor / Employer',          icon: '🏢', desc: 'Employer or plan sponsor identification' },
-  '834_1000B': { title: 'Insurance Payer',             icon: '🏦', desc: 'Insurance carrier identification' },
-  '834_1000C': { title: 'TPA / Broker',                icon: '🤝', desc: 'Third-party administrator or broker information' },
-  '834_2000':  { title: 'Member Enrollment',           icon: '👤', desc: 'INS segment with maintenance type, relationship, and benefit status' },
-  '834_2100A': { title: 'Member Name & Demographics',  icon: '🪪', desc: 'Member name, DOB, gender, address, and ID numbers' },
-  '834_2100B': { title: 'Incorrect Member Name',       icon: '✏️', desc: 'Previous/incorrect member name being corrected' },
-  '834_2100C': { title: 'Member Mailing Address',      icon: '📬', desc: 'Mailing address if different from residence' },
-  '834_2300':  { title: 'Health Coverage',              icon: '🛡️', desc: 'HD segment with insurance line, plan description, and coverage dates' },
-  '834_2320':  { title: 'COB Information',             icon: '🔄', desc: 'Coordination of benefits / other insurance information' },
-  '834_2700':  { title: 'Reporting Categories',        icon: '📊', desc: 'Member reporting and classification data' },
-  UNASSIGNED:  { title: 'General Segments',            icon: '📄', desc: 'Segments not assigned to a specific loop' },
+  HEADER:       { title: 'Interchange Envelope',      icon: '📨', desc: 'ISA/GS/ST envelope — sender, receiver, and control info' },
+  '1000A':      { title: 'Submitter',                 icon: '📤', desc: 'Organization or entity submitting this transaction' },
+  '1000B':      { title: 'Receiver',                  icon: '📥', desc: 'Organization or entity receiving this transaction' },
+  '2000A':      { title: 'Billing Provider Hierarchy',icon: '🏥', desc: 'HL level for the billing/rendering provider' },
+  '2000B':      { title: 'Subscriber Hierarchy',      icon: '👤', desc: 'HL level for the insurance subscriber' },
+  '2000C':      { title: 'Patient Hierarchy',         icon: '🧑‍⚕️', desc: 'HL level for the patient (when different from subscriber)' },
+  '2010AA':     { title: 'Billing Provider',          icon: '🏥', desc: 'Name, address, NPI, and Tax ID of the billing provider' },
+  '2010AB':     { title: 'Pay-To Provider',           icon: '💰', desc: 'Provider to whom payment should be sent (if different)' },
+  '2010BA':     { title: 'Subscriber',                icon: '👤', desc: 'Subscriber name, member ID, address, and demographics' },
+  '2010BB':     { title: 'Payer',                     icon: '🏦', desc: 'Insurance payer name and identification' },
+  '2010CA':     { title: 'Patient',                   icon: '🧑', desc: 'Patient name, address, and demographics' },
+  '2010CB':     { title: 'Responsible Party',         icon: '👥', desc: 'Responsible party when different from patient' },
+  '2300':       { title: 'Claim Information',         icon: '📋', desc: 'Claim ID, total charge, facility code, and diagnosis codes' },
+  '2310A':      { title: 'Referring Provider',        icon: '🩺', desc: 'Provider who referred the patient for services' },
+  '2310B':      { title: 'Rendering Provider',        icon: '🩺', desc: 'Provider who rendered the services on the claim' },
+  '2310E':      { title: 'Service Facility',          icon: '🏢', desc: 'Location where services were performed' },
+  '2320':       { title: 'Other Subscriber',          icon: '👥', desc: 'Secondary/tertiary payer — coordination of benefits' },
+  '2400':       { title: 'Service Lines',             icon: '💊', desc: 'Procedure codes, charges, units, and service dates' },
+  '2420A':      { title: 'Rendering Provider (Line)', icon: '🩺', desc: 'Rendering provider at the service line level' },
+  '2420B':      { title: 'Purchased Service Provider',icon: '🔗', desc: 'Provider from whom services were purchased' },
+  '835_HEADER': { title: 'Payment Header',            icon: '💳', desc: 'Payment amount, method (ACH/check), and trace number' },
+  '835_1000A':  { title: 'Payer',                     icon: '🏦', desc: 'Insurance payer name and address' },
+  '835_1000B':  { title: 'Payee',                     icon: '🏥', desc: 'Provider/payee name and address' },
+  '835_2000':   { title: 'Claim Summary',             icon: '📊', desc: 'Header-level claim summary grouping' },
+  '835_2100':   { title: 'Claim Payment',             icon: '📋', desc: 'Claim ID, billed, paid, and patient responsibility' },
+  '835_2110':   { title: 'Service Payment',           icon: '💊', desc: 'Service-level payment, adjustments, and procedure codes' },
+  '834_HEADER': { title: 'Enrollment Header',         icon: '📨', desc: 'BGN segment — file purpose, date, and action code' },
+  '834_1000A':  { title: 'Sponsor / Employer',        icon: '🏢', desc: 'Employer or plan sponsor identification' },
+  '834_1000B':  { title: 'Insurance Payer',           icon: '🏦', desc: 'Insurance carrier identification' },
+  '834_1000C':  { title: 'TPA / Broker',              icon: '🤝', desc: 'Third-party administrator or broker information' },
+  '834_2000':   { title: 'Member Enrollment',         icon: '👤', desc: 'INS — maintenance type, relationship, and benefit status' },
+  '834_2100A':  { title: 'Member Name & Demographics',icon: '🪪', desc: 'Member name, DOB, gender, address, and ID numbers' },
+  '834_2100B':  { title: 'Incorrect Member Name',     icon: '✏️', desc: 'Previous/incorrect member name being corrected' },
+  '834_2100C':  { title: 'Member Mailing Address',    icon: '📬', desc: 'Mailing address if different from residence' },
+  '834_2300':   { title: 'Health Coverage',           icon: '🛡️', desc: 'HD — insurance line, plan description, and coverage dates' },
+  '834_2320':   { title: 'COB Information',           icon: '🔄', desc: 'Coordination of benefits / other insurance information' },
+  '834_2700':   { title: 'Reporting Categories',      icon: '📊', desc: 'Member reporting and classification data' },
+  UNASSIGNED:   { title: 'General Segments',          icon: '📄', desc: 'Segments not assigned to a specific loop' },
 }
 
-// ── Human-readable field label mapping ──────────────────────────────────────
+function getLoopMeta(loopKey: string): { title: string; icon: string; desc: string } {
+  return LOOP_META[loopKey] ?? { title: loopKey.replace(/_/g, ' '), icon: '📁', desc: `Loop ${loopKey}` }
+}
+
+// ── Field label map ───────────────────────────────────────────────────────────
 
 const FIELD_LABELS: Record<string, string> = {
-  // ISA
   ISA_01: 'Authorization Qualifier', ISA_02: 'Authorization Info',
-  ISA_03: 'Security Qualifier', ISA_04: 'Security Info',
-  ISA_05: 'Sender ID Qualifier', ISA_06: 'Sender ID',
-  ISA_07: 'Receiver ID Qualifier', ISA_08: 'Receiver ID',
-  ISA_09: 'Interchange Date', ISA_10: 'Interchange Time',
-  ISA_11: 'Repetition Separator', ISA_12: 'Version Number',
-  ISA_13: 'Control Number', ISA_14: 'Ack Requested', ISA_15: 'Usage Indicator',
-  ISA_16: 'Subelement Separator',
-  // GS
-  GS_01: 'Functional ID Code', GS_02: 'Application Sender',
-  GS_03: 'Application Receiver', GS_04: 'Date', GS_05: 'Time',
-  GS_06: 'Group Control Number', GS_07: 'Agency Code', GS_08: 'Version Code',
-  // ST / SE
+  ISA_03: 'Security Qualifier',      ISA_04: 'Security Info',
+  ISA_05: 'Sender ID Qualifier',     ISA_06: 'Sender ID',
+  ISA_07: 'Receiver ID Qualifier',   ISA_08: 'Receiver ID',
+  ISA_09: 'Interchange Date',        ISA_10: 'Interchange Time',
+  ISA_11: 'Repetition Separator',    ISA_12: 'Version Number',
+  ISA_13: 'Control Number',          ISA_14: 'Ack Requested', ISA_15: 'Usage Indicator', ISA_16: 'Subelement Separator',
+  GS_01: 'Functional ID Code', GS_02: 'Application Sender', GS_03: 'Application Receiver',
+  GS_04: 'Date', GS_05: 'Time', GS_06: 'Group Control Number', GS_07: 'Agency Code', GS_08: 'Version Code',
   ST_01: 'Transaction Set ID', ST_02: 'Control Number', ST_03: 'Implementation Reference',
   SE_01: 'Segment Count', SE_02: 'Control Number',
-  // BHT
-  BHT_01: 'Hierarchical Structure', BHT_02: 'Transaction Purpose',
-  BHT_03: 'Reference ID', BHT_04: 'Date', BHT_05: 'Time', BHT_06: 'Claim Type',
-  // HL
-  HL_01: 'Hierarchical ID', HL_02: 'Parent ID', HL_03: 'Level Code', HL_04: 'Has Child Code',
-  // NM1
-  NM1_01: 'Entity ID Code', NM1_02: 'Entity Type',
-  NM1_03: 'Last / Org Name', NM1_04: 'First Name', NM1_05: 'Middle Name',
-  NM1_06: 'Prefix', NM1_07: 'Suffix', NM1_08: 'ID Qualifier', NM1_09: 'ID Number',
-  // N1
-  N1_01: 'Entity ID Code', N1_02: 'Name', N1_03: 'ID Qualifier', N1_04: 'ID Number',
-  // N3 / N4
-  N3_01: 'Street Address', N3_02: 'Address Line 2',
-  N4_01: 'City', N4_02: 'State', N4_03: 'ZIP Code', N4_04: 'Country Code',
-  // PER
-  PER_01: 'Contact Function', PER_02: 'Contact Name',
-  PER_03: 'Communication Type', PER_04: 'Phone / Email',
-  PER_05: 'Comm Type 2', PER_06: 'Number 2',
-  PER_07: 'Comm Type 3', PER_08: 'Number 3',
-  // REF
-  REF_01: 'Reference Qualifier', REF_02: 'Reference ID', REF_03: 'Description',
-  // DMG
-  DMG_01: 'Date Format', DMG_02: 'Date of Birth', DMG_03: 'Gender Code',
-  // DTP
-  DTP_01: 'Date Qualifier', DTP_02: 'Date Format', DTP_03: 'Date Value',
-  // DTM
-  DTM_01: 'Date Qualifier', DTM_02: 'Date Value',
-  // SBR
-  SBR_01: 'Payer Responsibility', SBR_02: 'Relationship Code',
-  SBR_03: 'Group/Policy Number', SBR_04: 'Group Name',
-  SBR_05: 'Insurance Type', SBR_06: 'COB Code',
-  SBR_07: 'Condition Code', SBR_08: 'Employment Status',
-  SBR_09: 'Claim Filing Code',
-  // PRV
-  PRV_01: 'Provider Code', PRV_02: 'Qualifier', PRV_03: 'Taxonomy Code',
-  // PAT
-  PAT_01: 'Relationship Code', PAT_02: 'Location Code',
-  PAT_03: 'Employment Status', PAT_04: 'Student Status',
-  PAT_05: 'Date Format', PAT_06: 'Date of Death',
-  PAT_07: 'Unit of Measure', PAT_08: 'Weight', PAT_09: 'Pregnancy Indicator',
-  // CLM
-  CLM_01: 'Patient Control Number', CLM_02: 'Total Charge Amount',
-  CLM_03: 'Claim Filing Indicator', CLM_04: 'Non-Institutional Claim Type',
-  CLM_05: 'Place of Service / Frequency',
-  CLM_06: 'Provider Signature Indicator', CLM_07: 'Assignment of Benefits',
-  CLM_08: 'Benefits Assignment Cert.', CLM_09: 'Release of Information',
-  CLM_10: 'Patient Signature Source', CLM_11: 'Related Causes Code',
-  CLM_12: 'Special Program Indicator', CLM_13: 'Reserved',
-  CLM_14: 'Reserved', CLM_15: 'Reserved', CLM_16: 'Reserved',
-  CLM_17: 'Reserved', CLM_18: 'Reserved', CLM_19: 'Reserved',
-  CLM_20: 'Delay Reason Code',
-  // HI
-  HI_01: 'Diagnosis Code 1 (Primary)', HI_02: 'Diagnosis Code 2',
-  HI_03: 'Diagnosis Code 3', HI_04: 'Diagnosis Code 4',
-  HI_05: 'Diagnosis Code 5', HI_06: 'Diagnosis Code 6',
-  HI_07: 'Diagnosis Code 7', HI_08: 'Diagnosis Code 8',
-  HI_09: 'Diagnosis Code 9', HI_10: 'Diagnosis Code 10',
-  HI_11: 'Diagnosis Code 11', HI_12: 'Diagnosis Code 12',
-  // LX
-  LX_01: 'Service Line Number',
-  // SV1
-  SV1_01: 'Procedure Code', SV1_02: 'Charge Amount', SV1_03: 'Unit of Measure',
-  SV1_04: 'Quantity / Units', SV1_05: 'Facility Code',
-  SV1_06: 'Service Type', SV1_07: 'Diagnosis Pointer',
-  SV1_08: 'Reserved', SV1_09: 'Emergency Indicator',
-  SV1_10: 'Multiple Procedure Code', SV1_11: 'EPSDT Indicator',
-  SV1_12: 'Family Planning Indicator',
-  // SV2
-  SV2_01: 'Revenue Code', SV2_02: 'Procedure Code', SV2_03: 'Charge Amount',
-  SV2_04: 'Unit of Measure', SV2_05: 'Units',
-  SV2_06: 'Unit Rate', SV2_07: 'Non-Covered Charge Amount',
-  // AMT / QTY
-  AMT_01: 'Amount Qualifier', AMT_02: 'Amount',
-  QTY_01: 'Quantity Qualifier', QTY_02: 'Quantity',
-  // CL1
-  CL1_01: 'Admission Type', CL1_02: 'Admission Source', CL1_03: 'Patient Status',
-  // HCP
-  HCP_01: 'Pricing Method', HCP_02: 'Repriced Allowed Amount',
-  HCP_03: 'Repriced Saving Amount', HCP_04: 'Repricing Org ID',
-  HCP_05: 'Repricing Per Diem Rate', HCP_06: 'Repriced Approved DRG',
-  HCP_07: 'Repriced Approved Amount', HCP_08: 'Product/Service ID',
-  HCP_09: 'Procedure Qualifier', HCP_10: 'Procedure Code',
-  HCP_11: 'Unit of Measure', HCP_12: 'Quantity',
-  HCP_13: 'Reject Reason Code', HCP_14: 'Compliance Code',
-  HCP_15: 'Exception Code',
-  // BPR
-  BPR_01: 'Transaction Code', BPR_02: 'Payment Amount',
-  BPR_03: 'Credit/Debit', BPR_04: 'Payment Method',
-  BPR_05: 'Payment Format', BPR_06: 'ID Qualifier (Sender)',
-  BPR_07: 'Sender DFI ID', BPR_08: 'Account Type (Sender)',
-  BPR_09: 'Sender Account Number', BPR_10: 'Originator Company ID',
-  BPR_11: 'Reserved', BPR_12: 'ID Qualifier (Receiver)',
-  BPR_13: 'Receiver DFI ID', BPR_14: 'Account Type (Receiver)',
-  BPR_15: 'Receiver Account Number', BPR_16: 'Payment Date',
-  // TRN
-  TRN_01: 'Trace Type', TRN_02: 'Check / EFT Trace Number',
-  TRN_03: 'Originator Company ID', TRN_04: 'Reference ID',
-  // CLP
-  CLP_01: 'Claim ID', CLP_02: 'Claim Status Code', CLP_03: 'Total Billed',
-  CLP_04: 'Total Paid', CLP_05: 'Patient Responsibility',
-  CLP_06: 'Filing Indicator', CLP_07: 'Payer Control Number',
-  CLP_08: 'Facility Code', CLP_09: 'Frequency Code',
-  CLP_10: 'Reserved', CLP_11: 'DRG Code',
-  CLP_12: 'DRG Weight', CLP_13: 'Discharge Fraction',
-  // SVC
-  SVC_01: 'Procedure Code', SVC_02: 'Billed Amount', SVC_03: 'Paid Amount',
-  SVC_04: 'Revenue Code', SVC_05: 'Units',
-  SVC_06: 'Original Procedure Code', SVC_07: 'Original Units',
-  // CAS
-  CAS_01: 'Adjustment Group', CAS_02: 'Reason Code', CAS_03: 'Adjustment Amount',
-  CAS_04: 'Quantity', CAS_05: 'Reason Code 2', CAS_06: 'Amount 2',
-  CAS_07: 'Quantity 2', CAS_08: 'Reason Code 3', CAS_09: 'Amount 3',
-  CAS_10: 'Quantity 3', CAS_11: 'Reason Code 4', CAS_12: 'Amount 4',
-  CAS_13: 'Quantity 4', CAS_14: 'Reason Code 5', CAS_15: 'Amount 5',
-  CAS_16: 'Quantity 5', CAS_17: 'Reason Code 6', CAS_18: 'Amount 6',
-  CAS_19: 'Quantity 6',
-  // INS
-  INS_01: 'Subscriber Indicator', INS_02: 'Relationship Code',
-  INS_03: 'Maintenance Type', INS_04: 'Maintenance Reason',
-  INS_05: 'Benefit Status', INS_06: 'Medicare Plan',
-  INS_07: 'COBRA Event', INS_08: 'Employment Status',
-  INS_09: 'Student Status', INS_10: 'Handicap Indicator',
-  INS_11: 'Date Format', INS_12: 'Date of Death',
-  // BGN
-  BGN_01: 'Purpose Code', BGN_02: 'Reference ID',
-  BGN_03: 'Date', BGN_04: 'Time',
-  BGN_05: 'Time Zone', BGN_06: 'Reference ID 2',
-  BGN_07: 'Transaction Type', BGN_08: 'Action Code',
-  // HD
-  HD_01: 'Maintenance Type', HD_02: 'Reserved',
-  HD_03: 'Insurance Line', HD_04: 'Plan Description', HD_05: 'Coverage Level',
-  // COB
-  COB_01: 'Payer Responsibility', COB_02: 'Reference ID', COB_03: 'COB Code',
-  COB_04: 'Service Type Code',
-  // IEA / GE
   IEA_01: 'Number of Groups', IEA_02: 'Control Number',
   GE_01: 'Number of Transaction Sets', GE_02: 'Group Control Number',
+  BHT_01: 'Hierarchical Structure', BHT_02: 'Transaction Purpose',
+  BHT_03: 'Reference ID', BHT_04: 'Date', BHT_05: 'Time', BHT_06: 'Claim Type',
+  HL_01: 'Hierarchical ID', HL_02: 'Parent ID', HL_03: 'Level Code', HL_04: 'Has Child Code',
+  NM1_01: 'Entity ID Code',  NM1_02: 'Entity Type',
+  NM1_03: 'Last / Org Name', NM1_04: 'First Name',   NM1_05: 'Middle Name',
+  NM1_06: 'Prefix',          NM1_07: 'Suffix',        NM1_08: 'ID Qualifier', NM1_09: 'ID Number',
+  N1_01: 'Entity ID Code', N1_02: 'Name', N1_03: 'ID Qualifier', N1_04: 'ID Number',
+  N3_01: 'Street Address', N3_02: 'Address Line 2',
+  N4_01: 'City', N4_02: 'State', N4_03: 'ZIP Code', N4_04: 'Country Code',
+  PER_01: 'Contact Function', PER_02: 'Contact Name',
+  PER_03: 'Communication Type', PER_04: 'Phone / Email',
+  PER_05: 'Comm Type 2',  PER_06: 'Number 2',
+  PER_07: 'Comm Type 3',  PER_08: 'Number 3',
+  REF_01: 'Reference Qualifier', REF_02: 'Reference ID', REF_03: 'Description',
+  DMG_01: 'Date Format',  DMG_02: 'Date of Birth', DMG_03: 'Gender Code',
+  DTP_01: 'Date Qualifier', DTP_02: 'Date Format', DTP_03: 'Date Value',
+  DTM_01: 'Date Qualifier', DTM_02: 'Date Value',
+  SBR_01: 'Payer Responsibility', SBR_02: 'Relationship Code',
+  SBR_03: 'Group/Policy Number',  SBR_04: 'Group Name',
+  SBR_05: 'Insurance Type',       SBR_06: 'COB Code',
+  SBR_07: 'Condition Code',       SBR_08: 'Employment Status', SBR_09: 'Claim Filing Code',
+  PRV_01: 'Provider Code',   PRV_02: 'Qualifier',    PRV_03: 'Taxonomy Code',
+  PAT_01: 'Relationship Code', PAT_02: 'Location Code',
+  PAT_03: 'Employment Status', PAT_04: 'Student Status',
+  PAT_05: 'Date Format',       PAT_06: 'Date of Death',
+  PAT_07: 'Unit of Measure',   PAT_08: 'Weight',       PAT_09: 'Pregnancy Indicator',
+  CLM_01: 'Patient Control Number',   CLM_02: 'Total Charge Amount',
+  CLM_03: 'Claim Filing Indicator',   CLM_04: 'Non-Institutional Claim Type',
+  CLM_05: 'Place of Service / Frequency',
+  CLM_06: 'Provider Signature',       CLM_07: 'Assignment of Benefits',
+  CLM_08: 'Benefits Assignment Cert.',CLM_09: 'Release of Information',
+  CLM_10: 'Patient Signature Source', CLM_11: 'Related Causes',
+  CLM_12: 'Special Program',          CLM_20: 'Delay Reason Code',
+  HI_01: 'Diagnosis Code 1 (Primary)', HI_02: 'Diagnosis Code 2',
+  HI_03: 'Diagnosis Code 3',  HI_04: 'Diagnosis Code 4',
+  HI_05: 'Diagnosis Code 5',  HI_06: 'Diagnosis Code 6',
+  HI_07: 'Diagnosis Code 7',  HI_08: 'Diagnosis Code 8',
+  HI_09: 'Diagnosis Code 9',  HI_10: 'Diagnosis Code 10',
+  HI_11: 'Diagnosis Code 11', HI_12: 'Diagnosis Code 12',
+  LX_01: 'Service Line Number',
+  SV1_01: 'Procedure Code',    SV1_02: 'Charge Amount',  SV1_03: 'Unit of Measure',
+  SV1_04: 'Quantity / Units',  SV1_05: 'Facility Code',  SV1_06: 'Service Type',
+  SV1_07: 'Diagnosis Pointer', SV1_09: 'Emergency Indicator',
+  SV1_10: 'Multiple Procedure',SV1_11: 'EPSDT Indicator',SV1_12: 'Family Planning',
+  SV2_01: 'Revenue Code',      SV2_02: 'Procedure Code', SV2_03: 'Charge Amount',
+  SV2_04: 'Unit of Measure',   SV2_05: 'Units',
+  SV2_06: 'Unit Rate',         SV2_07: 'Non-Covered Amount',
+  AMT_01: 'Amount Qualifier',  AMT_02: 'Amount',
+  QTY_01: 'Quantity Qualifier',QTY_02: 'Quantity',
+  CL1_01: 'Admission Type',    CL1_02: 'Admission Source', CL1_03: 'Patient Status',
+  HCP_01: 'Pricing Method',         HCP_02: 'Repriced Allowed Amount',
+  HCP_03: 'Repriced Saving Amount', HCP_04: 'Repricing Org ID',
+  HCP_05: 'Per Diem Rate',          HCP_06: 'Approved DRG',
+  HCP_07: 'Approved Amount',        HCP_08: 'Product/Service ID',
+  HCP_09: 'Procedure Qualifier',    HCP_10: 'Procedure Code',
+  HCP_11: 'Unit of Measure',        HCP_12: 'Quantity',
+  HCP_13: 'Reject Reason Code',     HCP_14: 'Compliance Code', HCP_15: 'Exception Code',
+  BPR_01: 'Transaction Code',   BPR_02: 'Payment Amount',
+  BPR_03: 'Credit/Debit',       BPR_04: 'Payment Method',
+  BPR_05: 'Payment Format',     BPR_06: 'ID Qualifier (Sender)',
+  BPR_07: 'Sender DFI ID',      BPR_08: 'Account Type (Sender)',
+  BPR_09: 'Sender Account',     BPR_10: 'Originator Company ID',
+  BPR_12: 'ID Qualifier (Receiver)', BPR_13: 'Receiver DFI ID',
+  BPR_14: 'Account Type (Receiver)', BPR_15: 'Receiver Account', BPR_16: 'Payment Date',
+  TRN_01: 'Trace Type',         TRN_02: 'Check / EFT Number',
+  TRN_03: 'Originator Company', TRN_04: 'Reference ID',
+  CLP_01: 'Claim ID',           CLP_02: 'Claim Status Code',  CLP_03: 'Total Billed',
+  CLP_04: 'Total Paid',         CLP_05: 'Patient Responsibility',
+  CLP_06: 'Filing Indicator',   CLP_07: 'Payer Control Number',
+  CLP_08: 'Facility Code',      CLP_09: 'Frequency Code',
+  SVC_01: 'Procedure Code',     SVC_02: 'Billed Amount',  SVC_03: 'Paid Amount',
+  SVC_04: 'Revenue Code',       SVC_05: 'Units',
+  SVC_06: 'Original Procedure', SVC_07: 'Original Units',
+  CAS_01: 'Adjustment Group',   CAS_02: 'Reason Code',    CAS_03: 'Adjustment Amount',
+  CAS_04: 'Quantity',           CAS_05: 'Reason Code 2',  CAS_06: 'Amount 2',
+  CAS_07: 'Quantity 2',         CAS_08: 'Reason Code 3',  CAS_09: 'Amount 3',
+  CAS_10: 'Quantity 3',         CAS_11: 'Reason Code 4',  CAS_12: 'Amount 4',
+  INS_01: 'Subscriber Indicator',  INS_02: 'Relationship Code',
+  INS_03: 'Maintenance Type',      INS_04: 'Maintenance Reason',
+  INS_05: 'Benefit Status',        INS_06: 'Medicare Plan',
+  INS_07: 'COBRA Event',           INS_08: 'Employment Status',
+  INS_09: 'Student Status',        INS_10: 'Handicap Indicator',
+  BGN_01: 'Purpose Code',   BGN_02: 'Reference ID',
+  BGN_03: 'Date',           BGN_04: 'Time',
+  BGN_05: 'Time Zone',      BGN_06: 'Reference ID 2',
+  BGN_07: 'Transaction Type',BGN_08: 'Action Code',
+  HD_01: 'Maintenance Type',HD_02: 'Reserved',
+  HD_03: 'Insurance Line',  HD_04: 'Plan Description', HD_05: 'Coverage Level',
+  COB_01: 'Payer Responsibility', COB_02: 'Reference ID',
+  COB_03: 'COB Code',             COB_04: 'Service Type Code',
 }
 
 /**
- * Given a segment ID and a raw field key from the parser output,
- * produce a clean, readable label.
+ * Resolve a human-readable label for a segment field.
+ * Handles both schema-decoded named props (e.g. "PatientControlNumber_01")
+ * and raw positional props (e.g. "__raw_2").
  */
 function humanLabel(segId: string, fieldKey: string): string {
-  // 1. Try segment-qualified key  e.g. "NM1_03"
+  // 1. Try segment-qualified numeric suffix  → e.g. "CLM_01"
   const idxMatch = fieldKey.match(/_?(\d{2,})$/)
   if (idxMatch) {
     const qualified = `${segId}_${idxMatch[1]}`
     if (FIELD_LABELS[qualified]) return FIELD_LABELS[qualified]
   }
-  // 2. Try fieldKey directly
+  // 2. Direct lookup
   if (FIELD_LABELS[fieldKey]) return FIELD_LABELS[fieldKey]
-  // 3. PascalCase split fallback
+  // 3. PascalCase split
   const stripped = fieldKey.replace(/_?\d{2,}$/, '')
   return stripped
     .replace(/_/g, ' ')
@@ -382,218 +337,220 @@ function humanLabel(segId: string, fieldKey: string): string {
     .trim() || fieldKey
 }
 
-function getLoopMeta(loopKey: string): { title: string; icon: string; desc: string } {
-  if (LOOP_META[loopKey]) return LOOP_META[loopKey]
-  return { title: loopKey.replace(/_/g, ' '), icon: '📁', desc: `Loop ${loopKey}` }
-}
-
-// ── Dynamic Form Renderer ────────────────────────────────────────────────────
+// ── Field extraction ──────────────────────────────────────────────────────────
 
 const SKIP_KEYS = new Set(['Segment_ID', 'raw_data'])
-const ROTATIONS = [-0.3, 0.3, -0.4, 0.4, 0, -0.2, 0.2]
 
-interface LoopCardProps {
-  loopKey: string
-  instances: Record<string, unknown>[]
-  errors: ValidationError[]
-  handleCommit: (seg: Record<string, unknown>, keys: string[], val: string) => void
-  activeFieldPath: string | null
-  loopIndex: number
-  isHighlighted: boolean
-  sectionRef: React.RefObject<HTMLDivElement | null>
+interface ExtractedField {
+  segObj: Record<string, unknown>
+  fieldKey: string  // "__raw_N" or real key
+  fieldId: string
+  label: string
+  techRef: string
+  segId: string
 }
 
-function LoopCard({ loopKey, instances, errors, handleCommit, activeFieldPath, loopIndex, isHighlighted, sectionRef }: LoopCardProps) {
-  const meta = getLoopMeta(loopKey)
-  const rotation = ROTATIONS[loopIndex % ROTATIONS.length]
-  const isRepeatable = instances.length > 1
+/**
+ * Extract all editable fields from a segment object.
+ * Prefers schema-decoded named props; falls back to raw_data positions.
+ */
+function extractSegmentFields(
+  segObj: Record<string, unknown>,
+  segId: string,
+  segIndex: number, // which occurrence of this segment in the loop instance
+  loopKey: string,
+  idSuffix: string,
+): ExtractedField[] {
+  const fields: ExtractedField[] = []
+  let hasNamedFields = false
 
-  return (
-    <SectionCard sectionRef={sectionRef} isHighlighted={isHighlighted}>
-      <SectionHeader title={meta.title} description={meta.desc} icon={meta.icon} rotate={rotation} />
-      <div style={{ position: 'absolute', top: 12, right: 14 }}>
-        <span style={{
-          fontFamily: 'JetBrains Mono, monospace', fontSize: 10, fontWeight: 700,
-          color: 'rgba(26,26,46,0.35)', background: 'rgba(26,26,46,0.04)',
-          border: '1px solid rgba(26,26,46,0.1)', borderRadius: 4, padding: '2px 8px',
-        }}>
-          {loopKey}
-        </span>
-      </div>
-      {isRepeatable ? (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
-          {instances.map((inst, idx) => (
-            <InstanceBlock
-              key={idx} instance={inst} instanceIndex={idx} loopKey={loopKey}
-              errors={errors} handleCommit={handleCommit} activeFieldPath={activeFieldPath}
-              totalInstances={instances.length}
-            />
-          ))}
+  for (const fieldKey of Object.keys(segObj)) {
+    if (SKIP_KEYS.has(fieldKey)) continue
+    const val = segObj[fieldKey]
+    if (Array.isArray(val)) {
+      // composite element — ok
+    } else if (val != null && typeof val !== 'object') {
+      // scalar — ok
+    } else {
+      continue
+    }
+    hasNamedFields = true
+    fields.push({
+      segObj, fieldKey,
+      fieldId: `dyn-${loopKey}-${segId}-${fieldKey}${segIndex > 0 ? `-${segIndex}` : ''}${idSuffix}`,
+      label: humanLabel(segId, fieldKey),
+      techRef: `${segId}.${fieldKey}`,
+      segId,
+    })
+  }
+
+  // Fallback to raw_data when no named fields exist
+  if (!hasNamedFields && Array.isArray(segObj.raw_data)) {
+    const rawArr = segObj.raw_data as unknown[]
+    for (let ri = 1; ri < rawArr.length; ri++) {
+      const padIdx = String(ri).padStart(2, '0')
+      fields.push({
+        segObj,
+        fieldKey: `__raw_${ri}`,
+        fieldId: `dyn-${loopKey}-${segId}-raw${ri}${segIndex > 0 ? `-${segIndex}` : ''}${idSuffix}`,
+        label: humanLabel(segId, `${segId}_${padIdx}`),
+        techRef: `${segId}*${ri}`,
+        segId,
+      })
+    }
+  }
+  return fields
+}
+
+/**
+ * Flatten ALL segments across ALL instances of a loop into a single field list,
+ * grouped by instance when the loop genuinely repeats (e.g. 2400 service lines).
+ *
+ * The parser creates a new instance every time it sees a "header" segment like
+ * NM1/CLM/LX/INS/HL, so a single logical loop can have many tiny instances.
+ * We merge them into one contiguous list for display — unless the loop is a
+ * true repeatable (2+ instances each containing the loop's "anchor" segment).
+ */
+function flattenLoopInstances(
+  instances: Record<string, unknown>[],
+  loopKey: string,
+  errors: ValidationError[],
+  handleCommit: (seg: Record<string, unknown>, keys: string[], val: string) => void,
+  activeFieldPath: string | null,
+): { fields: React.ReactNode[]; isRepeatable: boolean; instanceCount: number } {
+  // Determine the anchor segment for this loop (the one that triggers a new instance)
+  const ANCHOR_SEGS: Record<string, string> = {
+    '2400': 'LX', '835_2100': 'CLP', '835_2110': 'SVC',
+    '834_2000': 'INS', '834_2300': 'HD', '834_2700': 'LX',
+    '2300': 'CLM', '2320': 'SBR',
+  }
+  const anchorSeg = ANCHOR_SEGS[loopKey]
+
+  // Count how many instances actually contain the anchor segment
+  const anchoredInstances = anchorSeg
+    ? instances.filter(inst => inst[anchorSeg] !== undefined)
+    : instances
+
+  const isRepeatable = anchoredInstances.length > 1
+
+  if (!isRepeatable) {
+    // Merge all instances into a single flat field list
+    const allFields: ExtractedField[] = []
+    instances.forEach((inst, ii) => {
+      Object.keys(inst).forEach((segId) => {
+        const rawSeg = inst[segId]
+        const segList = Array.isArray(rawSeg) ? rawSeg : [rawSeg]
+        segList.forEach((seg, si) => {
+          if (!seg || typeof seg !== 'object') return
+          extractSegmentFields(
+            seg as Record<string, unknown>, segId, si, loopKey, `-inst${ii}`
+          ).forEach(f => allFields.push(f))
+        })
+      })
+    })
+
+    return {
+      isRepeatable: false,
+      instanceCount: 1,
+      fields: allFields.map(f => renderField(f, loopKey, errors, handleCommit, activeFieldPath)),
+    }
+  }
+
+  // True repeatable — render each anchored instance as a numbered block
+  const groups = anchoredInstances.map((inst, groupIdx) => {
+    const groupFields: ExtractedField[] = []
+    Object.keys(inst).forEach((segId) => {
+      const rawSeg = inst[segId]
+      const segList = Array.isArray(rawSeg) ? rawSeg : [rawSeg]
+      segList.forEach((seg, si) => {
+        if (!seg || typeof seg !== 'object') return
+        extractSegmentFields(
+          seg as Record<string, unknown>, segId, si, loopKey, `-g${groupIdx}`
+        ).forEach(f => groupFields.push(f))
+      })
+    })
+
+    const renderedFields = groupFields.map(f =>
+      renderField(f, loopKey, errors, handleCommit, activeFieldPath)
+    )
+
+    return (
+      <div key={groupIdx} style={{
+        border: '1.5px solid rgba(26,26,46,0.1)', borderRadius: 10,
+        padding: '16px 18px', background: groupIdx % 2 === 0 ? '#FDFAF4' : '#FFFFFF',
+      }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 12 }}>
+          <span style={{
+            fontFamily: 'JetBrains Mono, monospace', fontSize: 10, fontWeight: 800,
+            color: '#4ECDC4', background: 'rgba(78,205,196,0.1)',
+            border: '1.5px solid rgba(78,205,196,0.3)', borderRadius: 6, padding: '2px 8px',
+          }}>
+            #{groupIdx + 1} of {anchoredInstances.length}
+          </span>
         </div>
-      ) : (
-        <InstanceFields
-          instance={instances[0]} loopKey={loopKey}
-          errors={errors} handleCommit={handleCommit} activeFieldPath={activeFieldPath}
-          idSuffix=""
-        />
-      )}
-    </SectionCard>
-  )
+        <FieldGrid cols={2}>{renderedFields}</FieldGrid>
+      </div>
+    )
+  })
+
+  return { isRepeatable: true, instanceCount: anchoredInstances.length, fields: groups }
 }
 
-function InstanceBlock({ instance, instanceIndex, loopKey, errors, handleCommit, activeFieldPath, totalInstances }: {
-  instance: Record<string, unknown>; instanceIndex: number; loopKey: string
-  errors: ValidationError[]; handleCommit: (seg: Record<string, unknown>, keys: string[], val: string) => void
-  activeFieldPath: string | null; totalInstances: number
-}) {
+function renderField(
+  f: ExtractedField,
+  loopKey: string,
+  errors: ValidationError[],
+  handleCommit: (seg: Record<string, unknown>, keys: string[], val: string) => void,
+  activeFieldPath: string | null,
+): React.ReactNode {
+  let displayVal: string
+  if (f.fieldKey.startsWith('__raw_')) {
+    const ri = parseInt(f.fieldKey.replace('__raw_', ''), 10)
+    const rawArr = f.segObj.raw_data as unknown[]
+    displayVal = String(rawArr?.[ri] ?? '')
+  } else {
+    const raw = f.segObj[f.fieldKey]
+    displayVal = Array.isArray(raw) ? raw.join(':') : String(raw ?? '')
+  }
+
   return (
-    <div style={{
-      border: '1.5px solid rgba(26,26,46,0.1)', borderRadius: 10,
-      padding: '16px 18px', background: instanceIndex % 2 === 0 ? '#FDFAF4' : '#FFFFFF',
-    }}>
-      <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 12 }}>
-        <span style={{
-          fontFamily: 'JetBrains Mono, monospace', fontSize: 10, fontWeight: 800,
-          color: '#4ECDC4', background: 'rgba(78,205,196,0.1)',
-          border: '1.5px solid rgba(78,205,196,0.3)', borderRadius: 6, padding: '2px 8px',
-        }}>
-          #{instanceIndex + 1} of {totalInstances}
-        </span>
-      </div>
-      <InstanceFields
-        instance={instance} loopKey={loopKey}
-        errors={errors} handleCommit={handleCommit} activeFieldPath={activeFieldPath}
-        idSuffix={`-${instanceIndex}`}
+    <div key={f.fieldId} style={{ minWidth: 0, overflow: 'hidden' }}>
+      <FormField
+        id={f.fieldId}
+        label={f.label}
+        techRef={f.techRef}
+        mono
+        value={displayVal}
+        onCommit={(v) => {
+          if (f.fieldKey.startsWith('__raw_')) {
+            const ri = parseInt(f.fieldKey.replace('__raw_', ''), 10)
+            const rawArr = f.segObj.raw_data as unknown[]
+            if (rawArr && rawArr.length > ri) rawArr[ri] = v
+          } else if (Array.isArray(f.segObj[f.fieldKey])) {
+            f.segObj[f.fieldKey] = v.includes(':') ? v.split(':') : [v]
+          } else {
+            f.segObj[f.fieldKey] = v
+          }
+          handleCommit(f.segObj, [f.fieldKey], v)
+        }}
+        errors={getErrors(errors, loopKey, f.fieldKey.replace('__raw_', ''), f.segId)}
+        isActive={isFieldActive(activeFieldPath, loopKey, f.fieldKey)}
       />
     </div>
   )
 }
 
-function InstanceFields({ instance, loopKey, errors, handleCommit, activeFieldPath, idSuffix }: {
-  instance: Record<string, unknown>; loopKey: string
-  errors: ValidationError[]; handleCommit: (seg: Record<string, unknown>, keys: string[], val: string) => void
-  activeFieldPath: string | null; idSuffix: string
-}) {
-  if (!instance || typeof instance !== 'object') return null
+// ── Constants ─────────────────────────────────────────────────────────────────
 
-  const allFields: Array<{
-    segObj: Record<string, unknown>; fieldKey: string; fieldId: string
-    label: string; techRef: string; segId: string
-  }> = []
-
-  for (const segId of Object.keys(instance)) {
-    const rawSeg = instance[segId]
-    const segList = Array.isArray(rawSeg) ? rawSeg : [rawSeg]
-
-    for (let si = 0; si < segList.length; si++) {
-      const seg = segList[si]
-      if (!seg || typeof seg !== 'object') continue
-      const segObj = seg as Record<string, unknown>
-
-      // ── Collect named (schema-decoded) fields ────────────────────────
-      let hasNamedFields = false
-      for (const fieldKey of Object.keys(segObj)) {
-        if (SKIP_KEYS.has(fieldKey)) continue
-        const val = segObj[fieldKey]
-
-        if (Array.isArray(val)) {
-          // composite like ["HC","99213"] — will join at render time
-        } else if (val != null && typeof val !== 'object') {
-          // scalar — fine
-        } else {
-          continue
-        }
-
-        hasNamedFields = true
-        const label = humanLabel(segId, fieldKey)
-        const techRef = `${segId}.${fieldKey}`
-        allFields.push({
-          segObj, fieldKey,
-          fieldId: `dyn-${loopKey}-${segId}-${fieldKey}${si > 0 ? `-${si}` : ''}${idSuffix}`,
-          label, techRef, segId,
-        })
-      }
-
-      // ── Fallback: render from raw_data when no named fields ──────────
-      if (!hasNamedFields && Array.isArray(segObj.raw_data)) {
-        const rawArr = segObj.raw_data as string[]
-        // Start at 1 to skip element 0 (segment ID)
-        // INCLUDE empty elements to preserve correct positional indexing
-        for (let ri = 1; ri < rawArr.length; ri++) {
-          const padIdx = String(ri).padStart(2, '0')
-          const fieldKey = `${segId}_${padIdx}`
-          const label = humanLabel(segId, fieldKey)
-          const techRef = `${segId}*${ri}`
-
-          allFields.push({
-            segObj,
-            fieldKey: `__raw_${ri}`,
-            fieldId: `dyn-${loopKey}-${segId}-raw${ri}${si > 0 ? `-${si}` : ''}${idSuffix}`,
-            label, techRef, segId,
-          })
-        }
-      }
-    }
-  }
-
-  if (allFields.length === 0) {
-    return (
-      <div style={{ padding: '16px', border: '1.5px dashed rgba(26,26,46,0.15)', borderRadius: 8, textAlign: 'center', fontStyle: 'italic', fontFamily: 'Nunito, sans-serif', color: 'rgba(26,26,46,0.35)', fontSize: 12 }}>
-        No editable fields in this loop.
-      </div>
-    )
-  }
-
-  return (
-    <FieldGrid cols={2}>
-      {allFields.map(({ segObj, fieldKey, fieldId, label, techRef, segId }) => {
-        let displayVal: string
-        if (fieldKey.startsWith('__raw_')) {
-          const ri = parseInt(fieldKey.replace('__raw_', ''), 10)
-          const rawArr = segObj.raw_data as string[]
-          displayVal = String(rawArr[ri] ?? '')
-        } else {
-          const raw = segObj[fieldKey]
-          displayVal = Array.isArray(raw) ? raw.join(':') : String(raw ?? '')
-        }
-
-        return (
-          <div key={fieldId} style={{ minWidth: 0, overflow: 'hidden' }}>
-            <FormField
-              id={fieldId}
-              label={label}
-              techRef={techRef}
-              mono
-              value={displayVal}
-              onCommit={(v) => {
-                if (fieldKey.startsWith('__raw_')) {
-                  const ri = parseInt(fieldKey.replace('__raw_', ''), 10)
-                  const rawArr = segObj.raw_data as string[]
-                  if (rawArr && rawArr.length > ri) rawArr[ri] = v
-                } else if (Array.isArray(segObj[fieldKey])) {
-                  segObj[fieldKey] = v.includes(':') ? v.split(':') : [v]
-                } else {
-                  segObj[fieldKey] = v
-                }
-                handleCommit(segObj, [fieldKey], v)
-              }}
-              errors={getErrors(errors, loopKey, fieldKey.replace('__raw_', ''), segId)}
-              isActive={isFieldActive(activeFieldPath, loopKey, fieldKey)}
-            />
-          </div>
-        )
-      })}
-    </FieldGrid>
-  )
-}
+const ROTATIONS = [-0.3, 0.3, -0.4, 0.4, 0, -0.2, 0.2]
 
 // ── Main FormEditorView ───────────────────────────────────────────────────────
 
 export default function FormEditorView() {
-  const parseResult = useAppStore((s) => s.parseResult)
+  const parseResult   = useAppStore((s) => s.parseResult)
   const setParseResult = useAppStore((s) => s.setParseResult)
-  const selectedPath = useAppStore((s) => s.selectedPath)
-  const isLoading = useAppStore((s) => s.isLoading)
+  const selectedPath  = useAppStore((s) => s.selectedPath)
+  const isLoading     = useAppStore((s) => s.isLoading)
   const transactionType = useAppStore((s) => s.transactionType)
 
   const sectionRefs = useRef<Record<string, React.RefObject<HTMLDivElement | null>>>({})
@@ -601,14 +558,12 @@ export default function FormEditorView() {
   const [activeFieldPath, setActiveFieldPath] = useState<string | null>(null)
 
   useEffect(() => {
-    if (!selectedPath) return
+    if (!selectedPath || !parseResult) return
     const upper = selectedPath.toUpperCase()
-    const rootData = parseResult as Record<string, unknown> | null
-    if (!rootData) return
+    const rootData = parseResult as Record<string, unknown>
     const loops = (rootData.loops || (rootData.data as Record<string, unknown>)?.loops || {}) as Record<string, unknown>
     const matchKey = Object.keys(loops).find(k => upper.includes(k.toUpperCase()))
     if (!matchKey) return
-
     if (!sectionRefs.current[matchKey]) sectionRefs.current[matchKey] = { current: null }
     const ref = sectionRefs.current[matchKey]
     if (ref?.current) {
@@ -622,54 +577,37 @@ export default function FormEditorView() {
 
   const handleCommit = useCallback((segment: Record<string, unknown>, targetKeys: string[], newValue: string) => {
     if (!parseResult || !segment) return
-    let updated = false
 
     for (const fk of targetKeys) {
       if (fk.startsWith('__raw_')) {
         const ri = parseInt(fk.replace('__raw_', ''), 10)
-        const rawArr = segment.raw_data as string[] | undefined
-        if (rawArr && rawArr.length > ri) { rawArr[ri] = newValue; updated = true; break }
+        const rawArr = segment.raw_data as unknown[] | undefined
+        if (rawArr && rawArr.length > ri) { rawArr[ri] = newValue; break }
       } else if (segment[fk] !== undefined) {
-        segment[fk] = newValue
-        updated = true
-        break
+        segment[fk] = newValue; break
       }
     }
 
-    if (!updated) {
-      const rawData = segment.raw_data
-      if (Array.isArray(rawData)) {
-        for (const fk of targetKeys) {
-          const match = fk.match(/0*(\d+)$/)
-          if (match) {
-            const idx = parseInt(match[1], 10)
-            if (rawData.length > idx) { rawData[idx] = newValue; updated = true; break }
-          }
-        }
-      }
-    }
-
-    const newParseResult = structuredClone(parseResult) as Record<string, unknown>
-    const clearErrors = (arr: unknown[]) => arr ? arr.filter((e: unknown) => {
+    const newResult = structuredClone(parseResult) as Record<string, unknown>
+    const clearErrors = (arr: unknown[]) => arr?.filter((e: unknown) => {
       const err = e as ValidationError
       const el = (err.element || err.field || '').toUpperCase()
       return !targetKeys.some(k => el.includes(k.replace('__raw_', '').toUpperCase()))
-    }) : arr
+    }) ?? arr
 
-    if (Array.isArray(newParseResult.errors)) newParseResult.errors = clearErrors(newParseResult.errors)
-    const inner = newParseResult.data as Record<string, unknown> | undefined
+    if (Array.isArray(newResult.errors)) newResult.errors = clearErrors(newResult.errors)
+    const inner = newResult.data as Record<string, unknown> | undefined
     if (inner && Array.isArray(inner.errors)) inner.errors = clearErrors(inner.errors)
-    setParseResult(newParseResult)
+    setParseResult(newResult)
   }, [parseResult, setParseResult])
 
   if (isLoading) return null
   if (!parseResult) return <FormEmptyState />
 
   const rootData = parseResult as Record<string, unknown>
-  const loops = (rootData.loops || (rootData.data as Record<string, unknown>)?.loops || {}) as Record<string, unknown>
-  const errors: ValidationError[] = (rootData.errors || (rootData.data as Record<string, unknown>)?.errors || []) as ValidationError[]
-
-  const meta = (rootData.metadata || (rootData.data as Record<string, unknown>)?.metadata || {}) as Record<string, unknown>
+  const loops  = (rootData.loops  || (rootData.data as Record<string, unknown>)?.loops  || {}) as Record<string, unknown>
+  const errors = (rootData.errors || (rootData.data as Record<string, unknown>)?.errors || []) as ValidationError[]
+  const meta   = (rootData.metadata || (rootData.data as Record<string, unknown>)?.metadata || {}) as Record<string, unknown>
   const txType = String(transactionType || meta.transaction_type || 'unknown')
 
   const loopKeys = Object.keys(loops)
@@ -687,29 +625,63 @@ export default function FormEditorView() {
         .form-editor-scroll::-webkit-scrollbar-thumb { background: rgba(78,205,196,0.35); border-radius: 3px; }
         .form-field-grid > * { min-width: 0; overflow: hidden; }
       `}</style>
+
       <div className="form-editor-scroll" style={{ height: '100%', overflowY: 'auto', padding: '0 0 40px', background: '#FDFAF4' }}>
         <div style={{ padding: '28px 28px 0', display: 'flex', flexDirection: 'column', gap: 28 }}>
           <TxBadge type={txType} />
+
           {loopKeys.map((loopKey, li) => {
             const raw = loops[loopKey]
             const instances: Record<string, unknown>[] = Array.isArray(raw)
               ? (raw as Record<string, unknown>[]).filter(inst => inst && typeof inst === 'object')
-              : (raw && typeof raw === 'object' ? [raw as Record<string, unknown>] : [])
+              : raw && typeof raw === 'object' ? [raw as Record<string, unknown>] : []
 
             if (instances.length === 0) return null
 
+            const isHighlighted = highlightedLoop === loopKey
+            const loopMeta = getLoopMeta(loopKey)
+            const rotation = ROTATIONS[li % ROTATIONS.length]
+
+            const { fields, isRepeatable } = flattenLoopInstances(
+              instances, loopKey, errors, handleCommit, activeFieldPath
+            )
+
+            if (fields.length === 0) return null
+
+            if (!sectionRefs.current[loopKey]) sectionRefs.current[loopKey] = { current: null }
+
             return (
-              <LoopCard
+              <SectionCard
                 key={loopKey}
-                loopKey={loopKey}
-                instances={instances}
-                errors={errors}
-                handleCommit={handleCommit}
-                activeFieldPath={activeFieldPath}
-                loopIndex={li}
-                isHighlighted={highlightedLoop === loopKey}
-                sectionRef={sectionRefs.current[loopKey]!}
-              />
+                sectionRef={sectionRefs.current[loopKey]}
+                isHighlighted={isHighlighted}
+              >
+                <SectionHeader
+                  title={loopMeta.title}
+                  description={loopMeta.desc}
+                  icon={loopMeta.icon}
+                  rotate={rotation}
+                />
+
+                {/* Loop key badge */}
+                <div style={{ position: 'absolute', top: 12, right: 14 }}>
+                  <span style={{
+                    fontFamily: 'JetBrains Mono, monospace', fontSize: 10, fontWeight: 700,
+                    color: 'rgba(26,26,46,0.35)', background: 'rgba(26,26,46,0.04)',
+                    border: '1px solid rgba(26,26,46,0.1)', borderRadius: 4, padding: '2px 8px',
+                  }}>
+                    {loopKey}
+                  </span>
+                </div>
+
+                {isRepeatable ? (
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+                    {fields}
+                  </div>
+                ) : (
+                  <FieldGrid cols={2}>{fields}</FieldGrid>
+                )}
+              </SectionCard>
             )
           })}
         </div>

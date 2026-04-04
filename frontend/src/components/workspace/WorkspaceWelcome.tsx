@@ -82,8 +82,16 @@ export default function WorkspaceWelcome() {
                 initial={{ opacity: 0, y: 30 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.5, ease: 'easeOut' }}
                 style={{ maxWidth: '600px', width: '100%', textAlign: 'center' }}
             >
-                <h1 style={{ fontFamily: 'Nunito, sans-serif', fontWeight: 900, fontSize: 'clamp(32px, 5vw, 48px)', color: '#1A1A2E', marginBottom: '16px', lineHeight: 1.1 }}>
-                    Welcome to your Workspace
+                <h1 style={{ fontFamily: 'Nunito, sans-serif', fontWeight: 900, fontSize: 'clamp(32px, 5vw, 48px)', color: '#1A1A2E', marginBottom: '24px', lineHeight: 1.2 }}>
+                    Welcome to your{' '}
+                    <span style={{ position: 'relative', display: 'inline-block' }}>
+                        <span style={{ color: '#FF6B6B' }}>Workspace</span>
+                        <svg viewBox="0 0 200 10" preserveAspectRatio="none" aria-hidden="true"
+                            style={{ position: 'absolute', left: 0, bottom: -8, width: '100%', height: 10, overflow: 'visible' }}>
+                            <path d="M2,6 C18,1 36,10 52,5 C68,0 86,9 102,4 C118,0 136,9 152,5 C168,1 186,9 198,5"
+                                fill="none" stroke="#FF6B6B" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" />
+                        </svg>
+                    </span>
                 </h1>
                 <p style={{ fontFamily: 'Nunito, sans-serif', fontWeight: 400, fontSize: '16px', color: 'rgba(26,26,46,0.6)', marginBottom: '48px', lineHeight: 1.6 }}>
                     Drop your X12 EDI file below to instantly validate segments, identify errors, and generate your interactive dashboard.

@@ -1,8 +1,8 @@
 ﻿/**
  * generateReport.ts
  * ─────────────────────────────────────────────────────────────────────────────
- * Generates a beautiful, print-ready EDI Validation Report in a new window.
- * Uses the browser's native Print → Save as PDF.
+ * Generates a beautiful, print-ready EDI Validation Report in a new window
+ * and automatically triggers the browser's Save-as-PDF dialog.
  * Styled to match the EdiFix doodle theme (Nunito, JetBrains Mono, ink shadows).
  */
 
@@ -49,7 +49,6 @@ export function generateReport({ fileName, transactionType, parseResult }: Repor
     '834': '834 Benefit Enrollment & Maintenance',
   }
 
-  // ── Build error rows ────────────────────────────────────────────────────
   const errorRows = errors.map((e, i) => `
     <tr style="border-top:1.5px solid rgba(26,26,46,0.08);">
       <td style="padding:10px 14px;font-family:'JetBrains Mono',monospace;font-size:11px;color:rgba(26,26,46,0.5);vertical-align:top;">${i + 1}</td>
@@ -82,7 +81,6 @@ export function generateReport({ fileName, transactionType, parseResult }: Repor
     </tr>
   `).join('')
 
-  // ── Verdict ─────────────────────────────────────────────────────────────
   const errorCount = errors.length
   const warningCount = warnings.length
   let verdictBg: string, verdictBorder: string, verdictIcon: string, verdictText: string
@@ -94,7 +92,6 @@ export function generateReport({ fileName, transactionType, parseResult }: Repor
     verdictBg = 'rgba(255,107,107,0.07)'; verdictBorder = 'rgba(255,107,107,0.4)'; verdictIcon = '🚨'; verdictText = `File has ${errorCount} error(s) and ${warningCount} warning(s). Corrections required before submission.`
   }
 
-  // ── Full HTML ───────────────────────────────────────────────────────────
   const html = `<!DOCTYPE html>
 <html lang="en">
 <head>
@@ -130,16 +127,6 @@ export function generateReport({ fileName, transactionType, parseResult }: Repor
 </head>
 <body>
 <div class="page">
-
-  <!-- ── Print button (hidden in PDF) ──────────────────────────────────── -->
-  <div class="no-print" style="text-align:right;margin-bottom:20px;">
-    <button onclick="window.print()" style="
-      font-family:'Nunito',sans-serif;font-weight:800;font-size:14px;
-      background:#4ECDC4;color:#1A1A2E;border:2.5px solid #1A1A2E;
-      border-radius:8px;padding:10px 24px;cursor:pointer;
-      box-shadow:3px 3px 0px #1A1A2E;
-    ">📄 Save as PDF</button>
-  </div>
 
   <!-- ── Header ────────────────────────────────────────────────────────── -->
   <div style="display:flex;align-items:flex-start;justify-content:space-between;margin-bottom:32px;padding-bottom:24px;border-bottom:2.5px solid #1A1A2E;">
@@ -259,10 +246,56 @@ export function generateReport({ fileName, transactionType, parseResult }: Repor
 </body>
 </html>`
 
-  // ── Open in new window ──────────────────────────────────────────────────
-  const win = window.open('', '_blank')
-  if (win) {
-    win.document.write(html)
-    win.document.close()
+  // ── Render in hidden iframe and auto-trigger print/save ─────────────────
+  const iframe = document.createElement('iframe')
+  iframe.style.position = 'fixed'
+  iframe.style.right = '0'
+  iframe.style.bottom = '0'
+  iframe.style.width = '0'
+  iframe.style.height = '0'
+  iframe.style.border = 'none'
+  iframe.style.opacity = '0'
+  iframe.style.pointerEvents = 'none'
+  document.body.appendChild(iframe)
+
+  const iframeDoc = iframe.contentDocument || iframe.contentWindow?.document
+  if (!iframeDoc) {
+    // Fallback: open in new tab if iframe access is blocked
+    const win = window.open('', '_blank')
+    if (win) { win.document.write(html); win.document.close() }
+    return
   }
+
+  iframeDoc.open()
+  iframeDoc.write(html)
+  iframeDoc.close()
+
+  // Wait for fonts to load inside the iframe, then trigger print automatically
+  const iframeWin = iframe.contentWindow
+  if (!iframeWin) {
+    document.body.removeChild(iframe)
+    return
+  }
+
+  // fonts.ready ensures Google Fonts have loaded before we print
+  const fontsReady = iframeDoc.fonts?.ready ?? Promise.resolve()
+  fontsReady.then(() => {
+    // Small extra delay to let the browser fully paint
+    setTimeout(() => {
+      iframeWin.focus()
+      iframeWin.print()
+
+      // Clean up iframe after print dialog closes (or is cancelled)
+      // onafterprint fires when the dialog is dismissed
+      iframeWin.onafterprint = () => {
+        document.body.removeChild(iframe)
+      }
+      // Fallback cleanup for browsers that don't fire onafterprint
+      setTimeout(() => {
+        if (iframe.parentNode) {
+          document.body.removeChild(iframe)
+        }
+      }, 60000)
+    }, 600)
+  })
 }

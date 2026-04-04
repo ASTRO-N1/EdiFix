@@ -41,6 +41,7 @@ def _make_parser() -> EDIParser:
     p.current_claim = None
     p._pending_clp  = None
     p._pending_svc  = None
+    p.metadata      = {"transaction_type": "837"}   # required for CLM05 validation guard
     return p
 
 

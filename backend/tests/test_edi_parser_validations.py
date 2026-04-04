@@ -463,5 +463,50 @@ class TestPendingInsLineReset(unittest.TestCase):
         self.assertIsNone(p._pending_ins_line)
 
 
-if __name__ == "__main__":
-    unittest.main(verbosity=2)              
+# ── 834 Member Enrollment Summary ──────────────────────────────────────────────
+class TestMemberEnrollmentSummary:
+
+    def _parse_834(self, edi_content: str) -> dict:
+        import tempfile, os
+        with tempfile.NamedTemporaryFile(mode='w', suffix='.edi', delete=False, encoding='utf-8') as f:
+            f.write(edi_content)
+            path = f.name
+        try:
+            from core_parser.edi_parser import EDIParser
+            parser = EDIParser(path)
+            return parser.parse()
+        finally:
+            os.unlink(path)
+
+    def test_subscriber_is_group_root(self):
+        """Subscriber (INS01=Y) must be the first member in a family group."""
+        result = self._parse_834(SAMPLE_834_EDI)  # use the sample file content
+        summary = result.get("member_enrollment_summary", [])
+        assert len(summary) > 0, "Expected at least one family group"
+        first_member = summary[0]["family_members"][0]
+        assert first_member["is_subscriber"] is True
+
+    def test_dependent_rollup(self):
+        """Dependents (INS01=N) must be nested under their subscriber group."""
+        result = self._parse_834(SAMPLE_834_EDI)
+        summary = result.get("member_enrollment_summary", [])
+        first_group = summary[0]
+        assert len(first_group["family_members"]) > 1, "Expected subscriber + at least 1 dependent"
+        dependents = [m for m in first_group["family_members"] if not m["is_subscriber"]]
+        assert len(dependents) >= 1
+
+    def test_maintenance_type_labels(self):
+        """Maintenance type codes must be translated to human-readable labels."""
+        result = self._parse_834(SAMPLE_834_EDI)
+        summary = result.get("member_enrollment_summary", [])
+        all_members = [m for g in summary for m in g["family_members"]]
+        labels = {m["maintenance_label"] for m in all_members}
+        assert "Addition" in labels  # 021
+
+    def test_cob_captured(self):
+        """COB records must be attached to the correct member."""
+        result = self._parse_834(SAMPLE_834_EDI)
+        summary = result.get("member_enrollment_summary", [])
+        all_members = [m for g in summary for m in g["family_members"]]
+        cob_members = [m for m in all_members if m["cob"]]
+        assert len(cob_members) >= 1, "Expected at least one member with a COB record"

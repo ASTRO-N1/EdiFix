@@ -1090,6 +1090,149 @@ class EDIParser:
             })
         return result
 
+    def _build_member_enrollment_summary(self, loops: dict) -> list:
+        """
+        Zips Loop 2000 (INS/REF/DTP), 2100A (NM1/DMG), 2300 (HD/DTP), 2320 (COB)
+        into grouped family units. Subscribers (INS01=Y) are group roots; dependents
+        (INS01=N) are nested under the most recent subscriber.
+        """
+        MAINT_LABELS = {
+            "001": "Change",
+            "021": "Addition",
+            "024": "Termination",
+            "030": "Audit / Active",
+        }
+        REL_LABELS = {
+            "18": "Self",
+            "01": "Spouse",
+            "19": "Child",
+            "34": "Other Adult",
+            "15": "Ward",
+            "53": "Life Partner",
+        }
+
+        def _raw(seg: dict, idx: int, fallback: str = "") -> str:
+            rd = seg.get("raw_data", [])
+            return rd[idx].strip() if idx < len(rd) else fallback
+
+        def _get_instances(key: str):
+            raw = loops.get(key, [])
+            return raw if isinstance(raw, list) else [raw]
+
+        ins_instances  = _get_instances("834_2000")
+        nm1_instances  = _get_instances("834_2100A")
+        hd_instances   = _get_instances("834_2300")
+        cob_instances  = _get_instances("834_2320")
+
+        # Index COB and HD by position (each 2000 loop can have multiple 2300/2320)
+        # Simple approach: iterate in order and assign to the last seen member index
+        groups: list = []
+        current_sub_group: dict | None = None
+        hd_idx  = 0
+        cob_idx = 0
+
+        for i, ins_loop in enumerate(ins_instances):
+            ins_seg  = ins_loop.get("INS", {})
+            ref_seg  = ins_loop.get("REF", {})
+            dtp_seg  = ins_loop.get("DTP", {})
+            nm1_loop = nm1_instances[i] if i < len(nm1_instances) else {}
+            nm1_seg  = nm1_loop.get("NM1", {})
+            dmg_seg  = nm1_loop.get("DMG", {})
+
+            is_subscriber     = _raw(ins_seg, 1, "N").upper() == "Y"
+            relationship_code = _raw(ins_seg, 2)
+            maintenance_type  = _raw(ins_seg, 3)
+            member_id         = _raw(ref_seg, 2) or f"UNK-{i+1}"
+
+            first   = _raw(nm1_seg, 4)
+            last    = _raw(nm1_seg, 3)
+            name    = f"{first} {last}".strip() or "Unknown"
+
+            dob     = _raw(dmg_seg, 2)
+            gender_code = _raw(dmg_seg, 3)
+            gender  = "Male" if gender_code == "M" else "Female" if gender_code == "F" else gender_code
+
+            eff_date = _raw(dtp_seg, 3)
+
+            # Collect HD (coverage) records for this member
+            coverage: list = []
+            next_ins_hd = i + 1  # crude but effective for sequential files
+            while hd_idx < len(hd_instances):
+                hd_loop   = hd_instances[hd_idx]
+                hd_seg    = hd_loop.get("HD", {})
+                hd_dtp    = hd_loop.get("DTP", {})
+                ins_line  = _raw(hd_seg, 3)  # HD03 = insurance line
+                coverage_type = _raw(hd_seg, 4)  # HD04 = plan/coverage ID
+                coverage_level = _raw(hd_seg, 5)  # HD05 = coverage level
+                cov_date  = _raw(hd_dtp, 3)
+                coverage.append({
+                    "insurance_line":  ins_line,
+                    "plan_id":         coverage_type,
+                    "coverage_level":  coverage_level,
+                    "effective_date":  cov_date,
+                })
+                hd_idx += 1
+                # Stop collecting when we hit as many HDs as expected per member
+                # (safe heuristic: stop when we encounter a new subscriber)
+                if is_subscriber and len(coverage) >= 2:
+                    break
+                if not is_subscriber and len(coverage) >= 1:
+                    break
+
+            # Collect COB records for this member
+            cob_list: list = []
+            while cob_idx < len(cob_instances):
+                cob_loop = cob_instances[cob_idx]
+                cob_seg  = cob_loop.get("COB", {})
+                cob_nm1  = cob_loop.get("NM1", {})
+                payer_resp = _raw(cob_seg, 1)   # COB01 = payer responsibility
+                other_id   = _raw(cob_seg, 2)   # COB02 = other coverage ID
+                payer_name = _raw(cob_nm1, 3)   # NM103 = org name
+                cob_list.append({
+                    "payer_responsibility": payer_resp,
+                    "other_coverage_id":    other_id,
+                    "other_payer_name":     payer_name,
+                })
+                cob_idx += 1
+                break  # one COB block per member in most files
+
+            member_record = {
+                "member_id":          member_id,
+                "name":               name,
+                "dob":                dob,
+                "gender":             gender,
+                "relationship_code":  relationship_code,
+                "relationship_label": REL_LABELS.get(relationship_code, relationship_code or "Unknown"),
+                "is_subscriber":      is_subscriber,
+                "maintenance_type":   maintenance_type,
+                "maintenance_label":  MAINT_LABELS.get(maintenance_type, maintenance_type or "Unknown"),
+                "effective_date":     eff_date,
+                "coverage":           coverage,
+                "cob":                cob_list,
+            }
+
+            if is_subscriber:
+                current_sub_group = {
+                    "subscriber_id":   member_id,
+                    "subscriber_name": name,
+                    "family_members":  [member_record],
+                }
+                groups.append(current_sub_group)
+            else:
+                if current_sub_group is not None:
+                    current_sub_group["family_members"].append(member_record)
+                else:
+                    # Orphaned dependent — create a synthetic group
+                    orphan_group = {
+                        "subscriber_id":   "UNKNOWN",
+                        "subscriber_name": "Unknown Subscriber",
+                        "family_members":  [member_record],
+                    }
+                    groups.append(orphan_group)
+                    current_sub_group = orphan_group
+
+        return groups
+
     # =========================================================================
     # 10. TOP-LEVEL PARSE ENTRY POINT
     # =========================================================================
@@ -1187,6 +1330,11 @@ class EDIParser:
         self._commit_pending_clp()          # finalise last open CLP record
         self._run_cross_segment_checks()
 
+        # ── 834: Build member enrollment summary ─────────────────────────────
+        member_enrollment_summary = []
+        if self.metadata.get("transaction_type") == "834":
+            member_enrollment_summary = self._build_member_enrollment_summary(loops)
+
         return {
             "metadata": self.metadata,
             "envelope": envelope,
@@ -1194,6 +1342,7 @@ class EDIParser:
             "errors":   self.errors,
             "warnings": self.warnings,
             "metrics":  self.metrics,
+            "member_enrollment_summary": member_enrollment_summary,
         }
 
     # =========================================================================

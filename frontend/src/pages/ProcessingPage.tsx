@@ -33,9 +33,9 @@ export default function ProcessingPage() {
       const result = await res.json();
       setParseResult(result);
       const type = result.transaction_type ||
-                   result.metadata?.transaction_type ||
-                   result.file_info?.transaction_type ||
-                   "EDI File";
+        result.metadata?.transaction_type ||
+        result.file_info?.transaction_type ||
+        "EDI File";
       setTransactionType(type);
       setIsLoading(false);
     } catch (err: any) {
@@ -80,8 +80,8 @@ export default function ProcessingPage() {
         {/* Decorative doodles */}
         <svg style={{ position: 'absolute', top: 20, right: 20, width: 20, height: 20, transform: 'rotate(15deg)', pointerEvents: 'none', zIndex: 0 }} viewBox="0 0 24 24" fill="none">
           <path d="M12 2L15.09 8.26L22 9.27L17 14.14L18.18 21.02L12 17.77L5.82 21.02L7 14.14L2 9.27L8.91 8.26L12 2Z"
-                stroke="#FFE66D" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"
-                className="pulse-star" />
+            stroke="#FFE66D" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"
+            className="pulse-star" />
         </svg>
         {!isMobile && (
           <svg style={{ position: 'absolute', bottom: 20, left: 20, width: 40, height: 40, pointerEvents: 'none', opacity: 0.4, zIndex: 0 }} viewBox="0 0 40 40" fill="none">
@@ -114,7 +114,7 @@ export default function ProcessingPage() {
         }}>
           <RobotScene />
           {/* WaitingFigure doodle beside robot — visible on all screen sizes */}
-          
+
         </div>
 
         {/* RIGHT / BOTTOM — File info + parse log */}
@@ -144,6 +144,10 @@ export default function ProcessingPage() {
           />
         </div>
       </div>
+
+      {/* Claimed illustration — fixed bottom-right corner */}
+      
+      
     </div>
   );
 }

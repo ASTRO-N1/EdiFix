@@ -258,11 +258,16 @@ class EDIParser:
 
         self._clp_records: dict = {}
         self._pending_clp  = None   
-        self._pending_svc  = None   
+        self._pending_svc  = None
+        self._header_check_number = ""
 
         script_dir = os.path.dirname(os.path.abspath(__file__))
         self._ref  = ReferenceData(os.path.abspath(os.path.join(script_dir, "..")))
 
+
+    # =========================================================================
+    # 2. STREAMING LEXER
+    # =========================================================================
     def stream_and_tokenize(self):
         """Reads the file once, strips BOM, dynamically infers delimiters, yields token lists."""
         with open(self.file_path, "r", encoding="utf-8-sig") as f:
@@ -849,7 +854,7 @@ class EDIParser:
                     self.validate_carc(reason_code, line, "CAS", f"CAS{i+1:02d}")
                 try: amt = float(amount_str)
                 except ValueError: amt = 0.0
-                adj = {"group": group_code, "reason": reason_code, "amount": amt}
+                adj = {"group": group_code, "reason": reason_code, "amount": amt, "group_code": group_code, "reason_code": reason_code}
                 if self.get_current_loop() == "835_2110" and self._pending_svc is not None:
                     self._pending_svc["adjustments"].append(adj)
                 elif self.get_current_loop() == "835_2100" and self._pending_clp is not None:
@@ -875,6 +880,9 @@ class EDIParser:
 
         # ── 835 CLP: capture payment amounts for reconciliation ──────────────
         elif seg_id == "CLP":
+            # Commit the PREVIOUS pending CLP before starting a new one
+            self._commit_pending_clp()
+
             claim_id     = elements[1].strip() if len(elements) > 1 else "Unknown"
             status_code  = elements[2].strip() if len(elements) > 2 else ""
             billed       = self._safe_float(elements[3]) if len(elements) > 3 else 0.0
@@ -888,7 +896,7 @@ class EDIParser:
                 "patient_resp": patient_resp,
                 "adjustments":  [],
                 "services":     [],
-                "check_number": "",
+                "check_number": self._header_check_number if hasattr(self, '_header_check_number') else "",
             }
 
         elif seg_id == "SVC":
@@ -899,14 +907,11 @@ class EDIParser:
         elif seg_id == "TRN":
             # TRN02 = check/EFT reference number
             ref = elements[2].strip() if len(elements) > 2 else ""
+            # Store at header level so all CLPs inherit it
+            self._header_check_number = ref
+            # Also set on current CLP if one is open
             if self._pending_clp is not None:
                 self._pending_clp["check_number"] = ref
-
-        elif seg_id == "AMT" and self._pending_clp is not None:
-            # AMT01=B6 (allowed), AMT01=KH (deductible), etc.
-            qualifier = elements[1].strip() if len(elements) > 1 else ""
-            amount    = self._safe_float(elements[2]) if len(elements) > 2 else 0.0
-            self._pending_clp.setdefault("supplemental_amounts", {})[qualifier] = amount
 
     # =========================================================================
     # 9. SEGMENT DECODER — Always includes raw_data

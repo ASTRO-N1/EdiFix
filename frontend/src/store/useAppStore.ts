@@ -286,10 +286,19 @@ const useAppStore = create<AppState>((set, get) => ({
       }
       
       const data = await response.json()
-      
-      set({ 
-        parseResult: data, 
-        transactionType: data.metadata?.transaction_type || data.transaction_type || detectFileType(file.name) 
+
+      // data = { status, filename, data: { metadata, loops, errors, ... } }
+      // Extract the inner tree for components that expect it at the root level
+      const innerTree = data.data || data
+      const txnType =
+        innerTree?.metadata?.transaction_type ||
+        data.transaction_type ||
+        detectFileType(file.name)
+
+      set({
+        parseResult: innerTree,
+        transactionType: txnType,
+        activeMainView: 'editor',
       })
     } catch (err: any) {
       set({ error: err.message })

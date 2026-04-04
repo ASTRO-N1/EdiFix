@@ -5,7 +5,8 @@ import { supabase } from '../lib/supabase'
 import { useIsMobile } from '../hooks/useWindowWidth'
 
 // ── Demo credentials sticky note ─────────────────────────────────────────────
-function DemoStickyNote() {
+interface DemoStickyNoteProps { onAutofill: () => void }
+function DemoStickyNote({ onAutofill }: DemoStickyNoteProps) {
   return (
     <motion.div
       initial={{ opacity: 0, y: -20, rotate: 3 }}
@@ -16,7 +17,8 @@ function DemoStickyNote() {
         top: 64,
         right: 60,
         zIndex: 200,
-        width: 210,
+        width: 220,
+        height: 250,
         background: '#feed96ff',
         border: '2px solid #1A1A2E',
         borderRadius: '3px 12px 10px 3px',
@@ -195,6 +197,32 @@ function DemoStickyNote() {
           strokeLinecap="round"
         />
       </svg>
+
+      {/* Autofill button */}
+      <motion.button
+        onClick={onAutofill}
+        whileHover={{ rotate: 0.5, boxShadow: '4px 4px 0px #1A1A2E', y: -2 }}
+        whileTap={{ scale: 0.97, boxShadow: '1px 1px 0px #1A1A2E', y: 0 }}
+        style={{
+          marginTop: 10,
+          width: '100%',
+          padding: '7px 0',
+          background: '#1A1A2E',
+          color: '#FDFAF4',
+          fontFamily: 'Nunito, sans-serif',
+          fontWeight: 800,
+          fontSize: 12,
+          letterSpacing: '0.4px',
+          border: '2px solid #1A1A2E',
+          borderRadius: 8,
+          boxShadow: '3px 3px 0px #1A1A2E',
+          cursor: 'pointer',
+          transform: 'rotate(-0.5deg)',
+          outline: 'none',
+        }}
+      >
+        ⚡ Autofill
+      </motion.button>
     </motion.div>
   )
 }
@@ -302,7 +330,15 @@ export default function AuthPage() {
       }}
     >
       {/* Demo credentials sticky note (top-right corner) */}
-      <DemoStickyNote />
+      <DemoStickyNote
+        onAutofill={() => {
+          setTab('login')
+          setEmail('ikoomanoo@gmail.com')
+          setPassword('ABCDEFG')
+          setError(null)
+          setMessage(null)
+        }}
+      />
 
       {/* Background doodle stars */}
       <svg width="40" height="40" style={{ position: 'absolute', top: '12%', left: '8%', opacity: 0.15 }} viewBox="0 0 40 40" fill="none">
@@ -507,6 +543,23 @@ export default function AuthPage() {
           </p>
         </div>
       </motion.div>
+      {/* <img src="/claimed-illustration.png" />
+      {!isMobile && (
+        <img
+          src="/claimed-illustration.png"
+          alt="Two people holding a Claimed document"
+          style={{
+            position: 'fixed',
+            bottom: 0,
+            right: 1050,
+            width: 300,
+            pointerEvents: 'none',
+            zIndex: 10,
+            transform: 'rotate(2deg)',
+            transformOrigin: 'bottom right',
+          }}
+        />
+      )} */}
     </div>
   )
 }

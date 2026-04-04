@@ -12,6 +12,7 @@ import AIPanel from '../components/workspace/AIPanel'
 import DoodleResizeHandle from '../components/workspace/DoodleResizeHandle'
 import OverviewPage from '../components/dashboard/overview/OverviewPage'
 import WorkspaceWelcome from '../components/workspace/WorkspaceWelcome'
+import ReconcileView from '../components/workspace/ReconcileView'
 import ExportPage from '../components/workspace/ExportPage'
 
 const FlexPanelGroup = PanelGroup as any
@@ -30,18 +31,15 @@ export default function WorkspacePage() {
     if (authLoading) return
     if (!hasInitialized.current) {
       hasInitialized.current = true
-      // On initial load, route to 'welcome' if logged in and no file exists
       if (session && !ediFile.file) {
         setActiveMainView('welcome')
-      }
-      // If guest accidentally got set to welcome, push to dashboard standard view
-      else if (!session && activeMainView === 'welcome') {
+      } else if (!session && activeMainView === 'welcome') {
         setActiveMainView('dashboard')
       }
     }
   }, [authLoading, session, ediFile.file, activeMainView, setActiveMainView])
 
-  // ── While auth is initializing ──────────────────────────────────────────────
+  // ── While auth is initializing ─────────────────────────────────────────────
   if (authLoading) {
     return (
       <div style={{ height: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', background: '#FDFAF4', flexDirection: 'column', gap: 16 }}>
@@ -51,41 +49,59 @@ export default function WorkspacePage() {
     )
   }
 
-  return (
-    <div style={{ position: 'relative',display: 'flex', flexDirection: 'column', height: '100vh', overflow: 'hidden', background: '#FDFAF4' }}>
+  // ── Determine what the center area renders ─────────────────────────────────
+  const isFullPageView = activeMainView === 'welcome' || activeMainView === 'dashboard' || activeMainView === 'reconcile'
 
+  return (
+    <div style={{ position: 'relative', display: 'flex', flexDirection: 'column', height: '100vh', overflow: 'hidden', background: '#FDFAF4' }}>
+
+      {/* Global parse-loading overlay */}
       {isLoading && (
         <div style={{
           position: 'absolute', top: 0, left: 0, right: 0, bottom: 0,
-          background: 'rgba(253, 250, 244, 0.7)', backdropFilter: 'blur(3px)',
-          zIndex: 9999, display: 'flex', flexDirection: 'column', 
-          alignItems: 'center', justifyContent: 'center'
+          background: 'rgba(253,250,244,0.7)', backdropFilter: 'blur(3px)',
+          zIndex: 9999, display: 'flex', flexDirection: 'column',
+          alignItems: 'center', justifyContent: 'center',
         }}>
           <div className="doodle-spinner" style={{ width: 48, height: 48 }} />
           <p style={{ fontFamily: 'Nunito, sans-serif', fontWeight: 700, fontSize: 16, color: '#1A1A2E', marginTop: 16 }}>
-            Parsing your file...
+            Parsing your file…
           </p>
         </div>
       )}
+
       {/* Top Navbar */}
       <WorkspaceTopNav />
 
       <div style={{ display: 'flex', flex: 1, overflow: 'hidden' }}>
         <ActivityBar />
 
-        {activeMainView === 'welcome' ? (
+        {/* ── Full-page views (no left sidebar, no tabs) ── */}
+        {activeMainView === 'welcome' && (
           <div style={{ flex: 1, overflowY: 'auto' }}>
             <WorkspaceWelcome />
           </div>
-        ) : activeMainView === 'dashboard' ? (
+        )}
+
+        {activeMainView === 'dashboard' && (
           <div style={{ flex: 1, overflowY: 'auto' }} className="custom-scrollbar">
             <OverviewPage />
           </div>
-        ) : activeMainView === 'export' ? (
+        )}
+
+        {/* ── Reconcile page — full area, no left sidebar, no tabs ── */}
+        {activeMainView === 'reconcile' && (
+          <div style={{ flex: 1, overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
+            <ReconcileView />
+          </div>
+        )}
+
+        {/* ── Editor / Export views (left sidebar + tabs + validation drawer) ── */}
+        {activeMainView === 'export' ? (
           <div style={{ flex: 1, overflowY: 'auto' }} className="custom-scrollbar">
             <ExportPage />
           </div>
-        ) : (
+        ) : activeMainView === 'editor' ? (
           <FlexPanelGroup orientation="horizontal" autoSaveId="workspace-layout-v1">
             {isLeftSidebarOpen && (
               <>
@@ -113,9 +129,11 @@ export default function WorkspacePage() {
               </Panel>
             )}
           </FlexPanelGroup>
-        )}
+        ) : null}
       </div>
 
+      {/* AI Co-Pilot pull tab — hidden on welcome view */}
+      {!isFullPageView || activeMainView === 'reconcile' ? null : null}
       {activeMainView !== 'welcome' && !isAIPanelOpen && (
         <button
           onClick={() => setIsAIPanelOpen(true)}

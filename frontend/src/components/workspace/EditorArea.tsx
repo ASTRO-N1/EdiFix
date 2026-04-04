@@ -6,24 +6,10 @@ import useAppStore from '../../store/useAppStore'
 import CenterTabBar from './CenterTabBar'
 import FormEditorView from './FormEditorView'
 
-// // ── Skeleton placeholder helpers ─────────────────────────────────────────────
-// function SkeletonLine({ width = '100%', height = 14 }: { width?: string | number; height?: number }) {
-//   return (
-//     <div style={{
-//       width,
-//       height,
-//       background: 'rgba(26,26,46,0.07)',
-//       borderRadius: 6,
-//       flexShrink: 0,
-//     }} />
-//   )
-// }
-
-// ── Tab content placeholders ─────────────────────────────────────────────────
-// FormViewContent replaced by <FormEditorView /> which reads live parseResult
+// ── Tab content: Raw EDI ─────────────────────────────────────────────────────
 
 function RawEDIContent() {
-  // 1. ALL hooks must be called at the very top level
+  const parseResult = useAppStore((s) => s.parseResult)
   const ediFile = useAppStore((s) => s.ediFile)
   const setEdiFile = useAppStore((s) => s.setEdiFile)
   const setParseResult = useAppStore((s) => s.setParseResult)
@@ -36,27 +22,74 @@ function RawEDIContent() {
 
   const [rawText, setRawText] = useState('')
   const [isLoading, setIsLoading] = useState(true)
+  const [genError, setGenError] = useState<string | null>(null)
 
-  // Read the text from the actual uploaded File object
+  // When this tab mounts or parseResult changes, regenerate EDI from the current tree
   useEffect(() => {
-    if (ediFile?.file && typeof ediFile.file.text === 'function') {
-      ediFile.file.text().then(text => {
-        setRawText(text)
-        setIsLoading(false)
-      }).catch(err => {
-        console.error("Error reading file", err)
-        setRawText('Error reading file content.')
-        setIsLoading(false)
-      })
-    } else {
-      setRawText('No raw EDI content available. Please upload a file.')
-      setIsLoading(false)
-    }
-  }, [ediFile])
+    let cancelled = false
 
-  // Repackage the text, send it to the parser API, and update the store in-place
+    async function regenerate() {
+      setIsLoading(true)
+      setGenError(null)
+
+      if (parseResult) {
+        try {
+          const tree = (parseResult as any).data || parseResult
+          const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:8000'
+
+          const response = await fetch(`${apiUrl}/api/v1/generate/test`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(tree),
+          })
+
+          if (!response.ok) {
+            const err = await response.json().catch(() => ({}))
+            throw new Error(err.detail || 'Failed to generate EDI')
+          }
+
+          const data = await response.json()
+
+          if (data.status === 'success' && data.edi_string) {
+            if (!cancelled) {
+              setRawText(data.edi_string.replace(/~/g, '~\n'))
+            }
+          } else {
+            throw new Error(data.detail || 'Generator returned empty output')
+          }
+        } catch (err: any) {
+          if (!cancelled) {
+            setGenError(err.message)
+            await fallbackToFile()
+          }
+        }
+      } else {
+        await fallbackToFile()
+      }
+
+      if (!cancelled) setIsLoading(false)
+    }
+
+    async function fallbackToFile() {
+      if (ediFile?.file && typeof ediFile.file.text === 'function') {
+        try {
+          const text = await ediFile.file.text()
+          if (!cancelled) setRawText(text)
+        } catch {
+          if (!cancelled) setRawText('Error reading file content.')
+        }
+      } else {
+        if (!cancelled) setRawText('No raw EDI content available. Please upload a file.')
+      }
+    }
+
+    regenerate()
+
+    return () => { cancelled = true }
+  }, [parseResult, ediFile])
+
   const handleSave = async (e: React.MouseEvent) => {
-    e.preventDefault() // Prevents any accidental form-submission reloads
+    e.preventDefault()
 
     if (!rawText.trim() || isSubmitting) return
 
@@ -64,18 +97,17 @@ function RawEDIContent() {
     setError(null)
 
     try {
+      const cleanedText = rawText.replace(/\n/g, '')
       const fileName = ediFile?.fileName || 'edited.edi'
-      const newFile = new File([rawText], fileName, { type: 'text/plain' })
+      const newFile = new File([cleanedText], fileName, { type: 'text/plain' })
 
       const formData = new FormData()
       formData.append('file', newFile)
 
-      // Use the frontend bypass header defined in your auth.py
       const headers: Record<string, string> = {
         'X-Internal-Bypass': 'frontend-ui-secret'
       }
 
-      // We can also pass the session token just in case other middlewares need it
       if (session?.access_token) {
         headers['Authorization'] = `Bearer ${session.access_token}`
       }
@@ -94,12 +126,9 @@ function RawEDIContent() {
 
       const data = await response.json()
 
-      // Update the stores IN PLACE. No navigation or redirection happens here.
       setEdiFile(newFile)
       setParseResult(data)
       setTransactionType(data.metadata?.transaction_type || null)
-
-      // Automatically switch back to the form view to see the fresh validation and changes
       setActiveTabId('form')
 
     } catch (err: any) {
@@ -111,11 +140,13 @@ function RawEDIContent() {
     }
   }
 
-  // 2. Early returns happen AFTER all hooks are declared
   if (isLoading) {
     return (
-      <div style={{ padding: 16, fontFamily: 'Nunito, sans-serif', color: 'rgba(26,26,46,0.6)' }}>
-        Loading raw EDI content...
+      <div style={{ padding: 24, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 12, height: '100%' }}>
+        <div className="doodle-spinner" style={{ width: 32, height: 32 }} />
+        <p style={{ fontFamily: 'Nunito, sans-serif', fontWeight: 600, fontSize: 13, color: 'rgba(26,26,46,0.5)' }}>
+          Regenerating EDI from current state…
+        </p>
       </div>
     )
   }
@@ -123,9 +154,20 @@ function RawEDIContent() {
   return (
     <div style={{ padding: 16, height: '100%', display: 'flex', flexDirection: 'column' }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
-        <p style={{ fontFamily: 'Nunito, sans-serif', fontSize: 12, color: 'rgba(26,26,46,0.4)', fontStyle: 'italic', margin: 0 }}>
-          Raw EDI — Edit the raw X12 text and submit to re-validate.
-        </p>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+          <p style={{ fontFamily: 'Nunito, sans-serif', fontSize: 12, color: 'rgba(26,26,46,0.4)', fontStyle: 'italic', margin: 0 }}>
+            Raw EDI — Edit the raw X12 text and submit to re-validate.
+          </p>
+          {genError && (
+            <span style={{
+              fontFamily: 'Nunito, sans-serif', fontSize: 10, fontWeight: 700,
+              color: '#FF6B6B', background: 'rgba(255,107,107,0.08)',
+              border: '1px solid #FF6B6B', borderRadius: 4, padding: '2px 6px',
+            }}>
+              ⚠ Showing fallback — {genError}
+            </span>
+          )}
+        </div>
         <button
           type="button"
           onClick={handleSave}
@@ -184,6 +226,8 @@ function RawEDIContent() {
   )
 }
 
+// ── Tab content: Summary ─────────────────────────────────────────────────────
+
 function SummaryContent() {
   const parseResult = useAppStore((s) => s.parseResult)
 
@@ -197,13 +241,11 @@ function SummaryContent() {
     )
   }
 
-  // Handle potentially nested data structure from the backend
   const data = (parseResult as any).data || parseResult
   const metadata = data.metadata || {}
   const loops = data.loops || {}
   const txnType = metadata.transaction_type
 
-  // ── 835 Remittance Summary ─────────────────────────────────────────────────
   if (txnType === '835') {
     const clpLoops = loops['835_2100'] || []
     const headerLoop = loops['835_HEADER']?.[0] || {}
@@ -255,7 +297,6 @@ function SummaryContent() {
     )
   }
 
-  // ── 834 Member Enrollment Summary ──────────────────────────────────────────
   if (txnType === '834') {
     const memberLoops = loops['834_2000'] || []
     const nameLoops = loops['834_2100A'] || []
@@ -289,7 +330,6 @@ function SummaryContent() {
                 const rel = ins.INS02 === '18' ? 'Self' : (ins.INS02 || 'Dep')
                 const maintCode = ins.INS03 || '030'
 
-                // Color Code based on the standard HIPAA maintenance types
                 let maintColor = '#1A1A2E'
                 let bg = '#EEEEEE'
                 let label = maintCode
@@ -318,7 +358,6 @@ function SummaryContent() {
     )
   }
 
-  // ── Generic / 837 Summary Fallback ──────────────────────────────────────────
   return (
     <div style={{ padding: 24, display: 'flex', flexDirection: 'column', gap: 16 }}>
       <p style={{ fontFamily: 'Nunito, sans-serif', fontSize: 12, color: 'rgba(26,26,46,0.4)', fontStyle: 'italic' }}>
@@ -345,6 +384,7 @@ function SummaryContent() {
 }
 
 // ── Empty / No-file upload placeholder ───────────────────────────────────────
+
 function EmptyDropzone() {
   const processFileInWorkspace = useAppStore((s) => s.processFileInWorkspace)
   const [loading, setLoading] = useState(false)
@@ -407,6 +447,7 @@ function EmptyDropzone() {
 }
 
 // ── Main EditorArea ───────────────────────────────────────────────────────────
+
 export default function EditorArea() {
   const parseResult = useAppStore((s) => s.parseResult)
   const ediFile = useAppStore((s) => s.ediFile)

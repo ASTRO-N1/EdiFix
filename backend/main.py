@@ -10,6 +10,7 @@ import uvicorn
 from groq import Groq
 from core_parser.edi_parser import EDIParser
 from core_parser.edi_generator import EDIGenerator
+from core_parser.reconciliation import reconcile as run_reconciliation
 from auth import verify_api_key, generate_api_key, verify_supabase_session
 import httpx
 from dotenv import load_dotenv
@@ -121,6 +122,14 @@ def health_check():
 def options_parse_edi_file():
     return {}
 
+@app.options("/api/v1/parse-835")
+def options_parse_835():
+    return {}
+
+@app.options("/api/v1/reconcile")
+def options_reconcile():
+    return {}
+
 @app.options("/api/v1/keys")
 def options_keys():
     return {}
@@ -169,6 +178,79 @@ async def parse_edi_file(
     finally:
         if os.path.exists(temp_path):
             os.remove(temp_path)
+
+
+# ── Parse 835 Remittance endpoint ─────────────────────────────────────────
+@app.post("/api/v1/parse-835")
+async def parse_835_file(
+    file: UploadFile = File(...),
+    api_caller: dict = Depends(verify_api_key),
+):
+    """
+    Parses an 835 Remittance EDI file and returns the JSON tree.
+    Used by the Reconciliation Engine to load the remittance side.
+    Requires: X-Internal-Bypass header (same as /api/v1/parse).
+    """
+    temp_fd, temp_path = tempfile.mkstemp(suffix=".edi")
+    try:
+        with os.fdopen(temp_fd, "wb") as f:
+            content = await file.read()
+            f.write(content)
+
+        parser = EDIParser(temp_path)
+        final_tree = parser.parse()
+
+        if not final_tree.get("metadata"):
+            return {
+                "status": "error",
+                "message": "Failed to parse 835 file. Is it a valid X12 format?",
+                "errors": parser.errors,
+            }
+
+        tx_type = final_tree.get("metadata", {}).get("transaction_type", "")
+        if tx_type and tx_type != "835":
+            return {
+                "status": "error",
+                "message": f"Uploaded file appears to be an {tx_type} transaction, not an 835 Remittance file.",
+            }
+
+        return {
+            "status": "success",
+            "filename": file.filename,
+            "file_type": "835",
+            "data": final_tree,
+            "remittance_summary": parser.build_remittance_summary(),
+        }
+
+    except Exception as e:
+        return {"status": "error", "message": str(e)}
+
+    finally:
+        if os.path.exists(temp_path):
+            os.remove(temp_path)
+
+
+# ── Reconciliation endpoint ────────────────────────────────────────────────
+class ReconcileRequest(BaseModel):
+    parsed_837: dict
+    parsed_835: dict
+
+
+@app.post("/api/v1/reconcile")
+async def reconcile_endpoint(
+    req: ReconcileRequest,
+    api_caller: dict = Depends(verify_api_key),
+):
+    """
+    Runs the 835-to-837 reconciliation engine.
+    Body: { "parsed_837": <parse response>, "parsed_835": <parse response> }
+    Returns: ReconciliationReport JSON.
+    """
+    try:
+        report = run_reconciliation(req.parsed_837, req.parsed_835)
+        return {"status": "success", "report": report}
+    except Exception as e:
+        return {"status": "error", "message": str(e)}
 
 
 # ── Helper to extract tree from various request formats ──────────────────────

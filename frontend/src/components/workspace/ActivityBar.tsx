@@ -41,6 +41,20 @@ function HistoryIcon({ active }: { active: boolean }) {
   )
 }
 
+function ScaleIcon({ active }: { active: boolean }) {
+  const c = active ? '#FFE66D' : 'rgba(26,26,46,0.45)'
+  return (
+    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke={c} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <line x1="12" y1="3" x2="12" y2="21" />
+      <line x1="8" y1="21" x2="16" y2="21" />
+      <line x1="12" y1="6" x2="4" y2="10" />
+      <line x1="12" y1="6" x2="20" y2="10" />
+      <path d="M4 10 C2 12 2 14 4 14 C6 14 6 12 4 10" />
+      <path d="M20 10 C18 12 18 14 20 14 C22 14 22 12 20 10" />
+    </svg>
+  )
+}
+
 function ExportIcon({ active }: { active: boolean }) {
   return (
     <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke={active ? '#4ECDC4' : 'rgba(26,26,46,0.45)'} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -67,7 +81,6 @@ export default function ActivityBar() {
   const setIsLeftSidebarOpen = useAppStore((s) => s.setIsLeftSidebarOpen)
   const session = useAppStore((s) => s.session)
 
-  // Declare all base items
   const BASE_ITEMS: ActivityItem[] = [
     { id: 'welcome', label: 'Welcome', icon: (a: boolean) => <WelcomeIcon active={a} />, isMainViewToggle: true },
     { id: 'dashboard', label: 'Dashboard', icon: (a: boolean) => <DashboardIcon active={a} />, isMainViewToggle: true },
@@ -76,11 +89,18 @@ export default function ActivityBar() {
     { id: 'export', label: 'Export', icon: (a: boolean) => <ExportIcon active={a} />, isMainViewToggle: true },
   ]
 
-  // Filter out the Welcome tab if the user is a guest
   const ITEMS = session ? BASE_ITEMS : BASE_ITEMS.filter((item) => item.id !== 'welcome')
 
+  const isReconcileActive = activeMainView === 'reconcile'
+
   return (
-    <div style={{ width: 48, flexShrink: 0, background: '#FDFAF4', borderRight: '2.5px solid #1A1A2E', display: 'flex', flexDirection: 'column', alignItems: 'center', paddingTop: 8, gap: 4, zIndex: 10 }}>
+    <div style={{
+      width: 48, flexShrink: 0,
+      background: '#FDFAF4',
+      borderRight: '2.5px solid #1A1A2E',
+      display: 'flex', flexDirection: 'column', alignItems: 'center',
+      paddingTop: 8, gap: 4, zIndex: 10,
+    }}>
       {ITEMS.map((item) => {
         const isActive = item.isMainViewToggle
           ? activeMainView === item.id
@@ -103,7 +123,13 @@ export default function ActivityBar() {
                 }
               }
             }}
-            style={{ position: 'relative', width: 40, height: 40, display: 'flex', alignItems: 'center', justifyContent: 'center', background: isActive ? 'rgba(78,205,196,0.12)' : 'transparent', border: 'none', borderRadius: 8, cursor: 'pointer', transition: 'background 0.15s ease', marginBottom: 2 }}
+            style={{
+              position: 'relative', width: 40, height: 40,
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+              background: isActive ? 'rgba(78,205,196,0.12)' : 'transparent',
+              border: 'none', borderRadius: 8, cursor: 'pointer',
+              transition: 'background 0.15s ease', marginBottom: 2,
+            }}
             onMouseEnter={(e) => { if (!isActive) e.currentTarget.style.background = 'rgba(26,26,46,0.06)' }}
             onMouseLeave={(e) => { if (!isActive) e.currentTarget.style.background = 'transparent' }}
           >
@@ -114,6 +140,30 @@ export default function ActivityBar() {
           </button>
         )
       })}
+
+      {/* ── Divider ── */}
+      <div style={{ width: 28, height: 1.5, background: 'rgba(26,26,46,0.12)', borderRadius: 2, margin: '4px 0' }} />
+
+      {/* ── Reconcile 835 ── */}
+      <button
+        id="reconcile-835-btn"
+        title="Financial Audit — Reconcile 835"
+        onClick={() => setActiveMainView('reconcile')}
+        style={{
+          position: 'relative', width: 40, height: 40,
+          display: 'flex', alignItems: 'center', justifyContent: 'center',
+          background: isReconcileActive ? 'rgba(255,230,109,0.18)' : 'transparent',
+          border: 'none', borderRadius: 8, cursor: 'pointer',
+          transition: 'background 0.15s ease',
+        }}
+        onMouseEnter={(e) => { if (!isReconcileActive) e.currentTarget.style.background = 'rgba(255,230,109,0.10)' }}
+        onMouseLeave={(e) => { if (!isReconcileActive) e.currentTarget.style.background = 'transparent' }}
+      >
+        {isReconcileActive && (
+          <div style={{ position: 'absolute', left: -4, top: 8, bottom: 8, width: 3, background: '#FFE66D', borderRadius: 2 }} />
+        )}
+        <ScaleIcon active={isReconcileActive} />
+      </button>
     </div>
   )
 }

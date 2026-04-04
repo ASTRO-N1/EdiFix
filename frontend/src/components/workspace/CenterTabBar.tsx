@@ -7,6 +7,7 @@ const TAB_TYPE_ICONS: Record<string, string> = {
   summary: '📊',
   remittance: '💵',
   roster: '👥',
+  audit: '⚖️',
 }
 
 export default function CenterTabBar() {

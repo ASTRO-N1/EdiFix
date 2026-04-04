@@ -77,49 +77,49 @@ const PAYER_RESPONSIBILITY_LABELS: Record<string, string> = {
 // ── Types ─────────────────────────────────────────────────────────────────────
 
 export interface CobDetail {
-  payerResponsibility: string        // COB*1 raw code
-  payerResponsibilityLabel: string   // e.g. "Primary"
-  cobCode: string                    // COB*3
-  otherCoverageId: string            // COB*2
-  otherPayerName: string             // NM1*3 from 834_2320
+  payerResponsibility: string
+  payerResponsibilityLabel: string
+  cobCode: string
+  otherCoverageId: string
+  otherPayerName: string
 }
 
 export interface CoverageDetail {
-  insuranceLine: string              // HD*3 raw
-  insuranceLineLabel: string         // e.g. "Health"
-  planDescription: string            // HD*4
-  coverageLevel: string              // HD*5 raw
-  coverageLevelLabel: string         // e.g. "Family"
-  effectiveDate: string              // DTP 348
-  expirationDate: string             // DTP 349 (if present)
+  insuranceLine: string
+  insuranceLineLabel: string
+  planDescription: string
+  coverageLevel: string
+  coverageLevelLabel: string
+  effectiveDate: string
+  expirationDate: string
 }
 
 export interface EnrollmentMember {
-  memberId: string                   // REF*0F value
-  name: string                       // NM1 first + last
+  memberId: string
+  name: string
   firstName: string
   lastName: string
-  dob: string                        // DMG*2
-  gender: string                     // DMG*3 decoded
-  address: string                    // N3 + N4
-  isSubscriber: boolean              // INS*1 == 'Y'
-  relationshipCode: string           // INS*2 raw
-  relationshipLabel: string          // e.g. "Spouse"
-  maintenanceTypeCode: string        // INS*3
-  maintenanceTypeLabel: string       // e.g. "Addition"
-  maintenanceReasonCode: string      // INS*4
-  benefitStatusCode: string          // INS*5
-  benefitStatusLabel: string         // e.g. "Active"
-  effectiveDate: string              // DTP*356
+  dob: string
+  gender: string
+  address: string
+  isSubscriber: boolean
+  relationshipCode: string
+  relationshipLabel: string
+  maintenanceTypeCode: string
+  maintenanceTypeLabel: string
+  maintenanceReasonCode: string
+  benefitStatusCode: string
+  benefitStatusLabel: string
+  effectiveDate: string
   hasSecondaryCoverage: boolean
   cobDetails: CobDetail[]
   coverage: CoverageDetail[]
 }
 
 export interface EnrollmentGroup {
-  groupId: string                    // subscriber memberId
+  groupId: string
   subscriberName: string
-  coverageLevel: string              // HD*5 raw from first HD in group
+  coverageLevel: string
   coverageLevelLabel: string
   totalMembers: number
   subscriber: EnrollmentMember
@@ -142,16 +142,14 @@ function getInstances(loops: Record<string, any>, key: string): any[] {
 // ── Main transform ────────────────────────────────────────────────────────────
 
 export function build834EnrollmentGroups(parseResult: Record<string, any>): EnrollmentGroup[] {
-  // Unwrap API envelope if present
-  const tree = parseResult?.data ?? parseResult
+  const tree  = parseResult?.data ?? parseResult
   const loops: Record<string, any> = tree?.loops ?? {}
 
-  const insInstances  = getInstances(loops, '834_2000')
-  const nm1Instances  = getInstances(loops, '834_2100A')
-  const hdInstances   = getInstances(loops, '834_2300')
-  const cobInstances  = getInstances(loops, '834_2320')
+  const insInstances = getInstances(loops, '834_2000')
+  const nm1Instances = getInstances(loops, '834_2100A')
+  const hdInstances  = getInstances(loops, '834_2300')
+  const cobInstances = getInstances(loops, '834_2320')
 
-  // ── 1. Build flat member list with COB and coverage attached ───────────────
   let hdIdx  = 0
   let cobIdx = 0
 
@@ -166,17 +164,15 @@ export function build834EnrollmentGroups(parseResult: Record<string, any>): Enro
     const n3  = nm1Loop?.N3  ?? {}
     const n4  = nm1Loop?.N4  ?? {}
 
-    // Identity
     const isSubscriber = rd(ins, 1).toUpperCase() === 'Y'
     const firstName    = rd(nm1, 4)
     const lastName     = rd(nm1, 3)
     const name         = [firstName, lastName].filter(Boolean).join(' ') || 'Unknown'
     const memberId     = rd(ref, 2) || `UNK-${i + 1}`
 
-    // Demographics
     const dobRaw    = rd(dmg, 2)
     const genderRaw = rd(dmg, 3)
-    const gender    = genderRaw === 'M' ? 'Male' : genderRaw === 'F' ? 'Female' : genderRaw || '—'
+    const gender    = genderRaw === 'M' ? 'Male' : genderRaw === 'F' ? 'Female' : (genderRaw || '—')
 
     const street  = rd(n3, 1)
     const city    = rd(n4, 1)
@@ -184,53 +180,51 @@ export function build834EnrollmentGroups(parseResult: Record<string, any>): Enro
     const zip     = rd(n4, 3)
     const address = [street, city && `${city}, ${state} ${zip}`].filter(Boolean).join(' · ') || '—'
 
-    // INS fields
     const relCode     = rd(ins, 2)
     const maintCode   = rd(ins, 3)
     const maintReason = rd(ins, 4)
     const benefitCode = rd(ins, 5)
     const effDate     = rd(dtp, 3)
 
-    // ── Coverage (HD loops) — collect until the next subscriber boundary ────
+    // ── Coverage (HD loops) ──────────────────────────────────────────────────
     const coverage: CoverageDetail[] = []
-    const maxHd = isSubscriber ? 3 : 1  // heuristic: subscribers can have multiple plans
+    const maxHd = isSubscriber ? 3 : 1
 
     while (hdIdx < hdInstances.length && coverage.length < maxHd) {
       const hdLoop = hdInstances[hdIdx]
       const hd     = hdLoop?.HD  ?? {}
       const hdDtp  = hdLoop?.DTP ?? {}
-      const insLine    = rd(hd, 3)
-      const planDesc   = rd(hd, 4)
-      const covLevel   = rd(hd, 5)
-      const covDate    = rd(hdDtp, 3)
 
-      // DTP 349 = expiration — look for it in the same loop instance
+      const insLine  = rd(hd, 3)
+      const planDesc = rd(hd, 4)
+      const covLevel = rd(hd, 5)
+      const covDate  = rd(hdDtp, 3)
+
       const hdDtpArr: any[] = Array.isArray(hdLoop?.DTP)
         ? hdLoop.DTP
         : hdLoop?.DTP ? [hdLoop.DTP] : []
-      const expDtp = hdDtpArr.find((d: any) => rd(d, 1) === '349')
+      const expDtp  = hdDtpArr.find((d: any) => rd(d, 1) === '349')
       const expDate = expDtp ? rd(expDtp, 3) : ''
 
       coverage.push({
-        insuranceLine:       insLine,
-        insuranceLineLabel:  INSURANCE_LINE_LABELS[insLine] ?? insLine,
-        planDescription:     planDesc,
-        coverageLevel:       covLevel,
-        coverageLevelLabel:  COVERAGE_LEVEL_LABELS[covLevel] ?? covLevel,
-        effectiveDate:       covDate,
-        expirationDate:      expDate,
+        insuranceLine:      insLine,
+        insuranceLineLabel: INSURANCE_LINE_LABELS[insLine] ?? insLine,
+        planDescription:    planDesc,
+        coverageLevel:      covLevel,
+        coverageLevelLabel: COVERAGE_LEVEL_LABELS[covLevel] ?? covLevel,
+        effectiveDate:      covDate,
+        expirationDate:     expDate,
       })
       hdIdx++
     }
 
-    // ── COB (834_2320) — one block per member ────────────────────────────────
+    // ── COB (834_2320) ───────────────────────────────────────────────────────
     const cobDetails: CobDetail[] = []
-    // COB loops appear directly after the member's NM1/HD in sequence
-    // We assign one COB block per member (most files) and advance the pointer
+
     if (cobIdx < cobInstances.length) {
-      const cobLoop = cobInstances[cobIdx]
-      const cob    = cobLoop?.COB ?? {}
-      const cobNm1 = cobLoop?.NM1 ?? {}
+      const cobLoop   = cobInstances[cobIdx]
+      const cob       = cobLoop?.COB ?? {}
+      const cobNm1    = cobLoop?.NM1 ?? {}
       const payerResp = rd(cob, 1)
       const otherId   = rd(cob, 2)
       const cobCode   = rd(cob, 3)
@@ -241,8 +235,8 @@ export function build834EnrollmentGroups(parseResult: Record<string, any>): Enro
           payerResponsibility:      payerResp,
           payerResponsibilityLabel: PAYER_RESPONSIBILITY_LABELS[payerResp] ?? payerResp,
           cobCode,
-          otherCoverageId:  otherId,
-          otherPayerName:   payerName || '—',
+          otherCoverageId: otherId,
+          otherPayerName:  payerName || '—',
         })
         cobIdx++
       }
@@ -253,25 +247,25 @@ export function build834EnrollmentGroups(parseResult: Record<string, any>): Enro
       name,
       firstName,
       lastName,
-      dob:                  dobRaw,
+      dob:                   dobRaw,
       gender,
       address,
       isSubscriber,
-      relationshipCode:     relCode,
-      relationshipLabel:    RELATIONSHIP_LABELS[relCode] ?? relCode || '—',
-      maintenanceTypeCode:  maintCode,
-      maintenanceTypeLabel: MAINTENANCE_LABELS[maintCode] ?? maintCode || '—',
+      relationshipCode:      relCode,
+      relationshipLabel:     (RELATIONSHIP_LABELS[relCode] ?? relCode) || '—',
+      maintenanceTypeCode:   maintCode,
+      maintenanceTypeLabel:  (MAINTENANCE_LABELS[maintCode] ?? maintCode) || '—',
       maintenanceReasonCode: maintReason,
-      benefitStatusCode:    benefitCode,
-      benefitStatusLabel:   BENEFIT_STATUS_LABELS[benefitCode] ?? benefitCode || '—',
-      effectiveDate:        effDate,
-      hasSecondaryCoverage: cobDetails.length > 0,
+      benefitStatusCode:     benefitCode,
+      benefitStatusLabel:    (BENEFIT_STATUS_LABELS[benefitCode] ?? benefitCode) || '—',
+      effectiveDate:         effDate,
+      hasSecondaryCoverage:  cobDetails.length > 0,
       cobDetails,
       coverage,
     }
   })
 
-  // ── 2. Group members: Subscriber roots + dependent roll-up ────────────────
+  // ── Group members into family units ─────────────────────────────────────────
   const groups: EnrollmentGroup[] = []
   let currentGroup: EnrollmentGroup | null = null
 
@@ -292,14 +286,12 @@ export function build834EnrollmentGroups(parseResult: Record<string, any>): Enro
       if (currentGroup) {
         currentGroup.dependents.push(member)
         currentGroup.totalMembers++
-        // Upgrade coverage level label if a FAM/ECH level plan is found on a dependent
         const famCov = member.coverage[0]
         if (famCov && ['FAM', 'ECH', 'ESP', 'SPC'].includes(famCov.coverageLevel)) {
           currentGroup.coverageLevel      = famCov.coverageLevel
           currentGroup.coverageLevelLabel = famCov.coverageLevelLabel
         }
       } else {
-        // Orphaned dependent — wrap in its own group
         currentGroup = {
           groupId:            member.memberId,
           subscriberName:     '— Unknown Subscriber —',

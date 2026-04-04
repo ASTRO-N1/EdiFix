@@ -3,6 +3,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.security import APIKeyHeader
 from fastapi.responses import PlainTextResponse
 from pydantic import BaseModel
+from typing import Optional
 import os
 import tempfile
 import uvicorn
@@ -45,9 +46,16 @@ class ChatRequest(BaseModel):
 
 
 class GenerateRequest(BaseModel):
-    """Request body for EDI generation endpoint."""
-    tree: dict
-    delimiters: dict | None = None
+    """
+    Request body for EDI generation endpoint.
+    
+    Accepts either:
+      1. {"tree": {...}}  - Direct tree structure
+      2. {"data": {...}}  - Parse response format (tree nested in 'data')
+    """
+    tree: Optional[dict] = None
+    data: Optional[dict] = None  # Alternative: accepts parse response format
+    delimiters: Optional[dict] = None
 
 
 # ── AI Chat endpoint ──────────────────────────────────────────────────────────
@@ -160,6 +168,23 @@ async def parse_edi_file(
             os.remove(temp_path)
 
 
+# ── Helper to extract tree from request ───────────────────────────────────────
+def _extract_tree(req: GenerateRequest) -> dict:
+    """
+    Extracts the EDI tree from the request, handling both formats:
+    - {"tree": {...}}
+    - {"data": {...}}  (from parse endpoint response)
+    """
+    if req.tree:
+        return req.tree
+    if req.data:
+        return req.data
+    raise HTTPException(
+        status_code=400,
+        detail="Missing 'tree' or 'data' in request body. Provide the JSON AST from the parser."
+    )
+
+
 # ── Generate endpoint — Convert JSON tree back to EDI string ─────────────────
 @app.post("/api/v1/generate", response_class=PlainTextResponse)
 async def generate_edi_file(
@@ -169,22 +194,21 @@ async def generate_edi_file(
     """
     Generates an X12 EDI string from a JSON AST tree.
     
-    Request Body:
-        {
-            "tree": { ... },
-            "delimiters": { "element_sep": "*", "subelement_sep": ":", "segment_sep": "~" }
-        }
+    Request Body (either format works):
+        {"tree": {...}}                    - Direct tree
+        {"data": {...}}                    - Parse response format
+        {"tree": {...}, "delimiters": {}}  - With custom delimiters
     
     Returns: Plain text EDI string
     """
     try:
-        tree = req.tree
-        
-        if not tree:
-            raise HTTPException(status_code=400, detail="Missing 'tree' in request body.")
+        tree = _extract_tree(req)
         
         if "envelope" not in tree:
-            raise HTTPException(status_code=400, detail="Invalid tree structure: missing 'envelope' key.")
+            raise HTTPException(
+                status_code=400,
+                detail="Invalid tree structure: missing 'envelope' key."
+            )
         
         generator = EDIGenerator(tree)
         
@@ -213,10 +237,13 @@ async def generate_edi_file_json(
     Same as /api/v1/generate but returns JSON with metadata.
     """
     try:
-        tree = req.tree
+        tree = _extract_tree(req)
         
-        if not tree:
-            raise HTTPException(status_code=400, detail="Missing 'tree' in request body.")
+        if "envelope" not in tree:
+            raise HTTPException(
+                status_code=400,
+                detail="Invalid tree structure: missing 'envelope' key."
+            )
         
         generator = EDIGenerator(tree)
         

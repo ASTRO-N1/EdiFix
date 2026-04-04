@@ -18,12 +18,9 @@ Run from the project root:
 
 import sys
 import os
-import types
 import unittest
+from unittest.mock import patch
 
-# ── Path setup ────────────────────────────────────────────────────────────────
-# Allow `from core_parser.edi_parser import EDIParser` to resolve correctly
-# regardless of where pytest is invoked from.
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from core_parser.edi_parser import EDIParser
@@ -33,30 +30,57 @@ from core_parser.edi_parser import EDIParser
 
 def _make_parser() -> EDIParser:
     """
-    Create an EDIParser instance without touching the filesystem.
-    We patch file_path to a non-existent path — parse() is never called,
-    only _run_domain_validations() is exercised directly.
+    Create an EDIParser without any filesystem access.
+    Uses a cross-platform null path and resets all stateful fields
+    so every test starts from a clean slate.
     """
+    null_path = "NUL" if sys.platform == "win32" else "/dev/null"
     p = EDIParser.__new__(EDIParser)
-    EDIParser.__init__(p, file_path="/dev/null")  # __init__ does no file I/O
-    # Ensure loop stack is empty so get_current_loop() returns None gracefully
-    p.loop_stack = []
+    EDIParser.__init__(p, file_path=null_path)
+    p.loop_stack    = []
     p.current_claim = None
-    p._pending_clp = None
-    p._pending_svc = None
+    p._pending_clp  = None
+    p._pending_svc  = None
     return p
 
 
-def _error_types(parser: EDIParser) -> list[str]:
+def _error_types(parser: EDIParser) -> list:
     return [e["type"] for e in parser.errors]
 
 
-def _error_fields(parser: EDIParser) -> list[str]:
+def _error_fields(parser: EDIParser) -> list:
     return [e.get("field", "") for e in parser.errors]
 
 
-def _warning_types(parser: EDIParser) -> list[str]:
+def _warning_types(parser: EDIParser) -> list:
     return [w["type"] for w in parser.warnings]
+
+
+# ── Reference-data stubs ──────────────────────────────────────────────────────
+
+class _RefStubNoFiles:
+    """
+    Simulates an environment where NO reference JSON files are present.
+    Every check() call returns "unknown" → triggers _Unverified warnings.
+    """
+    versions: dict = {}
+
+    def check(self, key: str, value: str) -> str:
+        return "unknown"
+
+
+class _RefStubWithRarc:
+    """
+    Simulates a fully loaded reference set where only 'MA01' is a known
+    valid RARC code. Any other code is invalid.
+    """
+    versions: dict = {}
+    _VALID_RARC = {"MA01"}
+
+    def check(self, key: str, value: str) -> str:
+        if key == "rarc":
+            return "valid" if value.strip().upper() in self._VALID_RARC else "invalid"
+        return "unknown"
 
 
 # ═════════════════════════════════════════════════════════════════════════════
@@ -64,12 +88,10 @@ def _warning_types(parser: EDIParser) -> list[str]:
 # ═════════════════════════════════════════════════════════════════════════════
 
 class TestAmountFormatSV1(unittest.TestCase):
-    """SV1*HC:99213*<amount>*..."""
 
     def test_valid_amount_no_error(self):
         p = _make_parser()
         p.current_claim = {"Segment_ID": "CLM", "PatientControlNumber_01": "1"}
-        # SV1*HC:99213*125.00*UN*1
         p._run_domain_validations("SV1", ["SV1", "HC:99213", "125.00", "UN", "1"], 10)
         self.assertNotIn("InvalidAmountFormat", _error_types(p))
 
@@ -81,7 +103,6 @@ class TestAmountFormatSV1(unittest.TestCase):
         self.assertIn("SV102", _error_fields(p))
 
     def test_empty_amount_is_zero_no_error(self):
-        """Empty string should silently default to 0.0."""
         p = _make_parser()
         p.current_claim = {"Segment_ID": "CLM", "PatientControlNumber_01": "1"}
         p._run_domain_validations("SV1", ["SV1", "HC:99213", "", "UN", "1"], 10)
@@ -89,7 +110,6 @@ class TestAmountFormatSV1(unittest.TestCase):
 
 
 class TestAmountFormatSV2(unittest.TestCase):
-    """SV2*0301*HC:82270*<amount>*UN*1"""
 
     def test_valid_amount_no_error(self):
         p = _make_parser()
@@ -106,7 +126,6 @@ class TestAmountFormatSV2(unittest.TestCase):
 
 
 class TestAmountFormatCLM(unittest.TestCase):
-    """CLM*1234*<amount>*..."""
 
     def test_valid_amount_no_error(self):
         p = _make_parser()
@@ -120,7 +139,6 @@ class TestAmountFormatCLM(unittest.TestCase):
         self.assertIn("CLM02", _error_fields(p))
 
     def test_empty_amount_no_error(self):
-        """Empty CLM02 → claimed=None, no error."""
         p = _make_parser()
         p._run_domain_validations("CLM", ["CLM", "1234", "", "", "", "11:B:1"], 10)
         self.assertNotIn("InvalidAmountFormat", _error_types(p))
@@ -131,12 +149,12 @@ class TestAmountFormatCLM(unittest.TestCase):
 # ═════════════════════════════════════════════════════════════════════════════
 
 class TestCLM05Validation(unittest.TestCase):
-    """CLM*PCN*AMT***<CLM05>*..."""
 
     def _clm(self, clm05: str) -> EDIParser:
         p = _make_parser()
-        # elements: CLM*PCN*200.00***<clm05>*Y*A*Y*I
-        p._run_domain_validations("CLM", ["CLM", "PCN1", "200.00", "", "", clm05, "Y", "A", "Y", "I"], 5)
+        p._run_domain_validations(
+            "CLM", ["CLM", "PCN1", "200.00", "", "", clm05, "Y", "A", "Y", "I"], 5
+        )
         return p
 
     def test_valid_clm05_no_errors(self):
@@ -151,23 +169,23 @@ class TestCLM05Validation(unittest.TestCase):
         self.assertIn("MissingCLM05", _error_types(p))
 
     def test_non_numeric_pos_fires_error(self):
-        p = self._clm("AB:B:1")   # POS "AB" is not \d{2}
+        p = self._clm("AB:B:1")
         self.assertIn("InvalidPlaceOfService", _error_types(p))
 
     def test_single_digit_pos_fires_error(self):
-        p = self._clm("1:B:1")    # POS "1" is only 1 digit
+        p = self._clm("1:B:1")
         self.assertIn("InvalidPlaceOfService", _error_types(p))
 
     def test_missing_freq_code_fires_error(self):
-        p = self._clm("11:B:")    # freq_code is empty
+        p = self._clm("11:B:")
         self.assertIn("InvalidClaimFrequency", _error_types(p))
 
     def test_alpha_freq_code_fires_error(self):
-        p = self._clm("11:B:X")   # freq "X" is not \d
+        p = self._clm("11:B:X")
         self.assertIn("InvalidClaimFrequency", _error_types(p))
 
     def test_valid_replacement_claim(self):
-        p = self._clm("21:B:7")   # POS=21, Freq=7 (replacement)
+        p = self._clm("21:B:7")
         codes = _error_types(p)
         self.assertNotIn("InvalidPlaceOfService", codes)
         self.assertNotIn("InvalidClaimFrequency", codes)
@@ -178,7 +196,6 @@ class TestCLM05Validation(unittest.TestCase):
 # ═════════════════════════════════════════════════════════════════════════════
 
 class TestSVCProcedureCodeFormat(unittest.TestCase):
-    """SVC*<composite>*billed*paid"""
 
     def test_valid_hcpcs_code_no_error(self):
         p = _make_parser()
@@ -191,21 +208,17 @@ class TestSVCProcedureCodeFormat(unittest.TestCase):
         self.assertIn("InvalidCPT_HCPCS_Format", _error_types(p))
 
     def test_missing_code_no_crash(self):
-        """Empty composite should not crash — no code to validate."""
         p = _make_parser()
         p._run_domain_validations("SVC", ["SVC", "", "125.00", "100.00"], 20)
-        # No format error expected since code is absent
         self.assertNotIn("InvalidCPT_HCPCS_Format", _error_types(p))
 
     def test_pending_svc_initialised(self):
-        """After SVC, _pending_svc must be a dict with 'adjustments' key."""
         p = _make_parser()
         p._run_domain_validations("SVC", ["SVC", "HC:99213", "125.00", "100.00"], 20)
         self.assertIsNotNone(p._pending_svc)
         self.assertIn("adjustments", p._pending_svc)
 
     def test_svc_appended_to_pending_clp(self):
-        """SVC should be appended to _pending_clp['services'] when one is open."""
         p = _make_parser()
         p._pending_clp = {"services": [], "adjustments": [], "claim_id": "X"}
         p._run_domain_validations("SVC", ["SVC", "HC:99213", "125.00", "100.00"], 20)
@@ -217,42 +230,63 @@ class TestSVCProcedureCodeFormat(unittest.TestCase):
 # ═════════════════════════════════════════════════════════════════════════════
 
 class TestRARCValidationLQ(unittest.TestCase):
-    """LQ*HE*<RARC_code>"""
+    """
+    All four tests inject a controlled _RefStub so results are deterministic
+    regardless of whether rarc_codes.json exists on the test machine.
+    """
 
     def test_non_he_qualifier_not_validated(self):
-        """Qualifier other than HE should not trigger RARC validation at all."""
+        """Non-HE qualifier must never trigger a RARC check."""
         p = _make_parser()
+        p._ref = _RefStubNoFiles()
         p._run_domain_validations("LQ", ["LQ", "RX", "MA01"], 30)
-        # No InvalidRARC or InvalidRARC_Unverified expected
         all_types = _error_types(p) + _warning_types(p)
-        rarc_hits = [t for t in all_types if "RARC" in t]
-        self.assertEqual(rarc_hits, [])
+        self.assertEqual([t for t in all_types if "RARC" in t], [])
 
     def test_empty_lq_code_not_validated(self):
+        """HE qualifier with an empty code must not fire any RARC check."""
         p = _make_parser()
+        p._ref = _RefStubNoFiles()
         p._run_domain_validations("LQ", ["LQ", "HE", ""], 30)
         all_types = _error_types(p) + _warning_types(p)
-        rarc_hits = [t for t in all_types if "RARC" in t]
-        self.assertEqual(rarc_hits, [])
+        self.assertEqual([t for t in all_types if "RARC" in t], [])
 
-    def test_he_qualifier_triggers_rarc_check(self):
+    def test_he_qualifier_valid_rarc_no_error(self):
         """
-        When qualifier is HE and a code is present, validate_rarc() is called.
-        With no reference file loaded the result is a warning (Unverified),
-        not necessarily an error.  Either outcome confirms the method was called.
+        HE qualifier + a code that IS in the reference set → no error or warning.
+        Uses _RefStubWithRarc which recognises only 'MA01' as valid.
         """
         p = _make_parser()
+        p._ref = _RefStubWithRarc()
         p._run_domain_validations("LQ", ["LQ", "HE", "MA01"], 30)
         all_types = _error_types(p) + _warning_types(p)
-        rarc_hits = [t for t in all_types if "RARC" in t]
-        # validate_rarc was called — at minimum we see an Unverified warning
-        # OR an InvalidRARC error if reference data IS loaded with MA01 absent.
-        self.assertGreater(len(rarc_hits), 0,
-            "Expected at least one RARC-related error or warning when LQ01='HE' and a code is provided.")
+        self.assertEqual([t for t in all_types if "RARC" in t], [],
+            "A valid RARC code should produce no errors or warnings.")
+
+    def test_he_qualifier_invalid_rarc_fires_error(self):
+        """
+        HE qualifier + a code NOT in the reference set → InvalidRARC error.
+        Uses _RefStubWithRarc which only knows 'MA01'.
+        """
+        p = _make_parser()
+        p._ref = _RefStubWithRarc()
+        p._run_domain_validations("LQ", ["LQ", "HE", "ZZZNOTREAL"], 30)
+        self.assertIn("InvalidRARC", _error_types(p))
+
+    def test_he_qualifier_unknown_ref_fires_warning(self):
+        """
+        HE qualifier + any code when reference data is absent → Unverified warning.
+        Uses _RefStubNoFiles which always returns 'unknown'.
+        """
+        p = _make_parser()
+        p._ref = _RefStubNoFiles()
+        p._run_domain_validations("LQ", ["LQ", "HE", "MA01"], 30)
+        self.assertIn("InvalidRARC_Unverified", _warning_types(p))
 
     def test_lq_segment_short_no_crash(self):
-        """LQ with only 1 element should not raise an exception."""
+        """LQ with only the segment ID and no other elements must not raise."""
         p = _make_parser()
+        p._ref = _RefStubNoFiles()
         try:
             p._run_domain_validations("LQ", ["LQ"], 30)
         except Exception as exc:
@@ -264,117 +298,90 @@ class TestRARCValidationLQ(unittest.TestCase):
 # ═════════════════════════════════════════════════════════════════════════════
 
 class TestINSCodeValidation(unittest.TestCase):
-    """INS*Y*<INS02>*<INS03>*<INS04>*..."""
 
     def _ins(self, ins02: str, ins03: str, ins04: str = "") -> EDIParser:
         p = _make_parser()
-        elements = ["INS", "Y", ins02, ins03, ins04, "A", "C"]
-        p._run_domain_validations("INS", elements, 40)
+        p._run_domain_validations("INS", ["INS", "Y", ins02, ins03, ins04, "A", "C"], 40)
         return p
 
-    # ── INS02 ──────────────────────────────────────────────────────────────
-
-    def test_valid_ins02_no_error(self):
+    def test_valid_ins_no_error(self):
         p = self._ins("18", "021")
-        self.assertNotIn("MissingINSCode",  _error_types(p))
-        self.assertNotIn("InvalidINSCode",  _error_types(p))
+        self.assertNotIn("MissingINSCode", _error_types(p))
+        self.assertNotIn("InvalidINSCode", _error_types(p))
 
     def test_missing_ins02_fires_missing_error(self):
         p = self._ins("", "021")
-        errors = [(e["field"], e["type"]) for e in p.errors]
-        self.assertIn(("INS02", "MissingINSCode"), errors)
+        self.assertIn(("INS02", "MissingINSCode"), [(e["field"], e["type"]) for e in p.errors])
 
     def test_one_char_ins02_fires_invalid_error(self):
-        p = self._ins("1", "021")      # only 1 character — should be 2
-        errors = [(e["field"], e["type"]) for e in p.errors]
-        self.assertIn(("INS02", "InvalidINSCode"), errors)
+        p = self._ins("1", "021")
+        self.assertIn(("INS02", "InvalidINSCode"), [(e["field"], e["type"]) for e in p.errors])
 
     def test_three_char_ins02_fires_invalid_error(self):
-        p = self._ins("181", "021")    # 3 chars — should be exactly 2
-        errors = [(e["field"], e["type"]) for e in p.errors]
-        self.assertIn(("INS02", "InvalidINSCode"), errors)
+        p = self._ins("181", "021")
+        self.assertIn(("INS02", "InvalidINSCode"), [(e["field"], e["type"]) for e in p.errors])
 
     def test_alpha_ins02_valid(self):
-        """2-char alphanumeric like 'AI' is valid per IG."""
         p = self._ins("AI", "021")
-        fields_with_ins02_error = [
-            e["field"] for e in p.errors
-            if e["field"] == "INS02" and e["type"] == "InvalidINSCode"
-        ]
-        self.assertEqual(fields_with_ins02_error, [])
-
-    # ── INS03 ──────────────────────────────────────────────────────────────
-
-    def test_valid_ins03_no_error(self):
-        p = self._ins("18", "021")
-        self.assertNotIn("MissingINSCode",  _error_types(p))
+        self.assertEqual(
+            [e for e in p.errors if e["field"] == "INS02" and e["type"] == "InvalidINSCode"], []
+        )
 
     def test_missing_ins03_fires_missing_error(self):
         p = self._ins("18", "")
-        errors = [(e["field"], e["type"]) for e in p.errors]
-        self.assertIn(("INS03", "MissingINSCode"), errors)
+        self.assertIn(("INS03", "MissingINSCode"), [(e["field"], e["type"]) for e in p.errors])
 
     def test_two_char_ins03_fires_invalid_error(self):
-        p = self._ins("18", "01")      # INS03 must be 3 chars, not 2
-        errors = [(e["field"], e["type"]) for e in p.errors]
-        self.assertIn(("INS03", "InvalidINSCode"), errors)
+        p = self._ins("18", "01")
+        self.assertIn(("INS03", "InvalidINSCode"), [(e["field"], e["type"]) for e in p.errors])
 
     def test_four_char_ins03_fires_invalid_error(self):
-        p = self._ins("18", "0210")    # 4 chars — should be exactly 3
-        errors = [(e["field"], e["type"]) for e in p.errors]
-        self.assertIn(("INS03", "InvalidINSCode"), errors)
-
-    # ── INS04 ──────────────────────────────────────────────────────────────
+        p = self._ins("18", "0210")
+        self.assertIn(("INS03", "InvalidINSCode"), [(e["field"], e["type"]) for e in p.errors])
 
     def test_absent_ins04_no_error(self):
-        """INS04 is optional — absent means empty string, no error expected."""
         p = self._ins("18", "021", "")
-        fields_with_ins04_error = [e["field"] for e in p.errors if e["field"] == "INS04"]
-        self.assertEqual(fields_with_ins04_error, [])
+        self.assertEqual([e for e in p.errors if e["field"] == "INS04"], [])
 
     def test_valid_ins04_no_error(self):
         p = self._ins("18", "021", "25")
-        fields_with_ins04_error = [e["field"] for e in p.errors if e["field"] == "INS04"]
-        self.assertEqual(fields_with_ins04_error, [])
+        self.assertEqual([e for e in p.errors if e["field"] == "INS04"], [])
 
     def test_invalid_ins04_fires_error(self):
         p = self._ins("18", "021", "TOOLONG")
-        errors = [(e["field"], e["type"]) for e in p.errors]
-        self.assertIn(("INS04", "InvalidINSCode"), errors)
+        self.assertIn(("INS04", "InvalidINSCode"), [(e["field"], e["type"]) for e in p.errors])
 
     def test_pending_ins_line_set(self):
-        """After INS, _pending_ins_line must equal the line number passed."""
         p = _make_parser()
         p._run_domain_validations("INS", ["INS", "Y", "18", "021", ""], 99)
         self.assertEqual(p._pending_ins_line, 99)
 
 
 # ═════════════════════════════════════════════════════════════════════════════
-# REGRESSION — existing validators (ensure gaps didn't break them)
+# REGRESSION — existing validators
 # ═════════════════════════════════════════════════════════════════════════════
 
 class TestNPIValidationRegression(unittest.TestCase):
 
     def test_valid_npi_no_error(self):
-        """NPI 1234567893 passes the Luhn check."""
         p = _make_parser()
-        p._run_domain_validations("NM1", [
-            "NM1", "85", "2", "CLINIC", "", "", "", "", "XX", "1234567893"
-        ], 1)
+        p._run_domain_validations(
+            "NM1", ["NM1", "85", "2", "CLINIC", "", "", "", "", "XX", "1234567893"], 1
+        )
         self.assertNotIn("InvalidNPI", _error_types(p))
 
     def test_invalid_npi_fires_error(self):
         p = _make_parser()
-        p._run_domain_validations("NM1", [
-            "NM1", "85", "2", "CLINIC", "", "", "", "", "XX", "1234567890"
-        ], 1)
+        p._run_domain_validations(
+            "NM1", ["NM1", "85", "2", "CLINIC", "", "", "", "", "XX", "1234567890"], 1
+        )
         self.assertIn("InvalidNPI", _error_types(p))
 
     def test_non_xx_qualifier_skips_npi_check(self):
         p = _make_parser()
-        p._run_domain_validations("NM1", [
-            "NM1", "85", "2", "CLINIC", "", "", "", "", "SY", "123456789"
-        ], 1)
+        p._run_domain_validations(
+            "NM1", ["NM1", "85", "2", "CLINIC", "", "", "", "", "SY", "123456789"], 1
+        )
         self.assertNotIn("InvalidNPI", _error_types(p))
 
 
@@ -384,7 +391,7 @@ class TestDateValidationRegression(unittest.TestCase):
         p = _make_parser()
         p._run_domain_validations("DTP", ["DTP", "472", "D8", "20231015"], 2)
         self.assertNotIn("InvalidDateFormat", _error_types(p))
-        self.assertNotIn("InvalidDateValue", _error_types(p))
+        self.assertNotIn("InvalidDateValue",  _error_types(p))
 
     def test_invalid_date_fires_error(self):
         p = _make_parser()
@@ -414,14 +421,13 @@ class TestICD10Regression(unittest.TestCase):
 
     def test_invalid_format_fires_error(self):
         p = _make_parser()
-        # HI with ABK qualifier and bad code "123" (no leading letter)
         p._run_domain_validations("HI", ["HI", "ABK:123"], 4)
         self.assertIn("InvalidICD10Format", _error_types(p))
 
     def test_valid_format_no_format_error(self):
         p = _make_parser()
+        p._ref = _RefStubNoFiles()   # prevent existence check from interfering
         p._run_domain_validations("HI", ["HI", "ABK:J45909"], 4)
-        # No format error (existence check may warn if ref file missing)
         self.assertNotIn("InvalidICD10Format", _error_types(p))
 
 
@@ -458,4 +464,4 @@ class TestPendingInsLineReset(unittest.TestCase):
 
 
 if __name__ == "__main__":
-    unittest.main(verbosity=2)
+    unittest.main(verbosity=2)              

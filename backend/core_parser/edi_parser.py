@@ -263,35 +263,56 @@ class EDIParser:
         script_dir = os.path.dirname(os.path.abspath(__file__))
         self._ref  = ReferenceData(os.path.abspath(os.path.join(script_dir, "..")))
 
-    # =========================================================================
-    # 2. STREAMING LEXER
-    # =========================================================================
     def stream_and_tokenize(self):
-        """Reads the file once, strips BOM/junk before ISA, yields segment element lists."""
+        """Reads the file once, strips BOM, dynamically infers delimiters, yields token lists."""
         with open(self.file_path, "r", encoding="utf-8-sig") as f:
-            raw = f.read().replace("\n", "").replace("\r", "")
+            raw = f.read()
 
-        # Find ISA and strip anything before it (BOM, whitespace, junk bytes)
+        # Find ISA and strip anything before it
         isa_start = raw.find("ISA")
-        if isa_start == -1 or len(raw) < isa_start + 106:
+        if isa_start == -1 or len(raw) < isa_start + 10:
             self.errors.append({
                 "line": 1, "segment": "ISA", "type": "Critical",
-                "message": "File does not contain a valid 106-character ISA envelope.",
-                "suggestion": "Ensure the file begins with a strictly formatted 106-character ISA segment.",
+                "message": "File does not contain a valid ISA envelope.",
+                "suggestion": "Ensure the file begins with a strictly formatted ISA segment.",
             })
             return
 
-        # Trim everything before ISA
         raw = raw[isa_start:]
+        self.element_sep = raw[3]
 
-        # Detect delimiters from ISA fixed positions
-        self.element_sep    = raw[3]
-        self.subelement_sep = raw[104]
-        self.segment_sep    = raw[105]
+        # Dynamically infer segment separator (solves un-padded ISA / weird newlines)
+        # Test common separators + whatever is at index 105 (if file is exactly padded)
+        candidate_seps = ["~", "\n", "\r"]
+        if len(raw) > 105:
+            candidate_seps.append(raw[105])
 
-        # Split into segments and yield element lists
+        best_sep = "~"
+        for sep in candidate_seps:
+            chunks = raw.split(sep)
+            # Find the first non-empty chunk after the ISA chunk
+            valid_next = False
+            for c in chunks[1:]:
+                c_clean = c.replace("\n", "").replace("\r", "").strip()
+                if c_clean:
+                    # Valid next segments right after an ISA
+                    if c_clean.startswith("GS" + self.element_sep) or \
+                       c_clean.startswith("ST" + self.element_sep) or \
+                       c_clean.startswith("BGN" + self.element_sep) or \
+                       c_clean.startswith("TA1" + self.element_sep):
+                        valid_next = True
+                    break
+            
+            if valid_next:
+                best_sep = sep
+                break
+
+        self.segment_sep = best_sep
+        self.subelement_sep = raw[104] if len(raw) > 104 else ":"
+
+        # Safely split into segments
         for segment in raw.split(self.segment_sep):
-            segment = segment.strip()
+            segment = segment.replace("\n", "").replace("\r", "").strip()
             if segment:
                 yield segment.split(self.element_sep)
 
@@ -969,7 +990,7 @@ class EDIParser:
 
         is_new_instance = (
             current_loop != self.current_loop_id
-            or seg_id in ("NM1", "HL", "CLM", "LX", "INS")
+            or seg_id in ("NM1", "HL", "CLM", "LX", "INS", "HD", "COB")
         )
 
         if is_new_instance:

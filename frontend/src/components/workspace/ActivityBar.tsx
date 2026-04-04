@@ -55,6 +55,19 @@ function ScaleIcon({ active }: { active: boolean }) {
   )
 }
 
+function ChangeReport834Icon({ active }: { active: boolean }) {
+  const c = active ? '#95E1D3' : 'rgba(26,26,46,0.45)'
+  return (
+    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke={c} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
+      <polyline points="14 2 14 8 20 8" />
+      <line x1="9" y1="13" x2="15" y2="13" />
+      <line x1="9" y1="17" x2="13" y2="17" />
+      <polyline points="9 9 10 9 11 9" />
+    </svg>
+  )
+}
+
 function ExportIcon({ active }: { active: boolean }) {
   return (
     <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke={active ? '#4ECDC4' : 'rgba(26,26,46,0.45)'} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -91,7 +104,8 @@ export default function ActivityBar() {
 
   const ITEMS = session ? BASE_ITEMS : BASE_ITEMS.filter((item) => item.id !== 'welcome')
 
-  const isReconcileActive = activeMainView === 'reconcile'
+  const isReconcileActive     = activeMainView === 'reconcile'
+  const isChangeReportActive  = activeMainView === 'change-report'
 
   return (
     <div style={{
@@ -163,6 +177,27 @@ export default function ActivityBar() {
           <div style={{ position: 'absolute', left: -4, top: 8, bottom: 8, width: 3, background: '#FFE66D', borderRadius: 2 }} />
         )}
         <ScaleIcon active={isReconcileActive} />
+      </button>
+
+      {/* ── 834 Change Report ── */}
+      <button
+        id="change-report-834-btn"
+        title="834 Change Report — Enrollment Delta"
+        onClick={() => setActiveMainView('change-report')}
+        style={{
+          position: 'relative', width: 40, height: 40,
+          display: 'flex', alignItems: 'center', justifyContent: 'center',
+          background: isChangeReportActive ? 'rgba(149,225,211,0.18)' : 'transparent',
+          border: 'none', borderRadius: 8, cursor: 'pointer',
+          transition: 'background 0.15s ease',
+        }}
+        onMouseEnter={(e) => { if (!isChangeReportActive) e.currentTarget.style.background = 'rgba(149,225,211,0.10)' }}
+        onMouseLeave={(e) => { if (!isChangeReportActive) e.currentTarget.style.background = 'transparent' }}
+      >
+        {isChangeReportActive && (
+          <div style={{ position: 'absolute', left: -4, top: 8, bottom: 8, width: 3, background: '#95E1D3', borderRadius: 2 }} />
+        )}
+        <ChangeReport834Icon active={isChangeReportActive} />
       </button>
     </div>
   )

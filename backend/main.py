@@ -3,7 +3,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.security import APIKeyHeader
 from fastapi.responses import PlainTextResponse
 from pydantic import BaseModel
-from typing import Optional, Any
+from typing import Optional, Any, List
 import os
 import tempfile
 import uvicorn
@@ -130,6 +130,14 @@ def options_parse_835():
 def options_reconcile():
     return {}
 
+@app.options("/api/reconcile/834")
+def options_reconcile_834():
+    return {}
+
+@app.options("/api/reconcile/834/json")
+def options_reconcile_834_json():
+    return {}
+
 @app.options("/api/v1/keys")
 def options_keys():
     return {}
@@ -248,6 +256,102 @@ async def reconcile_endpoint(
     """
     try:
         report = run_reconciliation(req.parsed_837, req.parsed_835)
+        return {"status": "success", "report": report}
+    except Exception as e:
+        return {"status": "error", "message": str(e)}
+
+
+# ── 834 Change Report — multipart file upload ─────────────────────────────────
+@app.post("/api/reconcile/834")
+async def reconcile_834_endpoint(
+    files: List[UploadFile] = File(...),
+    api_caller: dict = Depends(verify_api_key),
+):
+    """
+    834 Benefit Enrollment Change Report — multipart upload.
+    Accepts 2+ raw 834 EDI files, parses each, auto-detects chronological
+    order, and compares the oldest vs newest file.
+    """
+    from core_parser.reconciler_834 import reconcile_834
+
+    if len(files) < 2:
+        return {"status": "error", "message": "At least 2 834 files are required for the change report."}
+
+    parsed_files = []
+    temp_paths: list[str] = []
+
+    try:
+        for upload_file in files:
+            temp_fd, temp_path = tempfile.mkstemp(suffix=".edi")
+            temp_paths.append(temp_path)
+            with os.fdopen(temp_fd, "wb") as f:
+                content = await upload_file.read()
+                f.write(content)
+
+            parser = EDIParser(temp_path)
+            tree = parser.parse()
+
+            if not tree.get("metadata"):
+                return {
+                    "status": "error",
+                    "message": f"Failed to parse '{upload_file.filename}'. Is it a valid X12 EDI file?",
+                }
+
+            tx_type = tree.get("metadata", {}).get("transaction_type", "")
+            if tx_type and tx_type != "834":
+                return {
+                    "status": "error",
+                    "message": f"File '{upload_file.filename}' appears to be an {tx_type} transaction, not an 834.",
+                }
+
+            parsed_files.append({"filename": upload_file.filename, "data": tree})
+
+        # Compare oldest vs newest (reconcile_834 auto-sorts internally)
+        report = reconcile_834(parsed_files[0], parsed_files[-1])
+        return {"status": "success", "report": report}
+
+    except Exception as e:
+        return {"status": "error", "message": str(e)}
+
+    finally:
+        for p in temp_paths:
+            if os.path.exists(p):
+                os.remove(p)
+
+
+
+# ── 834 Change Report — JSON AST shortcut ─────────────────────────────────────
+# Client posts pre-parsed ASTs (already fetched via /api/v1/parse) so we
+# don't need a second round-trip file upload.
+class Reconcile834JsonRequest(BaseModel):
+    files: List[dict]  # List of parse-response dicts from /api/v1/parse
+
+
+@app.post("/api/reconcile/834/json")
+async def reconcile_834_json_endpoint(
+    req: Reconcile834JsonRequest,
+    api_caller: dict = Depends(verify_api_key),
+):
+    from core_parser.reconciler_834 import reconcile_834
+
+    if len(req.files) < 2:
+        return {"status": "error", "message": "At least 2 parsed 834 ASTs are required."}
+
+    try:
+        # Debug logging to see exactly what frontend passes
+        print("======== DEBUG RECONCILE 834 ========")
+        for i, f in enumerate(req.files):
+            print(f"File {i} keys: {f.keys()}")
+            data = f.get("data", {})
+            print(f"File {i} data keys: {data.keys()}")
+            loops = data.get("loops") if isinstance(data, dict) else {}
+            if isinstance(loops, dict):
+                print(f"File {i} loops keys: {loops.keys()}")
+            else:
+                print(f"File {i} loops: not a dict, type={type(loops)}")
+        print("=====================================")
+
+        report = reconcile_834(req.files[0], req.files[-1])
         return {"status": "success", "report": report}
     except Exception as e:
         return {"status": "error", "message": str(e)}

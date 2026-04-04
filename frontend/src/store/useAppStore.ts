@@ -68,8 +68,8 @@ interface AppState {
 
   // ── Workspace IDE State ────────────────────────────────
 
-  activeMainView: 'welcome' | 'dashboard' | 'editor' | 'export' | 'reconcile'
-  setActiveMainView: (view: 'welcome' | 'dashboard' | 'editor' | 'export' | 'reconcile') => void
+  activeMainView: 'welcome' | 'dashboard' | 'editor' | 'export' | 'reconcile' | 'change-report'
+  setActiveMainView: (view: 'welcome' | 'dashboard' | 'editor' | 'export' | 'reconcile' | 'change-report') => void
 
   activePanelView: ActivePanelView
   setActivePanelView: (view: ActivePanelView) => void
@@ -112,6 +112,12 @@ interface AppState {
   setOpenTabs: (tabs: WorkspaceTab[]) => void
   addTab: (tab: WorkspaceTab) => void
   closeTab: (id: string) => void
+
+  // ── 834 Change Report State ─────────────────────────────────
+  changeReport834Result: Record<string, unknown> | null
+  setChangeReport834Result: (data: Record<string, unknown> | null) => void
+  isChangeReport834Loading: boolean
+  setIsChangeReport834Loading: (v: boolean) => void
 }
 
 const DEFAULT_TABS: WorkspaceTab[] = [
@@ -352,6 +358,12 @@ const useAppStore = create<AppState>((set, get) => ({
       activeTabId: activeId === id ? (tabs[0]?.id ?? '') : activeId,
     })
   },
+
+  // ── 834 Change Report ──────────────────────────────────────────────
+  changeReport834Result: null,
+  setChangeReport834Result: (data) => set({ changeReport834Result: data }),
+  isChangeReport834Loading: false,
+  setIsChangeReport834Loading: (v) => set({ isChangeReport834Loading: v }),
 }))
 
 export default useAppStore

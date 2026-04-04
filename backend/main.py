@@ -1,8 +1,9 @@
-from fastapi import FastAPI, UploadFile, File, Depends, HTTPException, status, Body
+from fastapi import FastAPI, UploadFile, File, Depends, HTTPException, status, Body, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.security import APIKeyHeader
 from fastapi.responses import PlainTextResponse
 from pydantic import BaseModel
+from typing import Optional, Any
 import os
 import tempfile
 import uvicorn
@@ -45,9 +46,19 @@ class ChatRequest(BaseModel):
 
 
 class GenerateRequest(BaseModel):
-    """Request body for EDI generation endpoint."""
-    tree: dict
-    delimiters: dict | None = None
+    """
+    Request body for EDI generation endpoint.
+    
+    Accepts either:
+      1. {"tree": {...}}  - Direct tree structure
+      2. {"data": {...}}  - Parse response format (tree nested in 'data')
+    """
+    tree: Optional[dict] = None
+    data: Optional[dict] = None
+    delimiters: Optional[dict] = None
+    
+    class Config:
+        extra = "allow"  # Allow extra fields like "status", "filename", etc.
 
 
 # ── AI Chat endpoint ──────────────────────────────────────────────────────────
@@ -160,39 +171,120 @@ async def parse_edi_file(
             os.remove(temp_path)
 
 
+# ── Helper to extract tree from various request formats ──────────────────────
+def _extract_tree_from_body(body: dict) -> dict:
+    """
+    Extracts the EDI tree from request body, handling multiple formats:
+    - {"tree": {...}}
+    - {"data": {...}}
+    - Direct tree with "envelope" at root
+    """
+    # Format 1: {"tree": {...}}
+    if "tree" in body and body["tree"]:
+        return body["tree"]
+    
+    # Format 2: {"data": {...}} (parse endpoint response)
+    if "data" in body and body["data"]:
+        return body["data"]
+    
+    # Format 3: Direct tree (has "envelope" at root level)
+    if "envelope" in body:
+        return body
+    
+    raise HTTPException(
+        status_code=400,
+        detail="Could not find EDI tree. Expected 'tree', 'data', or direct tree with 'envelope' key."
+    )
+
+
+# ══════════════════════════════════════════════════════════════════════════════
+# DEBUG/TEST ENDPOINT - No authentication required
+# ══════════════════════════════════════════════════════════════════════════════
+@app.post("/api/v1/generate/test")
+async def generate_edi_test(request: Request):
+    """
+    TEST ENDPOINT - No auth required.
+    Accepts raw JSON body and generates EDI.
+    
+    Use this for debugging. Send the full parse response or just the tree.
+    """
+    try:
+        body = await request.json()
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=f"Invalid JSON: {str(e)}")
+    
+    try:
+        tree = _extract_tree_from_body(body)
+        
+        if "envelope" not in tree:
+            return {
+                "status": "error",
+                "detail": "Invalid tree structure: missing 'envelope' key.",
+                "keys_found": list(tree.keys())[:10],
+            }
+        
+        generator = EDIGenerator(tree)
+        
+        # Check for custom delimiters
+        delimiters = body.get("delimiters")
+        if delimiters:
+            generator.set_delimiters(
+                element_sep=delimiters.get("element_sep"),
+                subelement_sep=delimiters.get("subelement_sep"),
+                segment_sep=delimiters.get("segment_sep"),
+            )
+        
+        edi_string = generator.generate()
+        
+        return {
+            "status": "success",
+            "edi_string": edi_string,
+            "segment_count": generator._segment_count,
+            "delimiters": generator.get_delimiters(),
+        }
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        return {
+            "status": "error",
+            "detail": f"Generation failed: {str(e)}",
+            "error_type": type(e).__name__,
+        }
+
+
 # ── Generate endpoint — Convert JSON tree back to EDI string ─────────────────
 @app.post("/api/v1/generate", response_class=PlainTextResponse)
 async def generate_edi_file(
-    req: GenerateRequest,
+    request: Request,
     api_caller: dict = Depends(verify_api_key),
 ):
     """
     Generates an X12 EDI string from a JSON AST tree.
-    
-    Request Body:
-        {
-            "tree": { ... },
-            "delimiters": { "element_sep": "*", "subelement_sep": ":", "segment_sep": "~" }
-        }
-    
     Returns: Plain text EDI string
     """
     try:
-        tree = req.tree
-        
-        if not tree:
-            raise HTTPException(status_code=400, detail="Missing 'tree' in request body.")
+        body = await request.json()
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=f"Invalid JSON body: {str(e)}")
+    
+    try:
+        tree = _extract_tree_from_body(body)
         
         if "envelope" not in tree:
-            raise HTTPException(status_code=400, detail="Invalid tree structure: missing 'envelope' key.")
+            raise HTTPException(
+                status_code=400,
+                detail="Invalid tree structure: missing 'envelope' key."
+            )
         
         generator = EDIGenerator(tree)
         
-        if req.delimiters:
+        delimiters = body.get("delimiters")
+        if delimiters:
             generator.set_delimiters(
-                element_sep=req.delimiters.get("element_sep"),
-                subelement_sep=req.delimiters.get("subelement_sep"),
-                segment_sep=req.delimiters.get("segment_sep"),
+                element_sep=delimiters.get("element_sep"),
+                subelement_sep=delimiters.get("subelement_sep"),
+                segment_sep=delimiters.get("segment_sep"),
             )
         
         edi_string = generator.generate()
@@ -206,25 +298,34 @@ async def generate_edi_file(
 
 @app.post("/api/v1/generate/json")
 async def generate_edi_file_json(
-    req: GenerateRequest,
+    request: Request,
     api_caller: dict = Depends(verify_api_key),
 ):
     """
     Same as /api/v1/generate but returns JSON with metadata.
     """
     try:
-        tree = req.tree
+        body = await request.json()
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=f"Invalid JSON body: {str(e)}")
+    
+    try:
+        tree = _extract_tree_from_body(body)
         
-        if not tree:
-            raise HTTPException(status_code=400, detail="Missing 'tree' in request body.")
+        if "envelope" not in tree:
+            raise HTTPException(
+                status_code=400,
+                detail="Invalid tree structure: missing 'envelope' key."
+            )
         
         generator = EDIGenerator(tree)
         
-        if req.delimiters:
+        delimiters = body.get("delimiters")
+        if delimiters:
             generator.set_delimiters(
-                element_sep=req.delimiters.get("element_sep"),
-                subelement_sep=req.delimiters.get("subelement_sep"),
-                segment_sep=req.delimiters.get("segment_sep"),
+                element_sep=delimiters.get("element_sep"),
+                subelement_sep=delimiters.get("subelement_sep"),
+                segment_sep=delimiters.get("segment_sep"),
             )
         
         edi_string = generator.generate()

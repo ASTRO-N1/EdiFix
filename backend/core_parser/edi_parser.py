@@ -264,11 +264,6 @@ class EDIParser:
         script_dir = os.path.dirname(os.path.abspath(__file__))
         self._ref  = ReferenceData(os.path.abspath(os.path.join(script_dir, "..")))
 
-        self.load_carc()
-        self.load_rarc()
-        self.load_icd10()
-        self.load_cpt()
-        self.load_hcpcs()
 
     # =========================================================================
     # 2. STREAMING LEXER

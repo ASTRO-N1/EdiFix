@@ -178,12 +178,17 @@ function FormField({ id, label, value, onCommit, errors = [], isActive, mono, hi
 
 // ── Layout Components ─────────────────────────────────────────────────────────
 
-function SectionHeader({ title, icon, rotate = 0 }: { title: string; icon: string; rotate?: number }) {
+function SectionHeader({ title, icon, rotate = 0, description }: { title: string; icon: string; rotate?: number; description?: string }) {
   return (
     <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 20, transform: `rotate(${rotate}deg)`, transformOrigin: 'left center' }}>
       <span style={{ fontSize: 18 }}>{icon}</span>
-      <div>
-        <h2 style={{ fontFamily: 'Nunito, sans-serif', fontWeight: 900, fontSize: 14, color: '#1A1A2E', letterSpacing: '0.07em', textTransform: 'uppercase', margin: 0 }}>{title}</h2>
+      <div style={{ minWidth: 0 }}>
+        <div style={{ display: 'flex', alignItems: 'baseline', gap: 8, flexWrap: 'wrap' }}>
+          <h2 style={{ fontFamily: 'Nunito, sans-serif', fontWeight: 900, fontSize: 14, color: '#1A1A2E', letterSpacing: '0.07em', textTransform: 'uppercase', margin: 0 }}>{title}</h2>
+          {description && (
+            <span style={{ fontFamily: 'Nunito, sans-serif', fontWeight: 600, fontSize: 11, color: 'rgba(26,26,46,0.45)', letterSpacing: '0.02em', fontStyle: 'italic' }}>{description}</span>
+          )}
+        </div>
         <div style={{ height: 3, width: '100%', background: 'linear-gradient(90deg, #4ECDC4, transparent)', borderRadius: 999, marginTop: 3 }} />
       </div>
     </div>
@@ -567,16 +572,146 @@ function resolveSection(path: string | null, pathMap: Array<[RegExp, string]>): 
 
 // ── Generic loop renderer (fallback) ─────────────────────────────────────────
 
-function humanizeKey(k: string): string {
-  return k
-    .replace(/_/g, ' ')
-    .replace(/([A-Z]{2,})/g, (m) => m)
-    .replace(/(\d+)/g, ' $1')
-    .trim()
+// Loop ID → short human description
+const LOOP_DESCRIPTIONS: Record<string, string> = {
+  HEADER: 'Interchange Envelope',
+  '1000A': 'Submitter Information',
+  '1000B': 'Receiver Information',
+  '2000A': 'Billing Provider Hierarchy',
+  '2000B': 'Subscriber Hierarchy',
+  '2000C': 'Patient Hierarchy',
+  '2010AA': 'Billing Provider Name & Address',
+  '2010AB': 'Pay-To Provider',
+  '2010BA': 'Subscriber Name & Demographics',
+  '2010BB': 'Payer Information',
+  '2010CA': 'Patient Name & Demographics',
+  '2010CB': 'Responsible Party',
+  '2300': 'Claim Information',
+  '2310A': 'Referring Provider',
+  '2310B': 'Rendering Provider',
+  '2310E': 'Service Facility Location',
+  '2400': 'Service Line Items',
+  '2420A': 'Rendering Provider (Service Level)',
+  '2420B': 'Purchased Service Provider',
+  '835_HEADER': 'Payment Header',
+  '835_1000A': 'Payer Identification',
+  '835_1000B': 'Payee Identification',
+  '835_2000': 'Claim Summary',
+  '835_2100': 'Claim Payment Detail',
+  '835_2110': 'Service Payment & Adjustments',
+  '834_HEADER': 'Enrollment File Header',
+  '834_1000A': 'Sponsor / Employer',
+  '834_1000B': 'Insurance Payer',
+  '834_2000': 'Member Enrollment Record',
+  '834_2100A': 'Member Name & Demographics',
+  '834_2100B': 'Incorrect Member Name',
+  '834_2300': 'Health Coverage',
+  '834_2700': 'Member Reporting Categories',
+  UNASSIGNED: 'General Segments',
 }
 
-function truncateLabel(label: string, max = 28): string {
-  return label.length > max ? label.slice(0, max) + '…' : label
+// Field key → plain English label  (handles schema-generated prop names like AssignedNumber_01)
+const FIELD_HUMAN_LABELS: Record<string, string> = {
+  // LX
+  LX_01: 'Service Line Number',
+  // SV1
+  SV1_01: 'Procedure Code', SV1_02: 'Charge Amount', SV1_03: 'Unit of Measurement',
+  SV1_04: 'Units / Quantity', SV1_05: 'Facility Code', SV1_06: 'Service Type Code',
+  SV1_07: 'Diagnosis Code Pointer',
+  // SV2
+  SV2_01: 'Revenue Code', SV2_02: 'Procedure Code', SV2_03: 'Charge Amount',
+  SV2_05: 'Unit of Measurement', SV2_06: 'Units / Quantity',
+  // NM1
+  NM1_01: 'Entity ID Code', NM1_02: 'Entity Type', NM1_03: 'Last / Organization Name',
+  NM1_04: 'First Name', NM1_05: 'Middle Name', NM1_06: 'Name Prefix',
+  NM1_07: 'Name Suffix', NM1_08: 'ID Qualifier', NM1_09: 'ID Number',
+  // N1
+  N1_01: 'Entity ID Code', N1_02: 'Name', N1_03: 'ID Qualifier', N1_04: 'ID Number',
+  // N3 / N4
+  N3_01: 'Street Address', N3_02: 'Address Line 2',
+  N4_01: 'City', N4_02: 'State', N4_03: 'Postal Code', N4_04: 'Country Code',
+  // DTP
+  DTP_01: 'Date Qualifier', DTP_02: 'Date Format', DTP_03: 'Date',
+  // CLM
+  CLM_01: 'Patient Control Number', CLM_02: 'Total Charge Amount',
+  CLM_03: 'Claim Type', CLM_05: 'Place of Service',
+  CLM_06: 'Provider Signature', CLM_07: 'Assignment of Benefits',
+  CLM_08: 'Release of Info', CLM_09: 'Prior Auth Required',
+  // HI
+  HI_01: 'Primary Diagnosis Code', HI_02: 'Diagnosis Code 2',
+  HI_03: 'Diagnosis Code 3', HI_04: 'Diagnosis Code 4',
+  HI_05: 'Diagnosis Code 5', HI_06: 'Diagnosis Code 6',
+  // REF
+  REF_01: 'Reference ID Qualifier', REF_02: 'Reference ID', REF_03: 'Description',
+  // DMG
+  DMG_01: 'Date Format', DMG_02: 'Date of Birth', DMG_03: 'Gender Code',
+  // PER
+  PER_01: 'Contact Function', PER_02: 'Contact Name',
+  PER_03: 'Contact Type', PER_04: 'Contact Number', PER_06: 'Contact Number 2',
+  // HL
+  HL_01: 'Hierarchical ID', HL_02: 'Parent ID',
+  HL_03: 'Hierarchical Level', HL_04: 'Has Child',
+  // ISA
+  ISA_01: 'Authorization Qualifier', ISA_02: 'Authorization Info',
+  ISA_03: 'Security Qualifier', ISA_04: 'Security Info',
+  ISA_05: 'Sender ID Qualifier', ISA_06: 'Sender ID',
+  ISA_07: 'Receiver ID Qualifier', ISA_08: 'Receiver ID',
+  ISA_09: 'Date', ISA_10: 'Time',
+  ISA_12: 'Version Number', ISA_13: 'Control Number',
+  ISA_14: 'Acknowledgment Requested', ISA_15: 'Usage Indicator',
+  // GS
+  GS_01: 'Functional Identifier', GS_02: 'Application Sender ID',
+  GS_03: 'Application Receiver ID', GS_04: 'Date', GS_05: 'Time',
+  GS_06: 'Group Control Number', GS_07: 'Agency Code', GS_08: 'Version Code',
+  // ST / BHT
+  ST_01: 'Transaction Set ID', ST_02: 'Control Number', ST_03: 'Implementation Reference',
+  BHT_01: 'Hierarchical Structure Code', BHT_02: 'Transaction Type',
+  BHT_03: 'Reference ID', BHT_04: 'Date', BHT_05: 'Time', BHT_06: 'Claim Type',
+  // SBR / PRV
+  SBR_01: 'Payer Responsibility', SBR_02: 'Relationship Code',
+  SBR_03: 'Group ID', SBR_04: 'Group Name', SBR_09: 'Claim Filing Indicator',
+  PRV_01: 'Provider Code', PRV_02: 'Taxonomy Qualifier', PRV_03: 'Taxonomy Code',
+  // BPR / TRN (835)
+  BPR_01: 'Transaction Code', BPR_02: 'Total Payment Amount',
+  BPR_03: 'Credit/Debit Flag', BPR_04: 'Payment Method', BPR_16: 'Payment Date',
+  TRN_01: 'Trace Type', TRN_02: 'Trace / Check Number', TRN_03: 'Originating Company ID',
+  // CLP / SVC / CAS (835)
+  CLP_01: 'Claim ID', CLP_02: 'Claim Status Code', CLP_03: 'Total Billed Amount',
+  CLP_04: 'Total Paid Amount', CLP_05: 'Patient Responsibility',
+  CLP_06: 'Claim Filing Indicator', CLP_07: 'Payer Control Number',
+  SVC_01: 'Procedure Code', SVC_02: 'Line Paid Amount', SVC_03: 'Line Billed Amount',
+  CAS_01: 'Adjustment Group Code', CAS_02: 'Reason Code', CAS_03: 'Adjustment Amount',
+  // INS / BGN / HD (834)
+  INS_01: 'Subscriber Indicator', INS_02: 'Relationship Code',
+  INS_03: 'Maintenance Type', INS_04: 'Benefit Status',
+  INS_08: 'Employment Status', INS_09: 'Student Status',
+  BGN_01: 'Purpose Code', BGN_02: 'Reference ID',
+  BGN_03: 'Date', BGN_04: 'Time', BGN_08: 'Action Code',
+  HD_01: 'Maintenance Type', HD_03: 'Insurance Line', HD_04: 'Plan Description', HD_05: 'Coverage Type',
+  // PAT / AMT / QTY
+  PAT_01: 'Patient Relationship Code',
+  AMT_01: 'Amount Qualifier', AMT_02: 'Amount',
+  QTY_01: 'Quantity Qualifier', QTY_02: 'Quantity',
+}
+
+// Convert a schema prop name (e.g. "LineItemChargeAmount_02", "LX_01") to a human label.
+// Priority: FIELD_HUMAN_LABELS by Seg+Element key, then by just element pattern, then PascalCase split.
+function resolveFieldLabel(segId: string, fieldKey: string): string {
+  // 1. Try segment-qualified key like "NM1_03" or "SV1_02" (last numeric index from fieldKey)
+  const idxMatch = fieldKey.match(/_?(\d{2,})$/)
+  if (idxMatch) {
+    const qualifier = `${segId}_${idxMatch[1]}`
+    if (FIELD_HUMAN_LABELS[qualifier]) return FIELD_HUMAN_LABELS[qualifier]
+  }
+  // 2. Try the fieldKey directly (e.g. DTP_01)
+  if (FIELD_HUMAN_LABELS[fieldKey]) return FIELD_HUMAN_LABELS[fieldKey]
+  // 3. Fallback: split PascalCase, strip trailing index
+  const withoutIndex = fieldKey.replace(/_?\d{2,}$/, '')
+  return withoutIndex
+    .replace(/_/g, ' ')
+    .replace(/([a-z])([A-Z])/g, '$1 $2')
+    .replace(/([A-Z]+)([A-Z][a-z])/g, '$1 $2')
+    .trim() || fieldKey
 }
 
 function GenericFormView({ rootData, handleCommit, activeFieldPath }: {
@@ -608,16 +743,30 @@ function GenericFormView({ rootData, handleCommit, activeFieldPath }: {
             if (SKIP_KEYS.has(fieldKey)) continue
             const val = seg[fieldKey]
             if (typeof val === 'object') continue
-            const fullLabel = `${segId} — ${humanizeKey(fieldKey)}`
-            allFields.push({ seg, fieldKey, fieldId: `generic-${loopKey}-${segId}-${fieldKey}`, label: truncateLabel(fullLabel, 30), fullLabel })
+            const humanLabel = resolveFieldLabel(segId, fieldKey)
+            // Full tooltip still shows raw technical reference
+            const fullLabel = `${segId} › ${fieldKey}: ${humanLabel}`
+            allFields.push({
+              seg, fieldKey,
+              fieldId: `generic-${loopKey}-${segId}-${fieldKey}`,
+              label: humanLabel,
+              fullLabel,
+            })
           }
         }
 
         if (allFields.length === 0) return null
 
+        const loopDesc = LOOP_DESCRIPTIONS[loopKey]
+
         return (
           <SectionCard key={loopKey}>
-            <SectionHeader title={loopKey} icon={icons[li % icons.length]} rotate={rotations[li % rotations.length]} />
+            <SectionHeader
+              title={loopKey}
+              description={loopDesc}
+              icon={icons[li % icons.length]}
+              rotate={rotations[li % rotations.length]}
+            />
             <FieldGrid cols={2}>
               {allFields.map(({ seg, fieldKey, fieldId, label, fullLabel }) => (
                 <div key={fieldId} style={{ minWidth: 0, overflow: 'hidden' }} title={fullLabel}>

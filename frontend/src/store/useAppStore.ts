@@ -68,8 +68,8 @@ interface AppState {
 
   // ── Workspace IDE State ────────────────────────────────
 
-  activeMainView: 'welcome' | 'dashboard' | 'editor'
-  setActiveMainView: (view: 'welcome' | 'dashboard' | 'editor') => void
+  activeMainView: 'welcome' | 'dashboard' | 'editor' | 'export'
+  setActiveMainView: (view: 'welcome' | 'dashboard' | 'editor' | 'export') => void
 
   activePanelView: ActivePanelView
   setActivePanelView: (view: ActivePanelView) => void
@@ -193,7 +193,7 @@ const useAppStore = create<AppState>((set, get) => ({
   loadWorkspace: (item: HistoryItem) => {
     set({
       ediFile: {
-        file: null, // We don't have the raw File object anymore, just the data
+        file: null,
         fileName: item.file_name,
         fileType: item.file_type,
         parseResult: item.parse_result
@@ -201,7 +201,7 @@ const useAppStore = create<AppState>((set, get) => ({
       parseResult: item.parse_result,
       transactionType: item.transaction_type,
       activeMainView: 'editor',
-      selectedPath: null // Reset tree selection
+      selectedPath: null
     })
   },
   deleteWorkspace: async (id: string) => {
@@ -213,7 +213,6 @@ const useAppStore = create<AppState>((set, get) => ({
         
       if (error) throw error
       
-      // Remove it from the local state immediately so the UI updates
       set((state) => ({
         historyItems: state.historyItems.filter((item) => item.id !== id)
       }))
@@ -237,12 +236,9 @@ const useAppStore = create<AppState>((set, get) => ({
   error: null,
   setError: (error) => set({ error }),
 
-  // NEW: Global parsing action for workspace
   processFileInWorkspace: async (file: File) => {
-    // 1. Set loading state and clear previous errors
     set({ isLoading: true, error: null })
     
-    // 2. Set the file in the store immediately so the UI knows what we are parsing
     set({ 
       ediFile: { 
         file, 
@@ -253,11 +249,9 @@ const useAppStore = create<AppState>((set, get) => ({
       file 
     })
       try {
-      // 3. Prepare the form data for the API
       const formData = new FormData()
       formData.append('file', file)
 
-      // 4. Send to your backend (USING YOUR EXACT URL AND HEADERS)
       const apiUrl = import.meta.env.VITE_API_URL || 'https://edi-parser-production.up.railway.app'
       
       const response = await fetch(`${apiUrl}/api/v1/parse`, {
@@ -275,7 +269,6 @@ const useAppStore = create<AppState>((set, get) => ({
       
       const data = await response.json()
       
-      // 5. Update the store with the successful parse result
       set({ 
         parseResult: data, 
         transactionType: data.metadata?.transaction_type || data.transaction_type || detectFileType(file.name) 
@@ -284,18 +277,14 @@ const useAppStore = create<AppState>((set, get) => ({
       set({ error: err.message })
       console.error('Parsing failed:', err)
     } finally {
-      // 6. Turn off the loading overlay
       set({ isLoading: false })
     }
   },
 
-  // Dashboard navigation
   activeSection: 'overview',
   setActiveSection: (section) => set({ activeSection: section }),
 
-  // ── Workspace IDE State ────────────────────────────────
-
-  activeMainView: 'dashboard', // Default init, WorkspacePage overrides it if needed
+  activeMainView: 'dashboard',
   setActiveMainView: (view) => set({ activeMainView: view }),
 
   activePanelView: 'explorer',

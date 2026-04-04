@@ -5,26 +5,202 @@ import { motion } from 'framer-motion'
 import useAppStore from '../../store/useAppStore'
 import CenterTabBar from './CenterTabBar'
 import FormEditorView from './FormEditorView'
+import {
+  build834EnrollmentGroups,
+  type EnrollmentGroup,
+  type EnrollmentMember,
+} from '../../utils/build834EnrollmentGroups'
+
+// ── 834 helpers (module-scope so React never recreates them) ─────────────────
+
+const MAINT_STYLE: Record<string, { bg: string; color: string }> = {
+  'Addition':                     { bg: 'rgba(78,205,196,0.18)',  color: '#1A7A74' },
+  'Termination':                  { bg: 'rgba(255,107,107,0.18)', color: '#C0392B' },
+  'Change':                       { bg: 'rgba(255,230,109,0.25)', color: '#8A6F00' },
+  'Audit / Active':               { bg: 'rgba(26,26,46,0.07)',    color: '#444466' },
+  'Cancellation / Disenrollment': { bg: 'rgba(255,107,107,0.12)', color: '#C0392B' },
+  'Employee Status Change':       { bg: 'rgba(255,230,109,0.18)', color: '#8A6F00' },
+}
+
+function formatDob(raw: string): string {
+  if (!raw || raw.length !== 8) return raw || '—'
+  return `${raw.slice(4, 6)}/${raw.slice(6, 8)}/${raw.slice(0, 4)}`
+}
+
+function MemberRow({
+  member,
+  isSubscriber,
+}: {
+  member: EnrollmentMember
+  isSubscriber: boolean
+}) {
+  const maintStyle =
+    MAINT_STYLE[member.maintenanceTypeLabel] ?? { bg: 'rgba(26,26,46,0.06)', color: '#1A1A2E' }
+
+  return (
+    <div style={{
+      borderLeft: `3px solid ${isSubscriber ? '#4ECDC4' : 'rgba(26,26,46,0.15)'}`,
+      paddingLeft: isSubscriber ? 14 : 22,
+      marginBottom: 14,
+      marginLeft: isSubscriber ? 0 : 12,
+    }}>
+      {/* Name + badges */}
+      <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6, flexWrap: 'wrap' }}>
+        <span style={{ fontFamily: 'Nunito, sans-serif', fontWeight: 900, fontSize: 14, color: '#1A1A2E' }}>
+          {member.name}
+        </span>
+        <span style={{
+          fontFamily: 'JetBrains Mono, monospace', fontSize: 10, fontWeight: 700,
+          padding: '2px 8px', borderRadius: 5,
+          background: isSubscriber ? 'rgba(78,205,196,0.15)' : 'rgba(26,26,46,0.06)',
+          color: isSubscriber ? '#1A7A74' : '#555577',
+          border: `1px solid ${isSubscriber ? 'rgba(78,205,196,0.4)' : 'rgba(26,26,46,0.12)'}`,
+        }}>
+          {isSubscriber ? '★ Subscriber' : member.relationshipLabel}
+        </span>
+        <span style={{
+          fontFamily: 'JetBrains Mono, monospace', fontSize: 10, fontWeight: 700,
+          padding: '2px 8px', borderRadius: 5,
+          background: maintStyle.bg, color: maintStyle.color,
+        }}>
+          {member.maintenanceTypeLabel}
+        </span>
+        {member.hasSecondaryCoverage && (
+          <span style={{
+            fontFamily: 'Nunito, sans-serif', fontSize: 10, fontWeight: 800,
+            padding: '2px 8px', borderRadius: 5,
+            background: 'rgba(255,107,107,0.12)', color: '#C0392B',
+            border: '1.5px solid rgba(255,107,107,0.4)',
+          }}>
+            ⚠ Secondary Coverage Detected
+          </span>
+        )}
+      </div>
+
+      {/* Detail pills */}
+      <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', fontSize: 11, color: 'rgba(26,26,46,0.55)', marginBottom: 4 }}>
+        <span style={{ fontFamily: 'JetBrains Mono, monospace' }}>ID: {member.memberId}</span>
+        {member.dob   && <span>DOB: {formatDob(member.dob)}</span>}
+        {member.gender !== '—' && <span>Gender: {member.gender}</span>}
+        {member.benefitStatusLabel !== '—' && (
+          <span style={{
+            padding: '1px 7px', borderRadius: 4, fontWeight: 700,
+            background: member.benefitStatusCode === 'A' ? 'rgba(46,204,113,0.12)' : 'rgba(255,230,109,0.2)',
+            color:      member.benefitStatusCode === 'A' ? '#1A7A3A'               : '#8A6F00',
+          }}>
+            {member.benefitStatusLabel}
+          </span>
+        )}
+        {member.effectiveDate && <span>Effective: {formatDob(member.effectiveDate)}</span>}
+        {member.address !== '—' && <span>{member.address}</span>}
+      </div>
+
+      {/* Coverage pills */}
+      {member.coverage.length > 0 && (
+        <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginTop: 4, marginBottom: 4 }}>
+          {member.coverage.map((cov, ci) => (
+            <span key={ci} style={{
+              fontFamily: 'JetBrains Mono, monospace', fontSize: 10, fontWeight: 600,
+              padding: '2px 8px', borderRadius: 5,
+              background: 'rgba(78,205,196,0.08)', color: '#1A7A74',
+              border: '1px solid rgba(78,205,196,0.25)',
+            }}>
+              {[
+                cov.insuranceLineLabel,
+                cov.planDescription || cov.coverageLevelLabel,
+                cov.effectiveDate ? `eff. ${formatDob(cov.effectiveDate)}` : '',
+                cov.expirationDate ? `exp. ${formatDob(cov.expirationDate)}` : '',
+              ].filter(Boolean).join(' · ')}
+            </span>
+          ))}
+        </div>
+      )}
+
+      {/* COB blocks */}
+      {member.cobDetails.map((cob, ci) => (
+        <div key={ci} style={{
+          marginTop: 8, padding: '10px 14px', borderRadius: 8,
+          background: 'rgba(255,107,107,0.05)', border: '1.5px solid rgba(255,107,107,0.25)',
+        }}>
+          <div style={{ fontFamily: 'Nunito, sans-serif', fontWeight: 800, fontSize: 11, color: '#C0392B', marginBottom: 6 }}>
+            🔄 Coordination of Benefits
+          </div>
+          <div style={{ display: 'flex', gap: 16, flexWrap: 'wrap', fontSize: 11, fontFamily: 'JetBrains Mono, monospace', color: 'rgba(26,26,46,0.65)' }}>
+            <span>This Plan: <strong style={{ color: '#1A1A2E' }}>{cob.payerResponsibilityLabel}</strong></span>
+            <span>COB Code: <strong style={{ color: '#1A1A2E' }}>{cob.cobCode || '—'}</strong></span>
+            <span>Other Coverage ID: <strong style={{ color: '#1A1A2E' }}>{cob.otherCoverageId || '—'}</strong></span>
+            {cob.otherPayerName !== '—' && (
+              <span>Other Payer: <strong style={{ color: '#1A1A2E' }}>{cob.otherPayerName}</strong></span>
+            )}
+          </div>
+        </div>
+      ))}
+    </div>
+  )
+}
+
+function EnrollmentGroupCard({ group }: { group: EnrollmentGroup }) {
+  return (
+    <div style={{
+      background: '#FFFFFF', border: '2px solid #1A1A2E', borderRadius: 12,
+      boxShadow: '4px 4px 0px rgba(26,26,46,0.08)', overflow: 'hidden',
+    }}>
+      {/* Header bar */}
+      <div style={{
+        background: '#1A1A2E', padding: '12px 20px',
+        display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 8,
+      }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+          <span style={{ fontSize: 16 }}>👨‍👩‍👧‍👦</span>
+          <span style={{ fontFamily: 'Nunito, sans-serif', fontWeight: 900, fontSize: 14, color: '#FFFFFF' }}>
+            {group.subscriberName}
+          </span>
+          <span style={{
+            fontFamily: 'JetBrains Mono, monospace', fontSize: 10, fontWeight: 700,
+            padding: '2px 8px', borderRadius: 5,
+            background: 'rgba(255,230,109,0.2)', color: '#FFE66D',
+            border: '1px solid rgba(255,230,109,0.3)',
+          }}>
+            {group.coverageLevelLabel || group.coverageLevel}
+            {group.coverageLevel && group.coverageLevelLabel && group.coverageLevel !== group.coverageLevelLabel
+              ? ` (${group.coverageLevel})`
+              : ''}
+          </span>
+        </div>
+        <span style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: 11, color: 'rgba(255,255,255,0.5)' }}>
+          {group.totalMembers} member{group.totalMembers !== 1 ? 's' : ''} · ID {group.groupId}
+        </span>
+      </div>
+
+      {/* Member rows */}
+      <div style={{ padding: '18px 20px' }}>
+        <MemberRow member={group.subscriber} isSubscriber={true} />
+        {group.dependents.map((dep, di) => (
+          <MemberRow key={`${dep.memberId}-${di}`} member={dep} isSubscriber={false} />
+        ))}
+      </div>
+    </div>
+  )
+}
 
 // ── Tab content: Raw EDI ─────────────────────────────────────────────────────
 
 function RawEDIContent() {
-  const parseResult = useAppStore((s) => s.parseResult)
-  const ediFile = useAppStore((s) => s.ediFile)
-  const setEdiFile = useAppStore((s) => s.setEdiFile)
-  const setParseResult = useAppStore((s) => s.setParseResult)
+  const parseResult        = useAppStore((s) => s.parseResult)
+  const ediFile            = useAppStore((s) => s.ediFile)
+  const setEdiFile         = useAppStore((s) => s.setEdiFile)
+  const setParseResult     = useAppStore((s) => s.setParseResult)
   const setTransactionType = useAppStore((s) => s.setTransactionType)
-  const setError = useAppStore((s) => s.setError)
-  const isSubmitting = useAppStore((s) => s.isSubmitting)
-  const setIsSubmitting = useAppStore((s) => s.setIsSubmitting)
-  const setActiveTabId = useAppStore((s) => s.setActiveTabId)
-  const session = useAppStore((s) => s.session)
+  const setError           = useAppStore((s) => s.setError)
+  const isSubmitting       = useAppStore((s) => s.isSubmitting)
+  const setIsSubmitting    = useAppStore((s) => s.setIsSubmitting)
+  const setActiveTabId     = useAppStore((s) => s.setActiveTabId)
+  const session            = useAppStore((s) => s.session)
 
-  const [rawText, setRawText] = useState('')
+  const [rawText,   setRawText]   = useState('')
   const [isLoading, setIsLoading] = useState(true)
-  const [genError, setGenError] = useState<string | null>(null)
+  const [genError,  setGenError]  = useState<string | null>(null)
 
-  // When this tab mounts or parseResult changes, regenerate EDI from the current tree
   useEffect(() => {
     let cancelled = false
 
@@ -34,7 +210,7 @@ function RawEDIContent() {
 
       if (parseResult) {
         try {
-          const tree = (parseResult as any).data || parseResult
+          const tree   = (parseResult as any).data || parseResult
           const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:8000'
 
           const response = await fetch(`${apiUrl}/api/v1/generate/test`, {
@@ -51,9 +227,7 @@ function RawEDIContent() {
           const data = await response.json()
 
           if (data.status === 'success' && data.edi_string) {
-            if (!cancelled) {
-              setRawText(data.edi_string.replace(/~/g, '~\n'))
-            }
+            if (!cancelled) setRawText(data.edi_string.replace(/~/g, '~\n'))
           } else {
             throw new Error(data.detail || 'Generator returned empty output')
           }
@@ -84,13 +258,11 @@ function RawEDIContent() {
     }
 
     regenerate()
-
     return () => { cancelled = true }
   }, [parseResult, ediFile])
 
   const handleSave = async (e: React.MouseEvent) => {
     e.preventDefault()
-
     if (!rawText.trim() || isSubmitting) return
 
     setIsSubmitting(true)
@@ -98,21 +270,16 @@ function RawEDIContent() {
 
     try {
       const cleanedText = rawText.replace(/\n/g, '')
-      const fileName = ediFile?.fileName || 'edited.edi'
-      const newFile = new File([cleanedText], fileName, { type: 'text/plain' })
+      const fileName    = ediFile?.fileName || 'edited.edi'
+      const newFile     = new File([cleanedText], fileName, { type: 'text/plain' })
 
       const formData = new FormData()
       formData.append('file', newFile)
 
-      const headers: Record<string, string> = {
-        'X-Internal-Bypass': 'frontend-ui-secret'
-      }
+      const headers: Record<string, string> = { 'X-Internal-Bypass': 'frontend-ui-secret' }
+      if (session?.access_token) headers['Authorization'] = `Bearer ${session.access_token}`
 
-      if (session?.access_token) {
-        headers['Authorization'] = `Bearer ${session.access_token}`
-      }
-
-      const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000'
+      const API_URL  = import.meta.env.VITE_API_URL || 'http://localhost:8000'
       const response = await fetch(`${API_URL}/api/v1/parse`, {
         method: 'POST',
         headers,
@@ -124,17 +291,14 @@ function RawEDIContent() {
         throw new Error(errData.detail || errData.message || 'Failed to parse the modified EDI file.')
       }
 
-      const data = await response.json()
-
-      // Unwrap the API response envelope
+      const data      = await response.json()
       const innerTree = data.data || data
       setEdiFile(newFile)
       setParseResult(innerTree)
       setTransactionType(innerTree?.metadata?.transaction_type || null)
       setActiveTabId('form')
-
     } catch (err: any) {
-      console.error("Parse Error:", err)
+      console.error('Parse Error:', err)
       setError(err.message || 'An error occurred during parsing.')
       alert(err.message || 'An error occurred during parsing.')
     } finally {
@@ -175,27 +339,24 @@ function RawEDIContent() {
           onClick={handleSave}
           disabled={isSubmitting}
           style={{
-            background: isSubmitting ? 'rgba(26,26,46,0.1)' : '#4ECDC4',
-            color: isSubmitting ? 'rgba(26,26,46,0.4)' : '#1A1A2E',
-            fontFamily: 'Nunito, sans-serif',
-            fontWeight: 800,
-            fontSize: 13,
-            border: isSubmitting ? '2px solid rgba(26,26,46,0.1)' : '2px solid #1A1A2E',
-            borderRadius: 8,
-            padding: '6px 12px',
-            cursor: isSubmitting ? 'not-allowed' : 'pointer',
-            boxShadow: isSubmitting ? 'none' : '2px 2px 0px rgba(26,26,46,0.3)',
+            background:  isSubmitting ? 'rgba(26,26,46,0.1)' : '#4ECDC4',
+            color:       isSubmitting ? 'rgba(26,26,46,0.4)' : '#1A1A2E',
+            fontFamily: 'Nunito, sans-serif', fontWeight: 800, fontSize: 13,
+            border:     isSubmitting ? '2px solid rgba(26,26,46,0.1)' : '2px solid #1A1A2E',
+            borderRadius: 8, padding: '6px 12px',
+            cursor:     isSubmitting ? 'not-allowed' : 'pointer',
+            boxShadow:  isSubmitting ? 'none' : '2px 2px 0px rgba(26,26,46,0.3)',
             transition: 'all 0.1s ease',
           }}
           onMouseDown={(e) => {
-            if (isSubmitting) return;
-            e.currentTarget.style.boxShadow = '0px 0px 0px rgba(26,26,46,0.3)';
-            e.currentTarget.style.transform = 'translate(2px, 2px)';
+            if (isSubmitting) return
+            e.currentTarget.style.boxShadow = '0px 0px 0px rgba(26,26,46,0.3)'
+            e.currentTarget.style.transform = 'translate(2px, 2px)'
           }}
           onMouseUp={(e) => {
-            if (isSubmitting) return;
-            e.currentTarget.style.boxShadow = '2px 2px 0px rgba(26,26,46,0.3)';
-            e.currentTarget.style.transform = 'translate(0px, 0px)';
+            if (isSubmitting) return
+            e.currentTarget.style.boxShadow = '2px 2px 0px rgba(26,26,46,0.3)'
+            e.currentTarget.style.transform = 'translate(0px, 0px)'
           }}
         >
           {isSubmitting ? 'Reparsing...' : 'Submit & Reparse'}
@@ -208,20 +369,11 @@ function RawEDIContent() {
         spellCheck={false}
         className="custom-scrollbar"
         style={{
-          flex: 1,
-          background: '#1A1A2E',
-          color: '#4ECDC4',
-          fontFamily: 'JetBrains Mono, monospace',
-          fontSize: 12,
-          lineHeight: 1.6,
-          padding: '16px 20px',
-          border: '2.5px solid #1A1A2E',
-          borderRadius: 10,
-          boxShadow: '4px 4px 0px rgba(26,26,46,0.3)',
-          resize: 'none',
-          outline: 'none',
-          width: '100%',
-          boxSizing: 'border-box'
+          flex: 1, background: '#1A1A2E', color: '#4ECDC4',
+          fontFamily: 'JetBrains Mono, monospace', fontSize: 12, lineHeight: 1.6,
+          padding: '16px 20px', border: '2.5px solid #1A1A2E', borderRadius: 10,
+          boxShadow: '4px 4px 0px rgba(26,26,46,0.3)', resize: 'none', outline: 'none',
+          width: '100%', boxSizing: 'border-box',
         }}
       />
     </div>
@@ -243,25 +395,22 @@ function SummaryContent() {
     )
   }
 
-  const data = (parseResult as any).data || parseResult
+  const data     = (parseResult as any).data || parseResult
   const metadata = data.metadata || {}
-  const loops   = data.loops   || {}
-  const txnType = metadata.transaction_type
+  const loops    = data.loops    || {}
+  const txnType  = metadata.transaction_type
 
   // ──────────────────────────────────────────────────────────────────────────
   // 835 — Remittance Summary
   // ──────────────────────────────────────────────────────────────────────────
   if (txnType === '835') {
-    // Prefer the pre-built remittance_summary emitted by the parser
     const remit: any[] = (parseResult as any).remittance_summary || data.remittance_summary || []
 
-    // Fallback: reconstruct from raw CLP loop instances if remittance_summary is absent
     const clpInstances: any[] = (() => {
       const raw = loops['835_2100'] || []
       return Array.isArray(raw) ? raw : [raw]
     })()
 
-    // Derive a display-ready record list from whichever source is available
     type ClaimRow = {
       claimId: string
       billed: number
@@ -287,19 +436,14 @@ function SummaryContent() {
       : clpInstances
           .filter((inst: any) => inst?.CLP)
           .map((inst: any) => {
-            const clp = inst.CLP || {}
-            const rd: string[] = clp.raw_data || []
-            const casVal = inst.CAS
+            const clp    = inst.CLP || {}
+            const rdArr: string[] = clp.raw_data || []
+            const casVal  = inst.CAS
             const casList = Array.isArray(casVal) ? casVal : (casVal ? [casVal] : [])
-
-            // Extract check/EFT from TRN in the same loop instance or header
-            const trnInst = inst.TRN
-            const trnRd: string[] = trnInst?.raw_data || []
+            const trnRd: string[] = inst.TRN?.raw_data || []
             const checkEft = trnRd[2] || 'N/A'
-
             const adjustments = casList.flatMap((c: any) => {
               const crd: string[] = c.raw_data || []
-              // CAS raw_data: [CAS, group, reason1, amt1, reason2, amt2, ...]
               const group = crd[1] || ''
               const adjs = []
               for (let i = 2; i + 1 < crd.length; i += 2) {
@@ -307,18 +451,16 @@ function SummaryContent() {
               }
               return adjs
             })
-
             return {
-              claimId:  rd[1] || 'N/A',
-              billed:   Number(rd[3]) || 0,
-              paid:     Number(rd[4]) || 0,
-              patResp:  Number(rd[5]) || 0,
+              claimId:  rdArr[1] || 'N/A',
+              billed:   Number(rdArr[3]) || 0,
+              paid:     Number(rdArr[4]) || 0,
+              patResp:  Number(rdArr[5]) || 0,
               checkEft,
               adjustments,
             } as ClaimRow
           })
 
-    // ── Aggregate totals ────────────────────────────────────────────────────
     const totalBilled  = rows.reduce((s, r) => s + r.billed,  0)
     const totalPaid    = rows.reduce((s, r) => s + r.paid,    0)
     const totalPatResp = rows.reduce((s, r) => s + r.patResp, 0)
@@ -326,18 +468,15 @@ function SummaryContent() {
     const fmt = (n: number) =>
       n.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
 
-    // ── KPI cards ───────────────────────────────────────────────────────────
     const kpis = [
-      { label: 'Total Billed',   value: `$${fmt(totalBilled)}`,  color: '#1A1A2E' },
-      { label: 'Total Paid',     value: `$${fmt(totalPaid)}`,    color: '#4ECDC4' },
-      { label: 'Pt Resp',        value: `$${fmt(totalPatResp)}`, color: '#FFE66D' },
-      { label: 'Claims',         value: String(rows.length),     color: '#1A1A2E' },
+      { label: 'Total Billed', value: `$${fmt(totalBilled)}`,  color: '#1A1A2E' },
+      { label: 'Total Paid',   value: `$${fmt(totalPaid)}`,    color: '#4ECDC4' },
+      { label: 'Pt Resp',      value: `$${fmt(totalPatResp)}`, color: '#FFE66D' },
+      { label: 'Claims',       value: String(rows.length),     color: '#1A1A2E' },
     ]
 
     return (
       <div style={{ padding: '24px 28px', display: 'flex', flexDirection: 'column', gap: 24, fontFamily: 'Nunito, sans-serif' }}>
-
-        {/* ── Header ── */}
         <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
           <div style={{
             width: 36, height: 36, borderRadius: 10, background: '#4ECDC4',
@@ -345,9 +484,7 @@ function SummaryContent() {
             display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 18, flexShrink: 0,
           }}>💸</div>
           <div>
-            <h2 style={{ margin: 0, fontWeight: 900, fontSize: 16, color: '#1A1A2E' }}>
-              835 Remittance Summary
-            </h2>
+            <h2 style={{ margin: 0, fontWeight: 900, fontSize: 16, color: '#1A1A2E' }}>835 Remittance Summary</h2>
             <p style={{ margin: 0, fontSize: 11, color: 'rgba(26,26,46,0.45)' }}>
               {metadata.sender_id ? `Payer: ${metadata.sender_id}` : 'All CLP claim loops'}
               {metadata.control_number ? ` · Control: ${metadata.control_number}` : ''}
@@ -355,7 +492,6 @@ function SummaryContent() {
           </div>
         </div>
 
-        {/* ── KPI cards ── */}
         <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap' }}>
           {kpis.map((k) => (
             <div key={k.label} style={{
@@ -373,7 +509,6 @@ function SummaryContent() {
           ))}
         </div>
 
-        {/* ── Claims table ── */}
         {rows.length === 0 ? (
           <div style={{
             padding: '32px 24px', background: '#FFFFFF',
@@ -402,15 +537,13 @@ function SummaryContent() {
                 </thead>
                 <tbody>
                   {rows.map((row, i) => {
-                    const isPaid = row.paid >= row.billed && row.billed > 0
+                    const isPaid   = row.paid >= row.billed && row.billed > 0
                     const isDenied = row.paid === 0 && row.billed > 0
-
                     return (
                       <tr key={i} style={{
                         borderTop: '1.5px solid rgba(26,26,46,0.07)',
                         background: i % 2 === 0 ? '#FFFFFF' : 'rgba(78,205,196,0.03)',
                       }}>
-                        {/* Claim ID */}
                         <td style={{ padding: '12px 16px' }}>
                           <span style={{
                             fontFamily: 'JetBrains Mono, monospace', fontSize: 12, fontWeight: 700,
@@ -418,11 +551,9 @@ function SummaryContent() {
                             borderRadius: 5, padding: '2px 8px', color: '#1A1A2E',
                           }}>{row.claimId}</span>
                         </td>
-                        {/* Billed */}
                         <td style={{ padding: '12px 16px', fontFamily: 'JetBrains Mono, monospace', fontSize: 12, color: 'rgba(26,26,46,0.7)' }}>
                           ${fmt(row.billed)}
                         </td>
-                        {/* Paid */}
                         <td style={{ padding: '12px 16px' }}>
                           <span style={{
                             fontFamily: 'JetBrains Mono, monospace', fontSize: 13, fontWeight: 800,
@@ -431,11 +562,9 @@ function SummaryContent() {
                             ${fmt(row.paid)}
                           </span>
                         </td>
-                        {/* Patient Responsibility */}
                         <td style={{ padding: '12px 16px', fontFamily: 'JetBrains Mono, monospace', fontSize: 12, color: row.patResp > 0 ? '#B89000' : 'rgba(26,26,46,0.4)' }}>
                           ${fmt(row.patResp)}
                         </td>
-                        {/* Check / EFT */}
                         <td style={{ padding: '12px 16px' }}>
                           <span style={{
                             fontFamily: 'JetBrains Mono, monospace', fontSize: 11,
@@ -443,7 +572,6 @@ function SummaryContent() {
                             padding: '2px 7px', borderRadius: 4,
                           }}>{row.checkEft}</span>
                         </td>
-                        {/* Adjustments */}
                         <td style={{ padding: '12px 16px', fontSize: 11, color: 'rgba(26,26,46,0.55)', maxWidth: 280, wordBreak: 'break-word' }}>
                           {row.adjustments.length > 0 ? (
                             <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4 }}>
@@ -470,8 +598,6 @@ function SummaryContent() {
                     )
                   })}
                 </tbody>
-
-                {/* Totals footer */}
                 {rows.length > 1 && (
                   <tfoot>
                     <tr style={{ background: 'rgba(26,26,46,0.04)', borderTop: '2px solid rgba(26,26,46,0.15)' }}>
@@ -492,21 +618,31 @@ function SummaryContent() {
   }
 
   // ──────────────────────────────────────────────────────────────────────────
-  // 834 — Member Enrollment Roster  (unchanged logic, polished layout)
+  // 834 — Family Enrollment View
   // ──────────────────────────────────────────────────────────────────────────
   if (txnType === '834') {
-    const memberLoops: any[] = (() => { const r = loops['834_2000'] || []; return Array.isArray(r) ? r : [r] })()
-    const nameLoops:   any[] = (() => { const r = loops['834_2100A'] || []; return Array.isArray(r) ? r : [r] })()
+    const groups: EnrollmentGroup[] = build834EnrollmentGroups(parseResult as any)
 
-    const MAINT: Record<string, { label: string; bg: string; color: string }> = {
-      '021': { label: '021 — Addition',      bg: 'rgba(78,205,196,0.2)',  color: '#2B9B93' },
-      '024': { label: '024 — Termination',   bg: 'rgba(255,107,107,0.2)', color: '#C92A2A' },
-      '030': { label: '030 — Audit / Active',bg: 'rgba(255,230,109,0.3)', color: '#B89B00' },
-      '001': { label: '001 — Change',        bg: 'rgba(26,26,46,0.07)',   color: '#1A1A2E' },
-    }
+    const totalMembers = groups.reduce((s, g) => s + g.totalMembers, 0)
+    const totalCob     = groups.reduce(
+      (s, g) =>
+        s +
+        (g.subscriber.hasSecondaryCoverage ? 1 : 0) +
+        g.dependents.filter((d) => d.hasSecondaryCoverage).length,
+      0,
+    )
+    const totalTerminations = groups.reduce(
+      (s, g) =>
+        s +
+        (g.subscriber.maintenanceTypeCode === '024' ? 1 : 0) +
+        g.dependents.filter((d) => d.maintenanceTypeCode === '024').length,
+      0,
+    )
 
     return (
       <div style={{ padding: '24px 28px', display: 'flex', flexDirection: 'column', gap: 24, fontFamily: 'Nunito, sans-serif' }}>
+
+        {/* Page header */}
         <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
           <div style={{
             width: 36, height: 36, borderRadius: 10, background: '#FFE66D',
@@ -514,55 +650,57 @@ function SummaryContent() {
             display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 18, flexShrink: 0,
           }}>🧑‍🤝‍🧑</div>
           <div>
-            <h2 style={{ margin: 0, fontWeight: 900, fontSize: 16, color: '#1A1A2E' }}>834 Member Enrollment Roster</h2>
-            <p style={{ margin: 0, fontSize: 11, color: 'rgba(26,26,46,0.45)' }}>{memberLoops.length} member{memberLoops.length !== 1 ? 's' : ''} found</p>
+            <h2 style={{ margin: 0, fontWeight: 900, fontSize: 16, color: '#1A1A2E' }}>
+              834 Member Enrollment — Family View
+            </h2>
+            <p style={{ margin: 0, fontSize: 11, color: 'rgba(26,26,46,0.45)' }}>
+              {groups.length} enrollment group{groups.length !== 1 ? 's' : ''}
+              {' · '}
+              {totalMembers} total member{totalMembers !== 1 ? 's' : ''}
+              {totalCob > 0 && ` · ⚠ ${totalCob} with COB`}
+            </p>
           </div>
         </div>
 
-        <div style={{ background: '#FFFFFF', border: '2px solid #1A1A2E', borderRadius: 12, boxShadow: '4px 4px 0px rgba(26,26,46,0.08)', overflow: 'hidden' }}>
-          <div style={{ overflowX: 'auto' }} className="custom-scrollbar">
-            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
-              <thead>
-                <tr style={{ background: '#1A1A2E' }}>
-                  {['Member ID', 'Name', 'Relationship', 'Maintenance Status'].map((h) => (
-                    <th key={h} style={{ padding: '11px 16px', textAlign: 'left', fontFamily: 'Nunito, sans-serif', fontWeight: 800, fontSize: 11, color: '#FFE66D', letterSpacing: '0.05em', textTransform: 'uppercase', whiteSpace: 'nowrap' }}>{h}</th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody>
-                {memberLoops.length === 0 && (
-                  <tr><td colSpan={4} style={{ padding: 16, textAlign: 'center', color: 'rgba(26,26,46,0.4)' }}>No Members Found</td></tr>
-                )}
-                {memberLoops.map((loop: any, i: number) => {
-                  const ins = loop['INS'] || {}
-                  const ref = loop['REF'] || {}
-                  const nm1 = nameLoops[i]?.['NM1'] || {}
-                  const memberId = ref.REF02 || (ref.raw_data?.[2]) || 'N/A'
-                  const first = nm1.NM104 || nm1.raw_data?.[4] || ''
-                  const last  = nm1.NM103 || nm1.raw_data?.[3] || ''
-                  const name  = `${first} ${last}`.trim() || 'Unknown'
-                  const relCode = ins.INS02 || ins.raw_data?.[2] || ''
-                  const rel = relCode === '18' ? 'Self' : relCode === '01' ? 'Spouse' : relCode === '19' ? 'Child' : (relCode || 'Dep')
-                  const maintCode = ins.INS03 || ins.raw_data?.[3] || '030'
-                  const maint = MAINT[maintCode] || { label: maintCode, bg: 'rgba(26,26,46,0.07)', color: '#1A1A2E' }
-
-                  return (
-                    <tr key={i} style={{ borderTop: '1.5px solid rgba(26,26,46,0.07)', background: i % 2 === 0 ? '#FFFFFF' : 'rgba(255,230,109,0.03)' }}>
-                      <td style={{ padding: '12px 16px', fontFamily: 'JetBrains Mono, monospace', fontSize: 12, fontWeight: 700 }}>{memberId}</td>
-                      <td style={{ padding: '12px 16px', fontWeight: 700 }}>{name}</td>
-                      <td style={{ padding: '12px 16px', color: 'rgba(26,26,46,0.65)' }}>{rel}</td>
-                      <td style={{ padding: '12px 16px' }}>
-                        <span style={{ background: maint.bg, color: maint.color, padding: '4px 10px', borderRadius: 6, fontWeight: 800, fontSize: 11, textTransform: 'uppercase' }}>
-                          {maint.label}
-                        </span>
-                      </td>
-                    </tr>
-                  )
-                })}
-              </tbody>
-            </table>
+        {/* KPI strip */}
+        {groups.length > 0 && (
+          <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap' }}>
+            {[
+              { label: 'Enrollment Groups', value: String(groups.length),      color: '#1A1A2E' },
+              { label: 'Total Members',     value: String(totalMembers),       color: '#4ECDC4' },
+              { label: 'With COB',          value: String(totalCob),           color: totalCob > 0 ? '#C0392B' : 'rgba(26,26,46,0.3)' },
+              { label: 'Terminations',      value: String(totalTerminations),  color: totalTerminations > 0 ? '#B89000' : 'rgba(26,26,46,0.3)' },
+            ].map((k) => (
+              <div key={k.label} style={{
+                flex: '1 1 120px', minWidth: 110, padding: '12px 16px',
+                background: '#FFFFFF', border: '2px solid #1A1A2E', borderRadius: 10,
+                boxShadow: '3px 3px 0px rgba(26,26,46,0.12)',
+              }}>
+                <div style={{ fontSize: 10, fontWeight: 800, color: 'rgba(26,26,46,0.45)', textTransform: 'uppercase', letterSpacing: '0.07em', marginBottom: 4 }}>
+                  {k.label}
+                </div>
+                <div style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: 22, fontWeight: 700, color: k.color }}>
+                  {k.value}
+                </div>
+              </div>
+            ))}
           </div>
-        </div>
+        )}
+
+        {/* Group cards */}
+        {groups.length === 0 ? (
+          <div style={{
+            padding: '32px 24px', background: '#FFFFFF',
+            border: '2px solid rgba(26,26,46,0.1)', borderRadius: 12,
+            textAlign: 'center', color: 'rgba(26,26,46,0.4)', fontSize: 13,
+          }}>
+            No member enrollment loops found in this 834 file.
+          </div>
+        ) : (
+          groups.map((group) => (
+            <EnrollmentGroupCard key={group.groupId} group={group} />
+          ))
+        )}
       </div>
     )
   }
@@ -570,12 +708,12 @@ function SummaryContent() {
   // ──────────────────────────────────────────────────────────────────────────
   // 837 / Generic fallback
   // ──────────────────────────────────────────────────────────────────────────
-  const rows = [
-    { label: 'Transaction Type',    value: txnType || 'Unknown' },
-    { label: 'Implementation Ref',  value: metadata.implementation_reference || 'N/A' },
-    { label: 'Sender ID',           value: metadata.sender_id  || 'N/A' },
-    { label: 'Receiver ID',         value: metadata.receiver_id || 'N/A' },
-    { label: 'Control Number',      value: metadata.control_number || 'N/A' },
+  const overviewRows = [
+    { label: 'Transaction Type',   value: txnType || 'Unknown' },
+    { label: 'Implementation Ref', value: metadata.implementation_reference || 'N/A' },
+    { label: 'Sender ID',          value: metadata.sender_id   || 'N/A' },
+    { label: 'Receiver ID',        value: metadata.receiver_id || 'N/A' },
+    { label: 'Control Number',     value: metadata.control_number || 'N/A' },
   ]
 
   return (
@@ -584,7 +722,7 @@ function SummaryContent() {
         <div style={{ width: 4, height: 20, borderRadius: 2, background: '#4ECDC4', flexShrink: 0 }} />
         <h2 style={{ margin: 0, fontWeight: 900, fontSize: 15, color: '#1A1A2E' }}>File Overview</h2>
       </div>
-      {rows.map((row) => (
+      {overviewRows.map((row) => (
         <div key={row.label} style={{
           display: 'flex', alignItems: 'center', justifyContent: 'space-between',
           padding: '12px 18px', background: '#FFFFFF',
@@ -603,7 +741,7 @@ function SummaryContent() {
 
 function EmptyDropzone() {
   const processFileInWorkspace = useAppStore((s) => s.processFileInWorkspace)
-  const [loading, setLoading] = useState(false)
+  const [loading, setLoading]  = useState(false)
 
   const handleFile = useCallback(async (file: File) => {
     setLoading(true)
@@ -614,7 +752,7 @@ function EmptyDropzone() {
   const { getRootProps, getInputProps, isDragActive } = useDropzone({
     onDrop: (files) => files[0] && handleFile(files[0]),
     accept: {
-      'text/plain': ['.edi', '.txt', '.dat', '.x12'],
+      'text/plain':               ['.edi', '.txt', '.dat', '.x12'],
       'application/octet-stream': ['.edi', '.dat', '.x12'],
     },
     multiple: false,
@@ -666,9 +804,9 @@ function EmptyDropzone() {
 
 export default function EditorArea() {
   const parseResult = useAppStore((s) => s.parseResult)
-  const ediFile = useAppStore((s) => s.ediFile)
+  const ediFile     = useAppStore((s) => s.ediFile)
   const activeTabId = useAppStore((s) => s.activeTabId)
-  const hasFile = !!(parseResult || ediFile.fileName)
+  const hasFile     = !!(parseResult || ediFile.fileName)
 
   return (
     <div style={{ height: '100%', display: 'flex', flexDirection: 'column', background: '#FDFAF4', overflow: 'hidden' }}>
@@ -678,8 +816,8 @@ export default function EditorArea() {
           <EmptyDropzone />
         ) : (
           <>
-            {activeTabId === 'form' && <FormEditorView />}
-            {activeTabId === 'raw' && <RawEDIContent />}
+            {activeTabId === 'form'    && <FormEditorView />}
+            {activeTabId === 'raw'     && <RawEDIContent />}
             {activeTabId === 'summary' && <SummaryContent />}
           </>
         )}

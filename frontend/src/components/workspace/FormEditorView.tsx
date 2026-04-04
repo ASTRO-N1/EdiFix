@@ -213,6 +213,7 @@ const FIELD_LABELS: Record<string, string> = {
   ISA_09: 'Interchange Date', ISA_10: 'Interchange Time',
   ISA_11: 'Repetition Separator', ISA_12: 'Version Number',
   ISA_13: 'Control Number', ISA_14: 'Ack Requested', ISA_15: 'Usage Indicator',
+  ISA_16: 'Subelement Separator',
   // GS
   GS_01: 'Functional ID Code', GS_02: 'Application Sender',
   GS_03: 'Application Receiver', GS_04: 'Date', GS_05: 'Time',
@@ -236,7 +237,9 @@ const FIELD_LABELS: Record<string, string> = {
   N4_01: 'City', N4_02: 'State', N4_03: 'ZIP Code', N4_04: 'Country Code',
   // PER
   PER_01: 'Contact Function', PER_02: 'Contact Name',
-  PER_03: 'Communication Type', PER_04: 'Phone / Email', PER_05: 'Comm Type 2', PER_06: 'Number 2',
+  PER_03: 'Communication Type', PER_04: 'Phone / Email',
+  PER_05: 'Comm Type 2', PER_06: 'Number 2',
+  PER_07: 'Comm Type 3', PER_08: 'Number 3',
   // REF
   REF_01: 'Reference Qualifier', REF_02: 'Reference ID', REF_03: 'Description',
   // DMG
@@ -247,77 +250,122 @@ const FIELD_LABELS: Record<string, string> = {
   DTM_01: 'Date Qualifier', DTM_02: 'Date Value',
   // SBR
   SBR_01: 'Payer Responsibility', SBR_02: 'Relationship Code',
-  SBR_03: 'Group/Policy Number', SBR_04: 'Group Name', SBR_09: 'Claim Filing Code',
+  SBR_03: 'Group/Policy Number', SBR_04: 'Group Name',
+  SBR_05: 'Insurance Type', SBR_06: 'COB Code',
+  SBR_07: 'Condition Code', SBR_08: 'Employment Status',
+  SBR_09: 'Claim Filing Code',
   // PRV
   PRV_01: 'Provider Code', PRV_02: 'Qualifier', PRV_03: 'Taxonomy Code',
   // PAT
-  PAT_01: 'Relationship Code',
+  PAT_01: 'Relationship Code', PAT_02: 'Location Code',
+  PAT_03: 'Employment Status', PAT_04: 'Student Status',
+  PAT_05: 'Date Format', PAT_06: 'Date of Death',
+  PAT_07: 'Unit of Measure', PAT_08: 'Weight', PAT_09: 'Pregnancy Indicator',
   // CLM
   CLM_01: 'Patient Control Number', CLM_02: 'Total Charge Amount',
-  CLM_03: 'Claim Type', CLM_05: 'Place of Service / Frequency',
-  CLM_06: 'Provider Signature', CLM_07: 'Assignment of Benefits',
-  CLM_08: 'Release of Information', CLM_09: 'Prior Auth',
+  CLM_03: 'Claim Filing Indicator', CLM_04: 'Non-Institutional Claim Type',
+  CLM_05: 'Place of Service / Frequency',
+  CLM_06: 'Provider Signature Indicator', CLM_07: 'Assignment of Benefits',
+  CLM_08: 'Benefits Assignment Cert.', CLM_09: 'Release of Information',
+  CLM_10: 'Patient Signature Source', CLM_11: 'Related Causes Code',
+  CLM_12: 'Special Program Indicator', CLM_13: 'Reserved',
+  CLM_14: 'Reserved', CLM_15: 'Reserved', CLM_16: 'Reserved',
+  CLM_17: 'Reserved', CLM_18: 'Reserved', CLM_19: 'Reserved',
+  CLM_20: 'Delay Reason Code',
   // HI
   HI_01: 'Diagnosis Code 1 (Primary)', HI_02: 'Diagnosis Code 2',
   HI_03: 'Diagnosis Code 3', HI_04: 'Diagnosis Code 4',
   HI_05: 'Diagnosis Code 5', HI_06: 'Diagnosis Code 6',
+  HI_07: 'Diagnosis Code 7', HI_08: 'Diagnosis Code 8',
+  HI_09: 'Diagnosis Code 9', HI_10: 'Diagnosis Code 10',
+  HI_11: 'Diagnosis Code 11', HI_12: 'Diagnosis Code 12',
   // LX
   LX_01: 'Service Line Number',
   // SV1
   SV1_01: 'Procedure Code', SV1_02: 'Charge Amount', SV1_03: 'Unit of Measure',
-  SV1_04: 'Quantity / Units', SV1_05: 'Facility Code', SV1_07: 'Diagnosis Pointer',
+  SV1_04: 'Quantity / Units', SV1_05: 'Facility Code',
+  SV1_06: 'Service Type', SV1_07: 'Diagnosis Pointer',
+  SV1_08: 'Reserved', SV1_09: 'Emergency Indicator',
+  SV1_10: 'Multiple Procedure Code', SV1_11: 'EPSDT Indicator',
+  SV1_12: 'Family Planning Indicator',
   // SV2
   SV2_01: 'Revenue Code', SV2_02: 'Procedure Code', SV2_03: 'Charge Amount',
   SV2_04: 'Unit of Measure', SV2_05: 'Units',
+  SV2_06: 'Unit Rate', SV2_07: 'Non-Covered Charge Amount',
   // AMT / QTY
   AMT_01: 'Amount Qualifier', AMT_02: 'Amount',
   QTY_01: 'Quantity Qualifier', QTY_02: 'Quantity',
   // CL1
   CL1_01: 'Admission Type', CL1_02: 'Admission Source', CL1_03: 'Patient Status',
   // HCP
-  HCP_01: 'Pricing Method', HCP_02: 'Amount',
+  HCP_01: 'Pricing Method', HCP_02: 'Repriced Allowed Amount',
+  HCP_03: 'Repriced Saving Amount', HCP_04: 'Repricing Org ID',
+  HCP_05: 'Repricing Per Diem Rate', HCP_06: 'Repriced Approved DRG',
+  HCP_07: 'Repriced Approved Amount', HCP_08: 'Product/Service ID',
+  HCP_09: 'Procedure Qualifier', HCP_10: 'Procedure Code',
+  HCP_11: 'Unit of Measure', HCP_12: 'Quantity',
+  HCP_13: 'Reject Reason Code', HCP_14: 'Compliance Code',
+  HCP_15: 'Exception Code',
   // BPR
   BPR_01: 'Transaction Code', BPR_02: 'Payment Amount',
-  BPR_03: 'Credit/Debit', BPR_04: 'Payment Method', BPR_16: 'Payment Date',
+  BPR_03: 'Credit/Debit', BPR_04: 'Payment Method',
+  BPR_05: 'Payment Format', BPR_06: 'ID Qualifier (Sender)',
+  BPR_07: 'Sender DFI ID', BPR_08: 'Account Type (Sender)',
+  BPR_09: 'Sender Account Number', BPR_10: 'Originator Company ID',
+  BPR_11: 'Reserved', BPR_12: 'ID Qualifier (Receiver)',
+  BPR_13: 'Receiver DFI ID', BPR_14: 'Account Type (Receiver)',
+  BPR_15: 'Receiver Account Number', BPR_16: 'Payment Date',
   // TRN
-  TRN_01: 'Trace Type', TRN_02: 'Check / EFT Trace Number', TRN_03: 'Payer ID',
+  TRN_01: 'Trace Type', TRN_02: 'Check / EFT Trace Number',
+  TRN_03: 'Originator Company ID', TRN_04: 'Reference ID',
   // CLP
   CLP_01: 'Claim ID', CLP_02: 'Claim Status Code', CLP_03: 'Total Billed',
   CLP_04: 'Total Paid', CLP_05: 'Patient Responsibility',
   CLP_06: 'Filing Indicator', CLP_07: 'Payer Control Number',
   CLP_08: 'Facility Code', CLP_09: 'Frequency Code',
+  CLP_10: 'Reserved', CLP_11: 'DRG Code',
+  CLP_12: 'DRG Weight', CLP_13: 'Discharge Fraction',
   // SVC
-  SVC_01: 'Procedure Code', SVC_02: 'Submitted Amount', SVC_03: 'Paid Amount',
+  SVC_01: 'Procedure Code', SVC_02: 'Billed Amount', SVC_03: 'Paid Amount',
   SVC_04: 'Revenue Code', SVC_05: 'Units',
+  SVC_06: 'Original Procedure Code', SVC_07: 'Original Units',
   // CAS
   CAS_01: 'Adjustment Group', CAS_02: 'Reason Code', CAS_03: 'Adjustment Amount',
   CAS_04: 'Quantity', CAS_05: 'Reason Code 2', CAS_06: 'Amount 2',
+  CAS_07: 'Quantity 2', CAS_08: 'Reason Code 3', CAS_09: 'Amount 3',
+  CAS_10: 'Quantity 3', CAS_11: 'Reason Code 4', CAS_12: 'Amount 4',
+  CAS_13: 'Quantity 4', CAS_14: 'Reason Code 5', CAS_15: 'Amount 5',
+  CAS_16: 'Quantity 5', CAS_17: 'Reason Code 6', CAS_18: 'Amount 6',
+  CAS_19: 'Quantity 6',
   // INS
   INS_01: 'Subscriber Indicator', INS_02: 'Relationship Code',
-  INS_03: 'Maintenance Type', INS_04: 'Benefit Status',
-  INS_05: 'Medicare Plan', INS_06: 'COBRA Event', INS_07: 'Employment Status',
-  INS_08: 'Student Status',
+  INS_03: 'Maintenance Type', INS_04: 'Maintenance Reason',
+  INS_05: 'Benefit Status', INS_06: 'Medicare Plan',
+  INS_07: 'COBRA Event', INS_08: 'Employment Status',
+  INS_09: 'Student Status', INS_10: 'Handicap Indicator',
+  INS_11: 'Date Format', INS_12: 'Date of Death',
   // BGN
   BGN_01: 'Purpose Code', BGN_02: 'Reference ID',
-  BGN_03: 'Date', BGN_04: 'Time', BGN_08: 'Action Code',
+  BGN_03: 'Date', BGN_04: 'Time',
+  BGN_05: 'Time Zone', BGN_06: 'Reference ID 2',
+  BGN_07: 'Transaction Type', BGN_08: 'Action Code',
   // HD
-  HD_01: 'Maintenance Type', HD_03: 'Insurance Line',
-  HD_04: 'Plan Description', HD_05: 'Coverage Level',
+  HD_01: 'Maintenance Type', HD_02: 'Reserved',
+  HD_03: 'Insurance Line', HD_04: 'Plan Description', HD_05: 'Coverage Level',
   // COB
   COB_01: 'Payer Responsibility', COB_02: 'Reference ID', COB_03: 'COB Code',
+  COB_04: 'Service Type Code',
+  // IEA / GE
+  IEA_01: 'Number of Groups', IEA_02: 'Control Number',
+  GE_01: 'Number of Transaction Sets', GE_02: 'Group Control Number',
 }
 
 /**
  * Given a segment ID and a raw field key from the parser output,
  * produce a clean, readable label.
- *
- * Priority:
- *  1. Direct lookup in FIELD_LABELS  e.g.  "NM1_03"
- *  2. Schema-generated prop names    e.g.  "LineItemChargeAmount_02" → try "SV1_02"
- *  3. PascalCase split fallback      e.g.  "BillingProviderName" → "Billing Provider Name"
  */
 function humanLabel(segId: string, fieldKey: string): string {
-  // 1. Try segment-qualified key
+  // 1. Try segment-qualified key  e.g. "NM1_03"
   const idxMatch = fieldKey.match(/_?(\d{2,})$/)
   if (idxMatch) {
     const qualified = `${segId}_${idxMatch[1]}`
@@ -325,7 +373,7 @@ function humanLabel(segId: string, fieldKey: string): string {
   }
   // 2. Try fieldKey directly
   if (FIELD_LABELS[fieldKey]) return FIELD_LABELS[fieldKey]
-  // 3. PascalCase split
+  // 3. PascalCase split fallback
   const stripped = fieldKey.replace(/_?\d{2,}$/, '')
   return stripped
     .replace(/_/g, ' ')
@@ -336,12 +384,7 @@ function humanLabel(segId: string, fieldKey: string): string {
 
 function getLoopMeta(loopKey: string): { title: string; icon: string; desc: string } {
   if (LOOP_META[loopKey]) return LOOP_META[loopKey]
-  // Fallback: clean the key for display
-  return {
-    title: loopKey.replace(/_/g, ' '),
-    icon: '📁',
-    desc: `Loop ${loopKey}`,
-  }
+  return { title: loopKey.replace(/_/g, ' '), icon: '📁', desc: `Loop ${loopKey}` }
 }
 
 // ── Dynamic Form Renderer ────────────────────────────────────────────────────
@@ -368,8 +411,6 @@ function LoopCard({ loopKey, instances, errors, handleCommit, activeFieldPath, l
   return (
     <SectionCard sectionRef={sectionRef} isHighlighted={isHighlighted}>
       <SectionHeader title={meta.title} description={meta.desc} icon={meta.icon} rotate={rotation} />
-
-      {/* Loop key badge */}
       <div style={{ position: 'absolute', top: 12, right: 14 }}>
         <span style={{
           fontFamily: 'JetBrains Mono, monospace', fontSize: 10, fontWeight: 700,
@@ -379,7 +420,6 @@ function LoopCard({ loopKey, instances, errors, handleCommit, activeFieldPath, l
           {loopKey}
         </span>
       </div>
-
       {isRepeatable ? (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
           {instances.map((inst, idx) => (
@@ -450,14 +490,14 @@ function InstanceFields({ instance, loopKey, errors, handleCommit, activeFieldPa
       if (!seg || typeof seg !== 'object') continue
       const segObj = seg as Record<string, unknown>
 
-      // ── Collect named (schema-decoded) fields first ──────────────────
+      // ── Collect named (schema-decoded) fields ────────────────────────
       let hasNamedFields = false
       for (const fieldKey of Object.keys(segObj)) {
         if (SKIP_KEYS.has(fieldKey)) continue
         const val = segObj[fieldKey]
 
         if (Array.isArray(val)) {
-          // composite like ["HC","99213"] — render as joined string
+          // composite like ["HC","99213"] — will join at render time
         } else if (val != null && typeof val !== 'object') {
           // scalar — fine
         } else {
@@ -474,12 +514,12 @@ function InstanceFields({ instance, loopKey, errors, handleCommit, activeFieldPa
         })
       }
 
-      // ── Fallback: if no named fields, render from raw_data ──────────
+      // ── Fallback: render from raw_data when no named fields ──────────
       if (!hasNamedFields && Array.isArray(segObj.raw_data)) {
         const rawArr = segObj.raw_data as string[]
+        // Start at 1 to skip element 0 (segment ID)
+        // INCLUDE empty elements to preserve correct positional indexing
         for (let ri = 1; ri < rawArr.length; ri++) {
-          const val = rawArr[ri]
-          if (val == null || String(val).trim() === '') continue
           const padIdx = String(ri).padStart(2, '0')
           const fieldKey = `${segId}_${padIdx}`
           const label = humanLabel(segId, fieldKey)
@@ -507,7 +547,6 @@ function InstanceFields({ instance, loopKey, errors, handleCommit, activeFieldPa
   return (
     <FieldGrid cols={2}>
       {allFields.map(({ segObj, fieldKey, fieldId, label, techRef, segId }) => {
-        // Read value: either from a named field or from raw_data
         let displayVal: string
         if (fieldKey.startsWith('__raw_')) {
           const ri = parseInt(fieldKey.replace('__raw_', ''), 10)
@@ -561,12 +600,12 @@ export default function FormEditorView() {
   const [highlightedLoop, setHighlightedLoop] = useState<string | null>(null)
   const [activeFieldPath, setActiveFieldPath] = useState<string | null>(null)
 
-  // Scroll-to-section on tree click
   useEffect(() => {
     if (!selectedPath) return
     const upper = selectedPath.toUpperCase()
-    // Find matching loop key
-    const loops = (parseResult as Record<string, unknown>)?.loops as Record<string, unknown> || {}
+    const rootData = parseResult as Record<string, unknown> | null
+    if (!rootData) return
+    const loops = (rootData.loops || (rootData.data as Record<string, unknown>)?.loops || {}) as Record<string, unknown>
     const matchKey = Object.keys(loops).find(k => upper.includes(k.toUpperCase()))
     if (!matchKey) return
 
@@ -586,7 +625,11 @@ export default function FormEditorView() {
     let updated = false
 
     for (const fk of targetKeys) {
-      if (segment[fk] !== undefined) {
+      if (fk.startsWith('__raw_')) {
+        const ri = parseInt(fk.replace('__raw_', ''), 10)
+        const rawArr = segment.raw_data as string[] | undefined
+        if (rawArr && rawArr.length > ri) { rawArr[ri] = newValue; updated = true; break }
+      } else if (segment[fk] !== undefined) {
         segment[fk] = newValue
         updated = true
         break
@@ -610,7 +653,7 @@ export default function FormEditorView() {
     const clearErrors = (arr: unknown[]) => arr ? arr.filter((e: unknown) => {
       const err = e as ValidationError
       const el = (err.element || err.field || '').toUpperCase()
-      return !targetKeys.some(k => el.includes(k.toUpperCase()))
+      return !targetKeys.some(k => el.includes(k.replace('__raw_', '').toUpperCase()))
     }) : arr
 
     if (Array.isArray(newParseResult.errors)) newParseResult.errors = clearErrors(newParseResult.errors)
@@ -625,12 +668,13 @@ export default function FormEditorView() {
   const rootData = parseResult as Record<string, unknown>
   const loops = (rootData.loops || (rootData.data as Record<string, unknown>)?.loops || {}) as Record<string, unknown>
   const errors: ValidationError[] = (rootData.errors || (rootData.data as Record<string, unknown>)?.errors || []) as ValidationError[]
-  const txType = String(transactionType || (rootData.metadata as Record<string, unknown>)?.transaction_type as string || (rootData.data as Record<string, unknown>)?.metadata && ((rootData.data as Record<string, unknown>).metadata as Record<string, unknown>)?.transaction_type as string || 'unknown')
-  const loopKeys = Object.keys(loops)
 
+  const meta = (rootData.metadata || (rootData.data as Record<string, unknown>)?.metadata || {}) as Record<string, unknown>
+  const txType = String(transactionType || meta.transaction_type || 'unknown')
+
+  const loopKeys = Object.keys(loops)
   if (loopKeys.length === 0) return <FormEmptyState />
 
-  // Ensure refs exist for all loops
   for (const k of loopKeys) {
     if (!sectionRefs.current[k]) sectionRefs.current[k] = { current: null }
   }
@@ -643,11 +687,9 @@ export default function FormEditorView() {
         .form-editor-scroll::-webkit-scrollbar-thumb { background: rgba(78,205,196,0.35); border-radius: 3px; }
         .form-field-grid > * { min-width: 0; overflow: hidden; }
       `}</style>
-
       <div className="form-editor-scroll" style={{ height: '100%', overflowY: 'auto', padding: '0 0 40px', background: '#FDFAF4' }}>
         <div style={{ padding: '28px 28px 0', display: 'flex', flexDirection: 'column', gap: 28 }}>
           <TxBadge type={txType} />
-
           {loopKeys.map((loopKey, li) => {
             const raw = loops[loopKey]
             const instances: Record<string, unknown>[] = Array.isArray(raw)

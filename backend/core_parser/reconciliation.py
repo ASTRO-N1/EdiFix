@@ -409,24 +409,17 @@ def _verdict(
 # ── Public API ──────────────────────────────────────────────────────────────
 
 def reconcile(parsed_837: dict, parsed_835: dict) -> dict:
-    """
-    Cross-reference an 837 claim against an 835 remittance.
-
-    Parameters
-    ----------
-    parsed_837 : dict
-        Full response from /api/v1/parse  (includes "data" with "loops")
-    parsed_835 : dict
-        Full response from /api/v1/parse-835  (includes "data" and "remittance_summary")
-
-    Returns
-    -------
-    ReconciliationReport dict with keys:
-        matched, pcn, line_items, claim_summary, verdict, error
-    """
-
     # ── 1.  Extract 837 claims ─────────────────────────────────────────────
     claims_837 = _get_837_claims(parsed_837)
+
+    # DEBUG: log what we received
+    tree = _unwrap(parsed_837)
+    loops = tree.get("loops", {})
+    print(f"[RECONCILE DEBUG] 837 top-level keys: {list(parsed_837.keys())}")
+    print(f"[RECONCILE DEBUG] 837 tree keys: {list(tree.keys())}")
+    print(f"[RECONCILE DEBUG] 837 loop keys: {list(loops.keys())}")
+    print(f"[RECONCILE DEBUG] 837 claims found: {len(claims_837)}")
+
     if not claims_837:
         return {
             "matched": False,

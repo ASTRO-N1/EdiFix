@@ -258,10 +258,17 @@ class EDIParser:
 
         self._clp_records: dict = {}
         self._pending_clp  = None   
-        self._pending_svc  = None   
+        self._pending_svc  = None
+        self._header_check_number = ""
 
         script_dir = os.path.dirname(os.path.abspath(__file__))
         self._ref  = ReferenceData(os.path.abspath(os.path.join(script_dir, "..")))
+
+        self.load_carc()
+        self.load_rarc()
+        self.load_icd10()
+        self.load_cpt()
+        self.load_hcpcs()
 
     # =========================================================================
     # 2. STREAMING LEXER
@@ -828,7 +835,7 @@ class EDIParser:
                     self.validate_carc(reason_code, line, "CAS", f"CAS{i+1:02d}")
                 try: amt = float(amount_str)
                 except ValueError: amt = 0.0
-                adj = {"group": group_code, "reason": reason_code, "amount": amt}
+                adj = {"group": group_code, "reason": reason_code, "amount": amt, "group_code": group_code, "reason_code": reason_code}
                 if self.get_current_loop() == "835_2110" and self._pending_svc is not None:
                     self._pending_svc["adjustments"].append(adj)
                 elif self.get_current_loop() == "835_2100" and self._pending_clp is not None:

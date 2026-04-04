@@ -1,0 +1,7 @@
+{
+  "version": "NOT_AVAILABLE",
+  "generated": "2026-03-10",
+  "source": "https://www.ama-assn.org/practice-management/cpt",
+  "description": "CPT codes require an AMA license. Parser emits WARNINGS (not errors) for unverified CPT codes. To enable: purchase AMA CPT Data File, convert to {\"codes\": {\"XXXXX\": \"desc\"}}, replace this file.",
+  "codes": {}
+}

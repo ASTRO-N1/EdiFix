@@ -1,0 +1,202 @@
+/* ─── Doodle Utility Classes ─────────────────────────────────── */
+
+/* Ink shadow — flat offset drop shadow like a stamp */
+.shadow-ink {
+  box-shadow: 4px 4px 0px #1A1A2E;
+}
+
+.shadow-ink-sm {
+  box-shadow: 3px 3px 0px #1A1A2E;
+}
+
+.shadow-ink-lg {
+  box-shadow: 6px 6px 0px #1A1A2E;
+}
+
+/* Coral shadow variant */
+.shadow-coral {
+  box-shadow: 4px 4px 0px #FF6B6B;
+}
+
+/* Sticker/stamp button style */
+.btn-sticker {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-family: 'Nunito', sans-serif;
+  font-weight: 700;
+  cursor: pointer;
+  border: 2.5px solid #1A1A2E;
+  box-shadow: 3px 3px 0px #1A1A2E;
+  transition: all 0.15s ease;
+  transform: rotate(-0.5deg);
+}
+
+.btn-sticker:hover {
+  transform: rotate(0.5deg) translateY(-2px);
+  box-shadow: 5px 5px 0px #1A1A2E;
+}
+
+.btn-sticker:active {
+  transform: rotate(0deg) translateY(0px);
+  box-shadow: 2px 2px 0px #1A1A2E;
+}
+
+/* Feature card style */
+.doodle-card {
+  background: #FFFFFF;
+  border: 2px solid #1A1A2E;
+  box-shadow: 5px 5px 0px #1A1A2E;
+  border-radius: 12px;
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+
+.doodle-card:hover {
+  transform: translateY(-4px);
+  box-shadow: 8px 8px 0px #1A1A2E;
+}
+
+/* Alternate rotation classes for cards */
+.rotate-neg-1 { transform: rotate(-1deg); }
+.rotate-pos-1 { transform: rotate(1deg); }
+.rotate-neg-05 { transform: rotate(-0.5deg); }
+.rotate-pos-05 { transform: rotate(0.5deg); }
+
+.rotate-neg-1:hover { transform: rotate(-1deg) translateY(-4px); }
+.rotate-pos-1:hover { transform: rotate(1deg) translateY(-4px); }
+.rotate-neg-05:hover { transform: rotate(-0.5deg) translateY(-4px); }
+.rotate-pos-05:hover { transform: rotate(0.5deg) translateY(-4px); }
+
+/* Pill / tag styles */
+.doodle-pill {
+  display: inline-flex;
+  align-items: center;
+  padding: 4px 14px;
+  border-radius: 999px;
+  border: 2px solid #FF6B6B;
+  font-family: 'Nunito', sans-serif;
+  font-weight: 600;
+  font-size: 12px;
+  color: #FF6B6B;
+  background: transparent;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.doodle-pill:hover {
+  background: #FF6B6B;
+  color: #FFFFFF;
+}
+
+/* Hand-drawn spinner */
+@keyframes spin-rough {
+  0% { transform: rotate(0deg); }
+  100% { transform: rotate(360deg); }
+}
+
+.doodle-spinner {
+  width: 40px;
+  height: 40px;
+  border: 3px dashed #4ECDC4;
+  border-radius: 50%;
+  animation: spin-rough 1s linear infinite;
+}
+
+/* Bounce animation for logo */
+@keyframes bounce-gentle {
+  0%, 100% { transform: translateY(0px); }
+  50% { transform: translateY(-6px); }
+}
+
+.bounce-gentle {
+  animation: bounce-gentle 2s ease-in-out infinite;
+}
+
+/* Underline draw animation */
+@keyframes draw-underline {
+  from { stroke-dashoffset: 200; }
+  to { stroke-dashoffset: 0; }
+}
+
+.draw-underline {
+  animation: draw-underline 0.8s ease forwards;
+}
+
+/* Walk animation for stick figure */
+@keyframes walk-across {
+  0% { transform: translateX(0px); }
+  100% { transform: translateX(calc(100% + 80px)); }
+}
+
+@keyframes arm-wave {
+  0%, 100% { transform: rotate(-20deg); }
+  50% { transform: rotate(20deg); }
+}
+
+.arm-wave {
+  transform-origin: top center;
+  animation: arm-wave 0.5s ease-in-out infinite;
+}
+
+/* Counting animation trigger */
+.count-up {
+  font-variant-numeric: tabular-nums;
+}
+
+/* Wobbly border using border-radius */
+.border-wobbly {
+  border-radius: 255px 15px 225px 15px / 15px 225px 15px 255px;
+}
+
+/* Upload zone */
+.upload-zone {
+  border: 2.5px dashed #4ECDC4;
+  border-radius: 16px;
+  transition: all 0.2s ease;
+  background: #FFFFFF;
+}
+
+.upload-zone:hover, .upload-zone.drag-over {
+  background: #F0FFF4;
+  border-color: #4ECDC4;
+  transform: scale(1.02);
+}
+
+/* Step number background */
+.step-number {
+  font-family: 'Nunito', sans-serif;
+  font-weight: 900;
+  font-size: 120px;
+  line-height: 1;
+  opacity: 0.08;
+  position: absolute;
+  top: -20px;
+  left: -10px;
+  color: #FF6B6B;
+  pointer-events: none;
+  user-select: none;
+}
+
+/* Section headings */
+.section-heading {
+  font-family: 'Nunito', sans-serif;
+  font-weight: 900;
+  font-size: clamp(32px, 5vw, 48px);
+  color: #1A1A2E;
+  line-height: 1.1;
+}
+
+/* Sticky note / tag in corner */
+.corner-tag {
+  position: absolute;
+  bottom: 12px;
+  right: 12px;
+  background: #FFE66D;
+  border: 1.5px solid #1A1A2E;
+  padding: 2px 8px;
+  border-radius: 4px;
+  font-size: 11px;
+  font-weight: 700;
+  font-family: 'JetBrains Mono', monospace;
+  transform: rotate(1deg);
+}

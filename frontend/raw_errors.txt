@@ -1,0 +1,4 @@
+src/components/workspace/ActivityBar.tsx(36,30): error TS2503: Cannot find namespace 'JSX'.
+src/components/workspace/DoodleResizeHandle.tsx(1,15): error TS2305: Module '"react-resizable-panels"' has no exported member 'PanelResizeHandleProps'.
+src/components/workspace/DoodleResizeHandle.tsx(2,10): error TS2305: Module '"react-resizable-panels"' has no exported member 'PanelResizeHandle'.
+src/pages/WorkspacePage.tsx(2,17): error TS2724: '"react-resizable-panels"' has no exported member named 'PanelGroup'. Did you mean 'PanelProps'?

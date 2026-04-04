@@ -1,0 +1,727 @@
+
+╔══════════════════════════════════════════════════════════════════════════════════╗
+║           EDI INSPECTOR — COMPLETE THEME SPECIFICATION DOCUMENT                ║
+║           Version 1.0  |  Source of truth for all AI-assisted coding           ║
+╚══════════════════════════════════════════════════════════════════════════════════╝
+
+This document is the authoritative design system reference for EDI Inspector
+(formerly "EdiFix"). Every component, page, and interaction must adhere to these
+rules EXACTLY. Do not deviate without explicit instruction.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+SECTION 1 — PROJECT OVERVIEW
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+PURPOSE
+  EDI Inspector is a healthcare EDI parsing and validation web application.
+  Users upload X12 EDI files (837P, 837I, 835, 834) and receive a full
+  validation report with error explanations and an AI-powered fix assistant.
+
+TARGET AUDIENCE
+  - Medical billing teams
+  - Healthcare QA engineers
+  - EDI clearinghouses
+  - Revenue cycle management (RCM) teams
+
+CORE USER EXPERIENCE GOALS
+  1. Make a technically dense task feel approachable and even delightful.
+  2. Provide instant feedback — the user should always know what is happening.
+  3. Surface errors clearly without overwhelming the user with jargon.
+  4. The upload → parse → inspect flow should take under 10 seconds end-to-end.
+
+EMOTIONAL TONE
+  Playful-Professional. The UI is hand-crafted and warm — like a talented
+  developer made something they were genuinely proud of. It is NOT corporate.
+  It is NOT sterile. But it IS precise and trustworthy. Think: a Moleskine
+  notebook that also runs enterprise-grade validation.
+
+  Keywords: friendly, handmade, precise, inviting, creative, clever, warm.
+
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+SECTION 2 — VISUAL DESIGN SYSTEM
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+THE DOODLE AESTHETIC
+  Everything looks hand-drawn. Borders are slightly imperfect. Elements have
+  slight micro-rotations. Shadows are flat offset "ink stamp" style — not blurred
+  Gaussian shadows. The overall effect is a hand-sketched design system.
+
+  Key libraries that enforce this aesthetic:
+    - rough.js      → hand-drawn SVG borders on cards, progress bars, canvases
+    - rough-notation → animated hand-drawn annotations on text (circles, underlines)
+    - framer-motion → all animation; prefer spring physics over tween
+
+
+── 2A. COLOR PALETTE ──────────────────────────────────────────────────────────
+
+  ┌─────────────────────┬────────────┬──────────────────────────────────────────────┐
+  │ Token Name          │ HEX        │ Usage                                        │
+  ├─────────────────────┼────────────┼──────────────────────────────────────────────┤
+  │ --bg                │ #FDFAF4    │ Page background. Warm cream, not white.      │
+  │ --ink               │ #1A1A2E    │ Primary text, borders, shadows, strokes.     │
+  │ --teal              │ #4ECDC4    │ Primary accent. CTAs, highlights, progress.  │
+  │ --coral             │ #FF6B6B    │ Secondary accent. Errors, pills, badges.     │
+  │ --yellow            │ #FFE66D    │ Warning, sticky notes, eye details, tags.    │
+  │ --mint              │ #95E1D3    │ Soft teal tint. Gradients, success states.   │
+  │ --purple            │ #C9B8FF    │ Rarely used. AI/assistant accent only.       │
+  │ --card              │ #FFFFFF    │ Card backgrounds.                            │
+  │ --muted             │ rgba(26,26,46,0.6) │ Secondary/body text.              │
+  │ --inkFaint          │ rgba(26,26,46,0.35)│ Placeholder text, disabled.       │
+  │ --border            │ rgba(26,26,46,0.12)│ Light separator lines.            │
+  └─────────────────────┴────────────┴──────────────────────────────────────────────┘
+
+  DARK MODE VARIANTS  (token prefix: darkTokens)
+    bg:         #1A1917   (warm charcoal, NOT cold grey)
+    bgCard:     #242220
+    bgSidebar:  #1E1C1A
+    bgInput:    #2C2A27
+    bgHighlight:#3A3730
+    ink:        #F0EBE1   (warm off-white)
+    inkMuted:   rgba(240,235,225,0.55)
+    teal/coral/yellow/mint/purple stay IDENTICAL in both modes.
+    shadow:     rgba(0,0,0,0.6)
+    roughStroke:#F0EBE1
+
+  USAGE RULES
+    - bg (#FDFAF4) is used for every full-page background. Never use pure white
+      or pure grey as a page background.
+    - --ink (#1A1A2E) is used for ALL borders and ALL shadows. Never use grey
+      for borders. Always #1A1A2E.
+    - --teal (#4ECDC4) is the hero accent. Use it for: primary buttons, progress
+      bars, upload zone borders, links that need emphasis, active states.
+    - --coral (#FF6B6B) is used for: error states, tag pills, secondary CTAs,
+      step number backgrounds (at 8% opacity), features section icons.
+    - --yellow (#FFE66D) is accent 3. Use it for: sticky note tags, warning states,
+      document props in illustrations, eye details in characters.
+    - Never use gradients on text unless it is a decorative hero headline.
+    - The paper-noise texture overlay (defined in body::before) MUST always be
+      present. It uses an inline SVG noise filter at 2.5% opacity. Do not remove.
+
+── 2B. SHADOWS ────────────────────────────────────────────────────────────────
+
+  ALL shadows in this project are flat offset "ink stamp" shadows. They are
+  NOT blurred. They use box-shadow with zero blur radius.
+
+  Standard sizes:
+    shadow-ink-sm:  box-shadow: 3px 3px 0px #1A1A2E;
+    shadow-ink:     box-shadow: 4px 4px 0px #1A1A2E;    ← DEFAULT
+    shadow-ink-lg:  box-shadow: 6px 6px 0px #1A1A2E;
+
+  Hover state increases offset:
+    Default (4px 4px → 8px 8px) while element lifts by translateY(-4px).
+
+  Error variant:
+    shadow-coral:   box-shadow: 4px 4px 0px #FF6B6B;
+    (Used for error cards and destructive states)
+
+  Teal variant (rare, used on dashboard/AI elements):
+    box-shadow: 5px 5px 0px #4ECDC4;
+
+  NEVER use: box-shadow with blur (e.g., 0 4px 16px rgba(...)), drop-shadow
+  with large blur, or any "floating card" soft shadow. The entire point of this
+  aesthetic is INK — flat, visible, deliberate shadows.
+
+── 2C. CONTRAST PHILOSOPHY ───────────────────────────────────────────────────
+
+  High contrast. #1A1A2E on #FDFAF4 = ~14:1 ratio. All primary text must meet
+  WCAG AA at minimum. The ink-on-cream metaphor demands sharp, clear text.
+  Muted text uses rgba(26,26,46,0.6) — never go below 35% opacity for any
+  text that carries information.
+
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+SECTION 3 — TYPOGRAPHY SYSTEM
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+FONT FAMILIES
+
+  1. Nunito (Google Fonts)
+     Role: ALL UI text — headings, body, buttons, labels, captions.
+     Import: https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700;800;900
+     Weights used: 400, 600, 700, 800, 900
+     Why Nunito: Rounded terminals give it a friendly, hand-crafted feel.
+     It is the visual "ink" of the product.
+
+  2. JetBrains Mono (Google Fonts)
+     Role: ALL code, EDI segments, technical data, monospace badges.
+     Import: https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600
+     Weights used: 400, 600
+     Use for: segment text in parse logs, JSON output, code snippets,
+              corner tags (.corner-tag), progress percentages,
+              technical identifiers (NPI, ICD-10 codes).
+
+  RULE: Never use system fonts for UI. Never use Inter or Roboto.
+        The two-font system (Nunito + JetBrains Mono) is non-negotiable.
+
+TYPE SCALE
+
+  .section-heading   font-size: clamp(32px, 5vw, 48px);  weight: 900;  color: #1A1A2E
+  H2 (card heading)  font-size: 18–22px;                  weight: 800;  color: #1A1A2E
+  H3 (label)         font-size: 16–18px;                  weight: 700;  color: #1A1A2E
+  Body               font-size: 14–16px;                  weight: 400;  color: muted
+  Small / caption    font-size: 12–13px;                  weight: 600;  color: muted
+  Micro / tag        font-size: 11px;                     weight: 700;  font: JetBrains Mono
+  Step number (bg)   font-size: 120px;                    weight: 900;  opacity: 0.08
+
+LINE HEIGHT & SPACING
+  - Body text: line-height: 1.6
+  - Headings: line-height: 1.1
+  - Technical/mono text: line-height: 1.4
+  - Letter-spacing on navbar logo: -0.3px (slight tightening on large UI text)
+
+TONE
+  Playful and technical simultaneously. Headings can use sentence case with
+  punchy word play. Body copy is concise and benefit-focused.
+
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+SECTION 4 — LAYOUT & SPACING RULES
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+GRID SYSTEM
+  No strict CSS grid framework. Use CSS Grid and Flexbox directly.
+  Standard content container: max-width: 1100px, margin: 0 auto.
+  Feature grid example: repeat(auto-fill, minmax(300px, 1fr)), gap: 28px.
+
+SECTION PADDING
+  All landing page sections:
+    padding: clamp(60px, 8vw, 100px) clamp(24px, 6vw, 80px);
+  This scales cleanly from mobile (60px/24px) to desktop (100px/80px).
+
+CARD SPACING
+  - Internal card padding: 24–28px (sides), 28–44px (bottom to accommodate tag)
+  - Gap between cards in a grid: 28px
+  - Margin between major sections: 56px (heading to content), 24–32px (between rows)
+
+ALIGNMENT
+  - Landing page: center-aligned headings, left-aligned body text within cards.
+  - Dashboard: left-heavy. Sidebar navigation left, main content takes remaining space.
+  - Subheadings + body text below section headings are left-aligned within the container.
+
+MICRO-ROTATIONS (Critical to the doodle aesthetic)
+  Many elements have a slight rotation applied to feel hand-placed:
+  - Feature cards: alternate rotate(-1deg), rotate(1deg), rotate(-0.5deg), rotate(0.5deg)
+  - .btn-sticker: default rotate(-0.5deg), hover rotate(0.5deg)
+  - Corner tags: rotate(1deg)
+  - Floating badges: rotate(-8deg) or similar small values
+  These must be preserved. They make the design feel alive.
+
+RESPONSIVENESS
+  - Mobile-first in intent, but implemented with clamp() for fluid scaling.
+  - At narrow viewports (<768px), stacked single-column layouts.
+  - Navbar collapses at mobile (burger menu or simplified CTA).
+  - Dashboard uses a collapsible sidebar at smaller widths.
+
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+SECTION 5 — COMPONENT DESIGN GUIDELINES
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+── BUTTONS (.btn-sticker) ─────────────────────────────────────────────────────
+
+  The primary button style is the "sticker" — a slightly rotated button that
+  behaves like a rubber stamp when interacted with.
+
+  Base styles:
+    font-family: Nunito, sans-serif
+    font-weight: 700
+    border: 2.5px solid #1A1A2E
+    border-radius: 8px           (not pill, not fully square)
+    box-shadow: 3px 3px 0px #1A1A2E
+    transform: rotate(-0.5deg)
+    transition: all 0.15s ease
+    padding: 8px 18px
+    font-size: 14px
+
+  Filled variant (primary CTA):
+    background: #1A1A2E
+    color: #FDFAF4
+
+  Outlined variant (secondary):
+    background: transparent
+    color: #1A1A2E
+
+  Teal filled variant (upload/action):
+    background: #4ECDC4
+    color: #1A1A2E
+
+  Hover:
+    transform: rotate(0.5deg) translateY(-2px)
+    box-shadow: 5px 5px 0px #1A1A2E
+
+  Active/Press:
+    transform: rotate(0deg) translateY(0px)
+    box-shadow: 2px 2px 0px #1A1A2E
+    (the shadow "compresses" as if being stamped)
+
+  Error button (Try Again):
+    background: #FF6B6B
+    color: #FFFFFF
+    shadow: 2px 2px 0px #1A1A2E
+
+── PILLS (.doodle-pill) ────────────────────────────────────────────────────────
+
+  Pill-shaped tag for sample files, categories, filters:
+    border-radius: 999px
+    border: 2px solid #FF6B6B
+    color: #FF6B6B
+    background: transparent
+    font-size: 12px, font-weight: 600
+    padding: 4px 14px
+
+  Hover: background fills to #FF6B6B, color becomes #FFFFFF.
+
+── CARDS (.doodle-card) ────────────────────────────────────────────────────────
+
+  Standard card:
+    background: #FFFFFF
+    border: 2px solid #1A1A2E
+    border-radius: 12px
+    box-shadow: 5px 5px 0px #1A1A2E
+    padding: ~28px 24px (varies by content)
+    transform: slight rotation (alternating per card)
+    transition: transform 0.2s ease, box-shadow 0.2s ease
+
+  Hover:
+    transform: (rotation preserved) + translateY(-4px)
+    box-shadow: 8px 8px 0px #1A1A2E
+
+  Corner tag (.corner-tag):
+    Every feature card has a small sticky-note style tag in the bottom-right corner.
+    background: #FFE66D
+    border: 1.5px solid #1A1A2E
+    border-radius: 4px
+    padding: 2px 8px
+    font: JetBrains Mono, 11px, weight 700
+    transform: rotate(1deg)
+    position: absolute, bottom: 12px, right: 12px
+
+  Processing/Info card (RoughJS bordered):
+    Use rough.js SVG overlay for the border instead of CSS border.
+    roughness: 1.5–2.5, strokeWidth: 2, stroke: #1A1A2E
+    shadow: 4px 4px 0px #1A1A2E (CSS)
+    background: #FFFFFF
+
+── UPLOAD ZONE ────────────────────────────────────────────────────────────────
+
+    border: 2.5px dashed #4ECDC4
+    border-radius: 16px
+    background: #FFFFFF
+    transition: all 0.2s ease
+
+  Drag-over / hover:
+    background: #F0FFF4
+    transform: scale(1.02)
+    border remains #4ECDC4
+
+── PROGRESS BAR ────────────────────────────────────────────────────────────────
+
+  Container:
+    height: 20px
+    background: #FFFFFF
+    border-radius: 999px (pill)
+    border drawn with rough.js SVG overlay (roughness: 2, strokeWidth: 2)
+    box-shadow: 3px 3px 0px #1A1A2E
+
+  Fill:
+    background: linear-gradient(90deg, #4ECDC4, #95E1D3)
+    border-radius: 999px
+    height: 100%
+    Animated via framer-motion width property (not CSS transition alone).
+    Leading edge has a tiny white pulsing dot sparkle.
+
+── NAVBAR ──────────────────────────────────────────────────────────────────────
+
+  Transparent when at top of page.
+  On scroll (>50px):
+    background: #FDFAF4
+    border-bottom: 2px solid #1A1A2E
+  Transition: background 0.3s ease, border-color 0.3s ease.
+  Position: fixed, top 0, full width, z-index: 100.
+  Padding: 14px 32px.
+
+  Logo: SVG inline icon + Nunito 700, 20px, letter-spacing: -0.3px.
+  Logo has a gentle bounce animation (.bounce-gentle, translateY 0→-6px, 2s loop).
+
+── DARK TERMINAL / LOG WINDOW ──────────────────────────────────────────────────
+
+  This component (used on ProcessingPage log) breaks from the cream bg for contrast:
+    background: #1A1A2E   (ink color becomes the bg — inverted block)
+    border-radius: 12px
+    padding: 16px
+    font-family: JetBrains Mono, 12px
+
+  Text colors within dark log:
+    ✅ success entries: #4ECDC4
+    ⚙️ info/loading entries: #FFE66D
+    ❌ error entries: #FF6B6B
+
+  Outer border of this block uses rough.js on a light wrapper.
+
+── SCROLLBARS ──────────────────────────────────────────────────────────────────
+
+  All scrollbars: width 6px, thumb rgba(78,205,196,0.35), track transparent.
+  Thumb hover: rgba(78,205,196,0.6).
+  Firefox: scrollbar-width: thin, scrollbar-color: (same values).
+
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+SECTION 6 — INTERACTION & ANIMATION STYLE
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+ANIMATION LIBRARY
+  Framer Motion is the ONLY animation library permitted. Do not use GSAP,
+  Anime.js, or raw CSS keyframes for component-level animations (CSS keyframes 
+  are acceptable for simple global things like the spinner and bounce-gentle).
+
+TRANSITION SPEED PHILOSOPHY
+  - Micro-interactions (hover, press): 0.15s
+  - Card hover lift: 0.2s ease
+  - Page-level component entrance: 0.5s, ease
+  - Stagger on lists: 0.1s per item delay
+  - Drawing/path animations: 0.8s ease
+
+EASING
+  - Standard UI: ease or ease-in-out
+  - SpringPhysics for bouncy elements: type: 'spring', bounce: 0.4
+  - Linear only for: continuous loops (scanline scroll, spinner rotation)
+
+ENTRANCE ANIMATIONS (standard pattern)
+  All major content sections use InView triggering (framer-motion useInView):
+    initial: { opacity: 0, y: 30 }
+    animate (when in view): { opacity: 1, y: 0 }
+    transition: { duration: 0.5 }
+  Staggered children add delay: i * 0.1 per item.
+  InView margin: '-100px' (trigger slightly before fully in viewport).
+
+HOVER PHILOSOPHY
+  Every interactive element must have a hover state. No exceptions.
+  The hover should feel like it lifts off the page (translateY) or gets "louder"
+  (larger shadow). Cursor: pointer on all interactive elements.
+
+SPECIFIC NAMED ANIMATIONS (defined in CSS/doodle.css)
+  .bounce-gentle      → logo bounce, translateY(0 → -6px → 0), 2s, infinite
+  .doodle-spinner     → dashed teal circle, 360deg rotation, 1s linear infinite
+  .arm-wave           → stick figure arm, rotate(-20deg → 20deg → -20deg), 0.5s
+  .draw-underline     → SVG stroke-dashoffset 200→0, 0.8s ease forwards
+  @keyframes fadeSlideUp → opacity 0→1, translateY 16px→0 (dashboard entries)
+  @keyframes pulse-dot   → opacity+scale pulse, 2s ease-in-out (status indicators)
+  @keyframes typing-blink → opacity 0.2→1 (typing indicator dots, staggered 0.2s)
+
+ROUGH-NOTATION ANNOTATIONS
+  Used for text highlights/circles that appear on scroll.
+  Parameters: { type: 'circle', color: '#FF6B6B', strokeWidth: 3,
+                animate: true, animationDuration: 800, padding: 8 }
+  Trigger: document.fonts.ready.then → setTimeout(100ms) → annotation.show()
+  This prevents layout-shift bugs with custom fonts.
+
+SCROLL BEHAVIOR
+  html { scroll-behavior: smooth; }
+  overflow-x: hidden on body to prevent horizontal scroll.
+
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+SECTION 7 — CODING & ARCHITECTURE STYLE
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+STACK
+  - Framework: React 19 + TypeScript (Vite 7)
+  - Styling: Tailwind CSS v4 (utility classes) + Vanilla CSS (doodle.css global)
+  - Routing: React Router DOM v7
+  - State: Zustand v5
+  - Animation: Framer Motion v12
+  - Sketchy borders: rough.js v4
+  - Text annotations: rough-notation v0.5
+  - Icons: Lucide React (sparingly — custom SVG is preferred for illustration)
+  - 3D (legacy, avoid adding more): @react-three/fiber, @react-three/drei
+
+FILE STRUCTURE
+  src/
+    pages/           → One file per route (LandingPage.tsx, ProcessingPage.tsx, etc.)
+    components/
+      landing/       → All landing page section components
+      processing/    → Components used only on the processing page
+      dashboard/     → Dashboard-specific components
+    store/
+      useAppStore.ts → Single Zustand store for all global state
+    styles/
+      doodle.css     → All shared doodle utility classes (DO NOT modify without care)
+    theme/
+      tokens.ts      → Light & dark color tokens (styled-as-constants)
+      ThemeContext.tsx → React context for light/dark toggle
+
+COMPONENT PRINCIPLES
+  - One component per file. Filename matches export name.
+  - Small sub-components (icons, decorative SVGs) can be defined at the top of
+    the same file if they are used only within that file.
+  - Components should NOT have hard-coded colors — use the token values or 
+    CSS custom properties (--teal, --coral, etc.) where possible.
+  - Props interfaces defined inline above the component, named [ComponentName]Props.
+
+NAMING CONVENTIONS
+  - Components: PascalCase (ParseLog, FileInfoCard)
+  - Variables/functions: camelCase
+  - CSS classes: kebab-case (doodle-card, shadow-ink, btn-sticker)
+  - Store state keys: camelCase (parseResult, isLoading, ediFile)
+
+STATE MANAGEMENT (Zustand)
+  Store file: src/store/useAppStore.ts
+  Current keys:
+    ediFile: { file, fileName, fileType, parseResult } — set by landing UploadZone
+    file: File | null                                  — raw File for ProcessingPage API call
+    parseResult: Record<string, unknown> | null        — API response
+    isLoading: boolean
+    error: string | null
+    activeSection: string                              — dashboard nav state
+
+  Actions: setEdiFile, clearFile, setFile, setParseResult, setLoading,
+           setError, setActiveSection.
+
+  Key rule: ediFile and file are BOTH set when a file is uploaded. ediFile is
+  the legacy structure; file is the raw File object used for FormData API calls.
+
+STYLE APPLICATION ORDER (priority)
+  1. Tailwind utility classes (layout, spacing quick values)
+  2. Inline style objects (for dynamic/computed values)
+  3. CSS custom classes from doodle.css (for reusable doodle patterns)
+  
+  NEVER use @apply in Tailwind to replicate doodle.css classes —
+  keep doodle.css as vanilla CSS.
+
+TYPESCRIPT
+  - Strict mode. No 'any' unless explicitly justified and commented.
+  - Unused imports must be removed. (no React import if JSX transform is used)
+  - Interfaces over type aliases for props and store interfaces.
+
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+SECTION 8 — CONTENT & COPYWRITING TONE
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+REGISTER: Semi-casual / confident-developer
+  Not formal enterprise speak. Not startup hyperbole. Write like a skilled
+  engineer who knows their domain cold but also enjoys making nice things.
+
+STYLE RULES
+  - Sentences: short and direct. ≤15 words per sentence in UI copy.
+  - Technical terms used accurately (NPI, ICD-10-CM, CLM02, SV1 — never simplified
+    or dumbed down, but always explained inline the first time).
+  - No marketing fluff ("Unlock the power of...", "Supercharge your...").
+  - Prefer: specific, quantified claims. "97,572 ICD-10 codes" > "thousands of codes".
+  - Headings: sentence case, not Title Case. OK to be clever but never corny.
+
+CTA COPY
+  - Primary: "Try it now" / "Upload your EDI file" / "Parse my file"
+  - Secondary: "View on GitHub" / "Read Docs"
+  - Error recovery: "Try Again" (simple, no blame)
+  - Avoid: "Get started", "Learn more", "Click here"
+
+LOADING / STATUS MESSAGES
+  Use emoji prefixes consistently:
+    ✅ = success/complete step
+    ⚙️ = in-progress/working step
+    ❌ = error/failure step
+    📄 = file reference
+  Examples (from ParseLog):
+    "✅ ISA envelope detected"
+    "⚙️ Validating NPI identifiers..."
+    "❌ Couldn't reach the parser. Is the backend running?"
+
+AVOID THESE WORDS
+  - "robust", "seamless", "leverage", "utilize", "powerful"
+  - "ecosystem", "synergy", "end-to-end" (unless in technical docs)
+  - Any sentence starting with "Introducing..."
+
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+SECTION 9 — DESIGN PRINCIPLES
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+These are non-negotiable rules that define the soul of this product's design.
+
+  1. EVERYTHING LOOKS HAND-DRAWN.
+     No element should look like it came from a generic component library.
+     Borders are imperfect (rough.js). Shadows are ink stamps. Elements tilt
+     slightly. If something looks too perfect and clean, it's wrong.
+
+  2. CREAM IS THE CANVAS.
+     #FDFAF4 is the page background. It always has the paper noise texture.
+     It is warm, not cold. White is only used for card surfaces and inputs.
+
+  3. SHADOWS ARE INK, NOT AIR.
+     box-shadow must always be offset (e.g., 4px 4px 0px) with ZERO blur.
+     Never use soft blurred shadows, drop shadows with blur > 0, or elevation
+     shadows (Material Design style). The design lives on a flat piece of paper.
+
+  4. ANIMATIONS GIVE PERSONALITY, NOT PERFORMANCE.
+     Every animation serves either: (a) communicating state, or (b) delighting
+     the user. No animation is purely decorative with no payoff. Keep them
+     appropriately short (≤0.5s for interactions, ≤2s for loops).
+
+  5. MICRO-ROTATIONS ARE MANDATORY.
+     Cards, buttons, and floating elements MUST have slight rotations (0.5°–2°).
+     This is what separates the design from a generic UI kit. Never set all
+     items in a list to the same rotation — alternate them.
+
+  6. THE TWO FONTS ARE SACRED.
+     Nunito = UI. JetBrains Mono = code/technical. No other fonts.
+
+  7. ERRORS ARE CORAL, NEVER RED.
+     Use #FF6B6B for all error states. Never use #FF0000 or stock red.
+     Error cards: FFF0F0 background, FF6B6B border, 3px 3px 0px #FF6B6B shadow.
+
+  8. TEAL IS TRUST.
+     #4ECDC4 signals "safe action" and "progress". Use it for primary CTAs,
+     upload zones, progress bars, and success states. Never use it for errors.
+
+  9. NEGATIVE SPACE BREATHES.
+     Section padding uses clamp() to scale generously. Do not cram content.
+     Cards need breathing room. The cream background should always be visible
+     between elements.
+
+  10. INTERACTIVE ELEMENTS ALWAYS HAVE HOVER STATES.
+      A button, card, link, or pill without a hover state is unfinished.
+      Every clickable element must visibly respond to hover and active/press.
+
+  11. LOGGING AND STATUS MUST BE VISIBLE.
+      During async operations (parsing, loading), the user should ALWAYS see
+      meaningful progress — never a blank screen or a single spinner.
+      Log entries should stagger in at a human-readable pace (min 1.5s total).
+
+  12. SVG ILLUSTRATIONS OVER STOCK ICONS.
+      Prefer custom inline SVG illustrations. They match the doodle style.
+      Lucide React icons are acceptable for dashboard utility icons only.
+      Never use stock illustrations or photos.
+
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+SECTION 10 — DO'S AND DON'TS
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+✅ DO:
+  • Use #FDFAF4 as the page background on every page, always.
+  • Use rough.js for any border that needs to look hand-drawn.
+  • Apply micro-rotations to cards and sticker elements.
+  • Use framer-motion with useInView to trigger entrance animations.
+  • Stagger list/card animations with i * 0.1s delay.
+  • Use JetBrains Mono for ANY technical/code content.
+  • Use flat offset shadows (4px 4px 0px #1A1A2E).
+  • Write log messages with ✅ ⚙️ ❌ prefixes.
+  • Keep all colors within the defined palette — no improvising with new colors.
+  • Test hover states on every interactive element.
+  • Include the paper-noise texture (body::before) on every page.
+  • Respect the minimum 1.5s animation duration on loading states.
+  • Use spring physics (type: 'spring') for click/press animations.
+  • Apply letter-spacing: -0.3px on logo text.
+
+❌ DON'T:
+  • Don't use box-shadow with blur (e.g., 0 4px 16px rgba(0,0,0,0.1)).
+  • Don't use pure white (#FFFFFF) as a page background.
+  • Don't use pure black (#000000) for text or borders — always use #1A1A2E.
+  • Don't use any font other than Nunito and JetBrains Mono.
+  • Don't add new colors to the palette without updating tokens.ts.
+  • Don't use GSAP, Anime.js, or any animation library other than framer-motion.
+  • Don't use Three.js for new features (it is legacy in this project).
+  • Don't use @apply in CSS to recreate doodle.css utilities.
+  • Don't use soft/Gaussian shadows — ever.
+  • Don't animate without considering the minimum visible duration.
+  • Don't forget useEffect cleanup for rough-notation annotations.
+  • Don't pass state via route location.state — use Zustand instead.
+  • Don't let all rotated items share the same angle — alternate them.
+  • Don't use empty placeholder text without checking the actual data first.
+  • Don't use generic component library defaults (no Material UI, no Chakra).
+  • Don't use 'React' as an import if React is not directly referenced in the file.
+  • Don't add blurred drop-shadows to SVG elements as a "glow" hack.
+
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+SECTION 11 — EXAMPLE DESCRIPTIONS
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+EXAMPLE A — "What a new feature card should look like"
+  A white (#FFFFFF) rectangle with border-radius: 12px. A 2px solid #1A1A2E
+  border. A 5px 5px 0px #1A1A2E box-shadow (no blur). Rotated -1deg. On hover,
+  it lifts (translateY -4px) and the shadow grows to 8px. A custom 40×40 SVG
+  icon sits at the top. Below: Nunito 800 18px title in #1A1A2E, then Nunito
+  400 14px description in rgba(26,26,46,0.65), line-height 1.6. In the
+  bottom-right corner: a sticky note tag in #FFE66D with JetBrains Mono 11px
+  700 text, rotated 1deg. Entrance: fadeSlideUp on useInView, 0.5s, staggered.
+
+EXAMPLE B — "What a primary CTA button should look like"
+  Nunito 700, 14px. Background: #1A1A2E. Color: #FDFAF4. Border: 2.5px solid
+  #1A1A2E. Border-radius: 8px. Box-shadow: 3px 3px 0px #1A1A2E. Transform:
+  rotate(-0.5deg). On hover: rotate(0.5deg) translateY(-2px), shadow becomes
+  5px 5px. On click: rotate(0deg) translateY(0), shadow 2px 2px.
+
+EXAMPLE C — "What a loading/processing page interaction should feel like"
+  The page has two columns. Left: a hand-drawn SVG character animating with
+  framer-motion (bouncing, arm movements, scrolling text on its "screen").
+  The character responds to clicks with spring scale animation and sparkle
+  burst effects that appear at the click position and fade out.
+  Right: a dark log area (#1A1A2E bg) with JetBrains Mono entries appearing
+  one-by-one at a paced interval (never all at once). Below: a rough.js
+  bordered progress bar, gradient fill (#4ECDC4 → #95E1D3), with a tiny white
+  pulsing dot at the leading edge. The whole page is wrapped in a rough.js
+  hand-drawn decorative border (roughness: 2.5, strokeWidth: 2).
+
+EXAMPLE D — "What an error state should look like"
+  A coral (#FFF0F0 bg, #FF6B6B border: 2px solid, shadow: 3px 3px 0px #FF6B6B)
+  card appearing with a framer-motion slide-up animation. Inside: Nunito 600
+  14px text in #FF6B6B explaining the error plainly. Below: a [Try Again]
+  button in coral (#FF6B6B bg, white text, 2px #1A1A2E border, 2px 2px 0px
+  shadow). On the illustration side: the character's smile becomes a frown
+  (inverted bezier path), eyes change from #FFE66D to #FF6B6B.
+
+EXAMPLE E — "What the Navbar should look like at page top vs scrolled"
+  At page top: transparent background, no border. Logo + two buttons float on
+  the cream page. On scroll past 50px: background transitions to #FDFAF4 with
+  a 2px solid #1A1A2E bottom border (both on 0.3s ease). The logo SVG gently
+  bounces (translateY 0→-6px loop, 2s). Two buttons on the right: "View on
+  GitHub" (transparent btn-sticker) and "Read Docs" (filled dark btn-sticker,
+  rotated 0.5deg).
+
+EXAMPLE F — "How to draw an inline SVG illustration (doodle style)"
+  All strokes use #1A1A2E, strokeWidth 2–3, strokeLinecap: round,
+  strokeLinejoin: round. Fills use theme colors (#FFE66D, #FF6B6B, #4ECDC4,
+  #FFFFFF, muted tints). Elements appear slightly imprecise — corners can
+  overshoot, lines can be drawn as paths rather than perfect primitives.
+  Never use gradients in inline SVG illustrations. The viewBox should be
+  specified exactly. No external SVG files — all SVG is inline JSX.
+
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+APPENDIX — QUICK REFERENCE CHEATSHEET
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+  Background page:    #FDFAF4
+  Card background:    #FFFFFF
+  Primary text:       #1A1A2E
+  Muted text:         rgba(26,26,46,0.6)
+  Faint text:         rgba(26,26,46,0.35)
+  Teal accent:        #4ECDC4
+  Coral accent:       #FF6B6B
+  Yellow accent:      #FFE66D
+  Mint/light teal:    #95E1D3
+  Purple (AI only):   #C9B8FF
+  Default shadow:     4px 4px 0px #1A1A2E
+  Small shadow:       3px 3px 0px #1A1A2E
+  Large shadow:       6px 6px 0px #1A1A2E
+  Error shadow:       3px 3px 0px #FF6B6B
+  Heading font:       Nunito 900
+  Body font:          Nunito 400
+  Code/tech font:     JetBrains Mono 400/600
+  Border standard:    2px solid #1A1A2E
+  Border-radius card: 12px
+  Border-radius btn:  8px
+  Border-radius pill: 999px
+  Transition fast:    0.15s ease
+  Transition default: 0.2s ease
+  Transition entrance:0.5s ease (framer-motion)
+  Roughjs roughness:  1.5 (cards), 2.5 (page borders)
+  Roughjs strokeWidth:2
+  Section max-width:  1100px
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+END OF DOCUMENT
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━

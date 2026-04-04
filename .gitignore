@@ -1,0 +1,70 @@
+# ── Python ────────────────────────────────────────────────
+__pycache__/
+*.py[cod]
+*$py.class
+*.pyo
+*.pyd
+.Python
+*.so
+
+# Virtual environments
+venv/
+.venv/
+env/
+ENV/
+.env.local
+
+# Distribution / packaging
+dist/
+build/
+*.egg-info/
+*.egg
+
+# ── Node / Frontend ───────────────────────────────────────
+node_modules/
+frontend/node_modules/
+frontend/dist/
+frontend/.env
+frontend/.env.local
+frontend/.env.*.local
+
+# Build outputs
+*.tsbuildinfo
+
+# ── IDE / Editor ──────────────────────────────────────────
+.vscode/
+.idea/
+*.swp
+*.swo
+.DS_Store
+Thumbs.db
+
+# ── Environment & Secrets ─────────────────────────────────
+.env
+.env.*
+!.env.example
+
+# ── Logs ──────────────────────────────────────────────────
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# ── Misc ──────────────────────────────────────────────────
+*.tmp
+*.bak
+.cache/
+.vs/slnx.sqlite
+.vs/EDI-PARSER/copilot-chat/73b1a30c/sessions/9e01f2dc-2ed6-4e80-9014-57b62b4e94c5
+.vs/EDI-PARSER/CopilotIndices/17.14.995.13737/CodeChunks.db
+.vs/EDI-PARSER/CopilotIndices/17.14.995.13737/CodeChunks.db-shm
+.vs/EDI-PARSER/CopilotIndices/17.14.995.13737/CodeChunks.db-wal
+.vs/EDI-PARSER/CopilotIndices/17.14.995.13737/SemanticSymbols.db
+.vs/EDI-PARSER/CopilotIndices/17.14.995.13737/SemanticSymbols.db-shm
+.vs/EDI-PARSER/CopilotIndices/17.14.995.13737/SemanticSymbols.db-wal
+.vs/EDI-PARSER/FileContentIndex/efa92a6a-5318-4a9d-b950-54ca459ecbc2.vsidx
+.vs/EDI-PARSER/v17/.wsuo
+.vs/EDI-PARSER/v17/TestStore/0/000.testlog
+.vs/EDI-PARSER/v17/TestStore/0/testlog.manifest
+.vs/EDI-PARSER/FileContentIndex/48f1bd55-5b54-4b88-be69-f684ab14c864.vsidx
+.vs/EDI-PARSER/FileContentIndex/55513443-5d3e-4c98-ace8-2c0f5ef1b503.vsidx

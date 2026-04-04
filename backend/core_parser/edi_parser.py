@@ -854,6 +854,9 @@ class EDIParser:
 
         # ── 835 CLP: capture payment amounts for reconciliation ──────────────
         elif seg_id == "CLP":
+            # Commit the PREVIOUS pending CLP before starting a new one
+            self._commit_pending_clp()
+
             claim_id     = elements[1].strip() if len(elements) > 1 else "Unknown"
             status_code  = elements[2].strip() if len(elements) > 2 else ""
             billed       = self._safe_float(elements[3]) if len(elements) > 3 else 0.0
@@ -867,7 +870,7 @@ class EDIParser:
                 "patient_resp": patient_resp,
                 "adjustments":  [],
                 "services":     [],
-                "check_number": "",
+                "check_number": self._header_check_number if hasattr(self, '_header_check_number') else "",
             }
 
         elif seg_id == "SVC":
@@ -878,14 +881,11 @@ class EDIParser:
         elif seg_id == "TRN":
             # TRN02 = check/EFT reference number
             ref = elements[2].strip() if len(elements) > 2 else ""
+            # Store at header level so all CLPs inherit it
+            self._header_check_number = ref
+            # Also set on current CLP if one is open
             if self._pending_clp is not None:
                 self._pending_clp["check_number"] = ref
-
-        elif seg_id == "AMT" and self._pending_clp is not None:
-            # AMT01=B6 (allowed), AMT01=KH (deductible), etc.
-            qualifier = elements[1].strip() if len(elements) > 1 else ""
-            amount    = self._safe_float(elements[2]) if len(elements) > 2 else 0.0
-            self._pending_clp.setdefault("supplemental_amounts", {})[qualifier] = amount
 
     # =========================================================================
     # 9. SEGMENT DECODER — Always includes raw_data

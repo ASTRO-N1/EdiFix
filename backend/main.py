@@ -5,6 +5,7 @@ from fastapi.responses import PlainTextResponse
 from pydantic import BaseModel
 from typing import Optional, Any
 import os
+import json
 import tempfile
 import uvicorn
 from groq import Groq
@@ -46,6 +47,12 @@ class ChatRequest(BaseModel):
     transactionType: str | None = None
 
 
+class FixErrorsRequest(BaseModel):
+    errors: list
+    parseResult: dict | None = None
+    transactionType: str | None = None
+
+
 class GenerateRequest(BaseModel):
     """
     Request body for EDI generation endpoint.
@@ -65,14 +72,14 @@ class GenerateRequest(BaseModel):
 # ── AI Chat endpoint ──────────────────────────────────────────────────────────
 @app.post("/chat")
 async def chat(req: ChatRequest):
-    system_prompt = """You are a specialized EDI Guide. You must provide high-brevity, non-technical support. 
+    system_prompt = """You are a specialized EDI Guide. You must provide high-brevity, non-technical support.
 
 ### Core Response Rules:
-1. **The "Short & Crisp" Mandate:** Maximum 2-3 sentences per point. If the user asks for "short," use 10 words or fewer per bullet.
-2. **No Fluff Intro:** Do not start with "Nice to meet you" or "Let's start fresh." Answer the question immediately.
-3. **Conversational Flow:** If the user asks a follow-up, answer ONLY that specific question. Do not reset and explain the basics again.
-4. **Non-Technical Language:** No jargon. Use "Header" instead of "ISA," and "Sender ID" instead of "GS02."
-5. **Anti-Hallucination:** Only explain what is in the file or standard EDI rules. If the user asks about something not present, say: "That is not in this file."
+1. **The "Short & Crisp" Mandate:** Maximum 2-3 sentences per point.
+2. **No Fluff Intro:** Answer the question immediately.
+3. **Conversational Flow:** Answer ONLY the specific question asked.
+4. **Non-Technical Language:** Use "Header" instead of "ISA", "Sender ID" instead of "GS02".
+5. **Anti-Hallucination:** Only explain what is in the file or standard EDI rules.
 
 ### Formatting Template (STRICT):
 * **Direct Answer:** [One short sentence]
@@ -80,12 +87,7 @@ async def chat(req: ChatRequest):
     * [Bullet 1: Max 10 words]
     * [Bullet 2: Max 10 words]
 * **Errors (Only if relevant):**
-    * [Problem] -> [Fix]
-
-### Examples of Correct vs. Incorrect:
-* **User:** "What is an EDI file?"
-* **Correct AI:** "It's a digital standard for businesses to swap documents like invoices."
-* **Incorrect AI:** "Nice to meet you! Think of an EDI file like a recipe for a cake..." (This is too long and uses boring analogies)."""
+    * [Problem] -> [Fix]"""
 
     user_message = f"""Transaction Type: {req.transactionType or 'Unknown'}
 
@@ -108,6 +110,105 @@ User Question: {req.message}"""
         reply = f"⚠️ AI error: {str(e)}"
 
     return {"reply": reply}
+
+
+# ── AI Fix-Errors endpoint ────────────────────────────────────────────────────
+@app.options("/ai/fix-errors")
+def options_fix_errors():
+    return {}
+
+
+@app.post("/ai/fix-errors")
+async def fix_errors_endpoint(req: FixErrorsRequest):
+    """
+    Returns structured JSON patches for fixable EDI errors.
+    Maps each fixable error to a specific form field.
+    """
+    FIELD_MAP = """
+fieldId          | loopKey    | segmentKey | fieldKey
+submitter-name   | 1000A      | NM1        | NM103
+submitter-id     | 1000A      | NM1        | NM109
+receiver-name    | 1000B      | NM1        | NM103
+receiver-id      | 1000B      | NM1        | NM109
+billing-name     | 2010AA     | NM1        | NM103
+billing-npi      | 2010AA     | NM1        | NM109
+billing-address  | 2010AA     | N3         | N301
+billing-taxid    | 2010AA     | REF        | REF02
+billing-city     | 2010AA     | N4         | N401
+billing-state    | 2010AA     | N4         | N402
+billing-zip      | 2010AA     | N4         | N403
+sub-member-id    | 2010BA     | NM1        | NM109
+sub-last-name    | 2010BA     | NM1        | NM103
+sub-first-name   | 2010BA     | NM1        | NM104
+sub-dob          | 2010BA     | DMG        | DMG02
+sub-gender       | 2010BA     | DMG        | DMG03
+clm-id           | 2300       | CLM        | CLM01
+clm-amount       | 2300       | CLM        | CLM02
+clm-service-date | 2300       | DTP        | DTP03
+dx-code-1        | 2300       | HI         | HI01_2
+svc-proc         | 2400       | SV1        | SV101
+svc-amount       | 2400       | SV1        | SV102
+payer-name       | 835_1000A  | N1         | N102
+payer-id         | 835_1000A  | N1         | N104
+payee-name       | 835_1000B  | N1         | N102
+payee-id         | 835_1000B  | N1         | N104
+bpr-amount       | 835_HEADER | BPR        | BPR02"""
+
+    system_prompt = f"""You are an EDI field correction engine. Output ONLY valid JSON — no markdown, no code fences, nothing else.
+
+FIELD MAPPING (use these exact values):
+{FIELD_MAP}
+
+Rules:
+- Amount mismatch: canAutoFix=true, calculate correct newValue from parsed data
+- Date format errors: canAutoFix=true if you can derive correct CCYYMMDD
+- NPI Luhn failures: canAutoFix=false, newValue=null
+- Invalid codes needing external lookup: canAutoFix=false, newValue=null
+- Missing segments: SKIP
+- Only include errors matching a fieldId above
+
+Output ONLY this JSON:
+{{"fixes":[{{"fieldId":"<id>","label":"<label>","loopKey":"<loop>","segmentKey":"<seg>","fieldKey":"<fk>","oldValue":"<current>","newValue":"<fixed or null>","reason":"<one sentence>","canAutoFix":<true|false>}}]}}"""
+
+    errors_text = "\n".join([
+        f"- Segment={e.get('segment','?')} Field={e.get('field','')} Loop={e.get('loop','')} | {e.get('message','')} | Suggestion: {e.get('suggestion','')}"
+        for e in req.errors[:15]
+    ])
+    parsed_ctx = ""
+    if req.parseResult:
+        try:
+            parsed_ctx = json.dumps(req.parseResult)[:3000]
+        except Exception:
+            parsed_ctx = str(req.parseResult)[:3000]
+
+    user_msg = f"""Transaction: {req.transactionType or 'Unknown'}
+Errors:\n{errors_text}
+Data:\n{parsed_ctx}
+Output JSON:"""
+
+    try:
+        completion = groq_client.chat.completions.create(
+            model="llama-3.1-8b-instant",
+            messages=[
+                {"role": "system", "content": system_prompt},
+                {"role": "user", "content": user_msg},
+            ],
+            max_tokens=2048,
+            temperature=0.05,
+        )
+        raw = completion.choices[0].message.content.strip()
+        if "```" in raw:
+            for part in raw.split("```"):
+                part = part.strip().lstrip("json").strip()
+                try:
+                    return json.loads(part)
+                except Exception:
+                    continue
+        return json.loads(raw)
+    except json.JSONDecodeError:
+        return {"fixes": [], "error": "AI returned non-JSON. Try again."}
+    except Exception as e:
+        return {"fixes": [], "error": str(e)}
 
 
 # ── Health check ─────────────────────────────────────────────────────────────

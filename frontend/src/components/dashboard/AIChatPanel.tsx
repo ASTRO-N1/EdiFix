@@ -10,7 +10,24 @@ export default function AIChatPanel({ onMobileClose }: { onMobileClose?: () => v
   const { t, isDark } = useTheme()
   const { parseResult, transactionType } = useAppStore()
 
+  const normalize = (text: string) =>
+    text.toLowerCase().replace(/[^\w\s]/g, "").trim();
+
+  const customCommands: Record<string, string> = {
+    "how are you": "I'm fine, thank you!"
+  };
   const handleSend = async (text: string) => {
+    const msg = normalize(text);
+
+if (customCommands[msg]) {
+  setMessages(prev => [
+    ...prev,
+    { role: 'user', text },
+    { role: 'ai', text: customCommands[msg] }
+  ]);
+  setInputVal('');
+  return;
+}
     if (!text.trim()) return
     setMessages(prev => [...prev, { role: 'user', text }])
     setInputVal('')

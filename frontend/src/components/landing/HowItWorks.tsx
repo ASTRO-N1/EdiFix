@@ -1,6 +1,7 @@
 import { useRef, Fragment } from 'react'
 import { motion, useInView } from 'framer-motion'
 import { useIsMobile } from '../../hooks/useWindowWidth'
+import { ScribbleUnderline, SparkleIcon } from './DoodleElements'
 
 function UploadIcon() {
   return (
@@ -211,10 +212,37 @@ export default function HowItWorks() {
         initial={{ opacity: 0, y: 30 }}
         animate={inView ? { opacity: 1, y: 0 } : {}}
         transition={{ duration: 0.5 }}
-        style={{ textAlign: 'center', marginBottom: 64 }}
+        style={{ textAlign: 'center', marginBottom: 80 }}
       >
-        <h2 className="section-heading" style={{ marginBottom: 8 }}>
-          How it works.
+        <h2
+          style={{
+            fontFamily: 'Nunito, sans-serif',
+            fontWeight: 900,
+            fontSize: 'clamp(36px, 5.5vw, 64px)',
+            color: '#1A1A2E',
+            marginBottom: 8,
+            display: 'block',
+            whiteSpace: 'nowrap',
+            position: 'relative'
+          }}
+        >
+          How it <span style={{ color: '#FF6B6B', position: 'relative' }}>
+            works..
+            <span style={{ position: 'absolute', left: '40%', bottom: -10, transform: 'translateX(-50%)' }}>
+              <ScribbleUnderline width={180} color="#FF6B6B" animated />
+            </span>
+            <SparkleIcon 
+              size={24} 
+              color="#FF6B6B" 
+              style={{ 
+                position: 'absolute', 
+                top: -15, 
+                right: -25, 
+                opacity: 0.8,
+                transform: 'rotate(15deg)'
+              }} 
+            />
+          </span>
         </h2>
         <p
           style={{
@@ -222,6 +250,7 @@ export default function HowItWorks() {
             fontWeight: 400,
             fontSize: 18,
             color: 'rgba(26,26,46,0.6)',
+            marginTop: 24
           }}
         >
           Three steps. No account needed.
@@ -229,7 +258,7 @@ export default function HowItWorks() {
       </motion.div>
 
       {/* Steps area — position:relative so figures can be absolute here */}
-      <div style={{ position: 'relative', maxWidth: 1000, margin: '0 auto' }}>
+      <div style={{ position: 'relative', maxWidth: 1200, margin: '0 auto' }}>
 
         {/* Stick figures — desktop only (absolute-positioned, overlap stacked cards on mobile) */}
         {!isMobile && (
@@ -251,7 +280,7 @@ export default function HowItWorks() {
               initial={{ opacity: 0, x: 20 }}
               animate={inView ? { opacity: 1, x: 0 } : {}}
               transition={{ duration: 0.5, delay: 0.5 }}
-              style={{ position: 'absolute', left: 'calc(50% + 80px)', top: 90, transform: 'rotate(6deg)', pointerEvents: 'none', zIndex: 2 }}
+              style={{ position: 'absolute', left: 'calc(33% + 120px)', top: 90, transform: 'rotate(6deg)', pointerEvents: 'none', zIndex: 2 }}
             >
               <motion.div animate={{ y: [0, -4, 0] }} transition={{ duration: 2.4, ease: 'easeInOut', repeat: Infinity, delay: 0.4 }}>
                 <Figure2 />
@@ -263,7 +292,7 @@ export default function HowItWorks() {
               initial={{ opacity: 0, x: 20 }}
               animate={inView ? { opacity: 1, x: 0 } : {}}
               transition={{ duration: 0.5, delay: 0.7 }}
-              style={{ position: 'absolute', right: -28, top: 240, transform: 'rotate(-5deg)', pointerEvents: 'none', zIndex: 2 }}
+              style={{ position: 'absolute', right: -28, top: 110, transform: 'rotate(-5deg)', pointerEvents: 'none', zIndex: 2 }}
             >
               <motion.div animate={{ y: [0, -7, 0] }} transition={{ duration: 1.8, ease: 'easeInOut', repeat: Infinity, delay: 0.8 }}>
                 <Figure3 />
@@ -276,9 +305,10 @@ export default function HowItWorks() {
         <div
           style={{
             display: 'flex',
+            flexDirection: isMobile ? 'column' : 'row',
             alignItems: 'flex-start',
             gap: 0,
-            flexWrap: 'wrap',
+            flexWrap: isMobile ? 'wrap' : 'nowrap',
             justifyContent: 'center',
           }}
         >
@@ -289,13 +319,13 @@ export default function HowItWorks() {
                 animate={inView ? { opacity: 1, y: 0 } : {}}
                 transition={{ duration: 0.5, delay: i * 0.2 + 0.3 }}
                 style={{
-                  flex: '0 0 auto',               // stop flex from squeezing the cards
+                  flex: isMobile ? '1 1 auto' : '0 0 300px',               // stop flex from squeezing the cards
                   maxWidth: isMobile ? '100%' : 300,
                   width: isMobile ? '100%' : 300,
                   position: 'relative',
                   textAlign: 'center',
                   padding: isMobile ? '0 24px' : '0 16px',
-                  margin: isMobile ? '0 0 48px 0' : '0 40px'
+                  margin: isMobile ? '0 0 48px 0' : '0 10px'
                 }}
               >
                 {/* Big background number */}

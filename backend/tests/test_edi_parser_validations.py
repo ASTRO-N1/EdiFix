@@ -620,3 +620,259 @@ class TestMemberEnrollmentSummary(unittest.TestCase):
         rel_labels = {m["relationship_label"] for m in all_members}
         self.assertIn("Self",  rel_labels)
         self.assertIn("Spouse", rel_labels)
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Inline sample 835 for generator round-trip tests
+# ─────────────────────────────────────────────────────────────────────────────
+SAMPLE_835_EDI = (
+    "ISA*00*          *00*          *ZZ*PAYER01         *ZZ*PROVIDER01      "
+    "*260101*1200*^*00501*000000002*0*P*:~"
+    "GS*HP*PAYER01*PROVIDER01*20260101*1200*2*X*005010X221A1~"
+    "ST*835*0002*005010X221A1~"
+    "BPR*I*150.00*C*ACH*CTX*01*999999999*DA*12345678*1234567890**01*111000025*DA*98765432*20260101~"
+    "TRN*1*CHECK98765*1234567890~"
+    "DTM*405*20260101~"
+    "N1*PR*BLUECROSS BLUESHIELD*XV*98765~"
+    "N1*PE*PROVIDER CLINIC*XX*1234567893~"
+    "CLP*PCN001*1*200.00*150.00*50.00*12*ICN001~"
+    "NM1*QC*1*SMITH*JOHN****MI*MBR001~"
+    "SVC*HC:99213*200.00*150.00**1~"
+    "DTM*472*20260101~"
+    "CAS*CO*45*50.00~"
+    "AMT*B6*150.00~"
+    "SE*13*0002~"
+    "GE*1*2~"
+    "IEA*1*000000002~"
+)
+
+
+# ═════════════════════════════════════════════════════════════════════════════
+# Generator round-trip — 835 Remittance Advice
+# ═════════════════════════════════════════════════════════════════════════════
+
+class TestGeneratorRoundTrip835(unittest.TestCase):
+    """
+    Parse a known 835 EDI string → generate EDI back → re-parse.
+    Asserts that the re-parsed tree preserves all key fields.
+    """
+
+    def _roundtrip(self, edi_content: str) -> tuple[dict, str, dict]:
+        """Returns (original_parse_result, generated_edi, re_parse_result)."""
+        import tempfile
+        from core_parser.edi_generator import generate_edi
+
+        # Parse original
+        with tempfile.NamedTemporaryFile(mode='w', suffix='.edi', delete=False, encoding='utf-8') as f:
+            f.write(edi_content)
+            path1 = f.name
+        try:
+            original = EDIParser(path1).parse()
+        finally:
+            os.unlink(path1)
+
+        # Generate EDI from the parsed tree
+        generated_edi = generate_edi(original)
+
+        # Re-parse the generated EDI
+        with tempfile.NamedTemporaryFile(mode='w', suffix='.edi', delete=False, encoding='utf-8') as f:
+            f.write(generated_edi)
+            path2 = f.name
+        try:
+            reparsed = EDIParser(path2).parse()
+        finally:
+            os.unlink(path2)
+
+        return original, generated_edi, reparsed
+
+    def test_835_transaction_type_preserved(self):
+        """Re-parsed tree must identify as 835."""
+        _, _, reparsed = self._roundtrip(SAMPLE_835_EDI)
+        self.assertEqual(reparsed["metadata"]["transaction_type"], "835")
+
+    def test_835_edi_string_starts_with_isa(self):
+        """Generated EDI must start with ISA."""
+        _, generated, _ = self._roundtrip(SAMPLE_835_EDI)
+        self.assertTrue(generated.startswith("ISA"), f"Expected ISA, got: {generated[:20]}")
+
+    def test_835_edi_string_ends_with_segment_sep(self):
+        """Generated EDI must end with the segment separator."""
+        _, generated, _ = self._roundtrip(SAMPLE_835_EDI)
+        self.assertTrue(generated.endswith("~"), "Generated 835 must end with ~")
+
+    def test_835_sender_receiver_preserved(self):
+        """Sender and receiver IDs must survive the round-trip."""
+        original, _, reparsed = self._roundtrip(SAMPLE_835_EDI)
+        self.assertEqual(
+            original["metadata"].get("sender_id"),
+            reparsed["metadata"].get("sender_id"),
+        )
+        self.assertEqual(
+            original["metadata"].get("receiver_id"),
+            reparsed["metadata"].get("receiver_id"),
+        )
+
+    def test_835_control_number_preserved(self):
+        """ISA control number must be identical before and after."""
+        original, _, reparsed = self._roundtrip(SAMPLE_835_EDI)
+        self.assertEqual(
+            original["metadata"].get("control_number"),
+            reparsed["metadata"].get("control_number"),
+        )
+
+    def test_835_clp_loop_present_after_roundtrip(self):
+        """835_2100 CLP loop must survive the round-trip."""
+        _, _, reparsed = self._roundtrip(SAMPLE_835_EDI)
+        loops = reparsed.get("loops", {})
+        self.assertIn("835_2100", loops, "CLP loop (835_2100) missing after round-trip")
+
+    def test_835_svc_loop_present_after_roundtrip(self):
+        """835_2110 SVC loop must survive the round-trip."""
+        _, _, reparsed = self._roundtrip(SAMPLE_835_EDI)
+        loops = reparsed.get("loops", {})
+        self.assertIn("835_2110", loops, "SVC loop (835_2110) missing after round-trip")
+
+    def test_835_no_critical_errors_after_roundtrip(self):
+        """Re-parsed 835 must not introduce Critical-type errors."""
+        _, _, reparsed = self._roundtrip(SAMPLE_835_EDI)
+        critical = [e for e in reparsed.get("errors", []) if e.get("type") == "Critical"]
+        self.assertEqual(critical, [], f"Critical errors after round-trip: {critical}")
+
+    def test_835_segment_count_reasonable(self):
+        """Generated 835 must contain a reasonable number of segments (> 5)."""
+        _, _, reparsed = self._roundtrip(SAMPLE_835_EDI)
+        self.assertGreater(
+            reparsed["metrics"]["total_segments"], 5,
+            "Expected more than 5 segments in re-parsed 835"
+        )
+
+    def test_835_generate_edi_is_string(self):
+        """generate_edi() must return a non-empty string for 835 input."""
+        from core_parser.edi_generator import generate_edi
+        import tempfile
+        with tempfile.NamedTemporaryFile(mode='w', suffix='.edi', delete=False, encoding='utf-8') as f:
+            f.write(SAMPLE_835_EDI)
+            path = f.name
+        try:
+            tree = EDIParser(path).parse()
+        finally:
+            os.unlink(path)
+        result = generate_edi(tree)
+        self.assertIsInstance(result, str)
+        self.assertGreater(len(result), 50)
+
+
+# ═════════════════════════════════════════════════════════════════════════════
+# Generator round-trip — 834 Benefit Enrollment
+# ═════════════════════════════════════════════════════════════════════════════
+
+class TestGeneratorRoundTrip834(unittest.TestCase):
+    """
+    Parse a known 834 EDI string → generate EDI back → re-parse.
+    Asserts that the re-parsed tree preserves all key fields.
+    """
+
+    def _roundtrip(self, edi_content: str) -> tuple[dict, str, dict]:
+        import tempfile
+        from core_parser.edi_generator import generate_edi
+
+        with tempfile.NamedTemporaryFile(mode='w', suffix='.edi', delete=False, encoding='utf-8') as f:
+            f.write(edi_content)
+            path1 = f.name
+        try:
+            original = EDIParser(path1).parse()
+        finally:
+            os.unlink(path1)
+
+        generated_edi = generate_edi(original)
+
+        with tempfile.NamedTemporaryFile(mode='w', suffix='.edi', delete=False, encoding='utf-8') as f:
+            f.write(generated_edi)
+            path2 = f.name
+        try:
+            reparsed = EDIParser(path2).parse()
+        finally:
+            os.unlink(path2)
+
+        return original, generated_edi, reparsed
+
+    def test_834_transaction_type_preserved(self):
+        """Re-parsed tree must identify as 834."""
+        _, _, reparsed = self._roundtrip(SAMPLE_834_EDI)
+        self.assertEqual(reparsed["metadata"]["transaction_type"], "834")
+
+    def test_834_edi_string_starts_with_isa(self):
+        """Generated EDI must start with ISA."""
+        _, generated, _ = self._roundtrip(SAMPLE_834_EDI)
+        self.assertTrue(generated.startswith("ISA"), f"Expected ISA, got: {generated[:20]}")
+
+    def test_834_edi_string_ends_with_segment_sep(self):
+        """Generated EDI must end with the segment separator."""
+        _, generated, _ = self._roundtrip(SAMPLE_834_EDI)
+        self.assertTrue(generated.endswith("~"))
+
+    def test_834_sender_receiver_preserved(self):
+        """Sender and receiver IDs must survive the round-trip."""
+        original, _, reparsed = self._roundtrip(SAMPLE_834_EDI)
+        self.assertEqual(
+            original["metadata"].get("sender_id"),
+            reparsed["metadata"].get("sender_id"),
+        )
+
+    def test_834_control_number_preserved(self):
+        """ISA control number must be identical before and after."""
+        original, _, reparsed = self._roundtrip(SAMPLE_834_EDI)
+        self.assertEqual(
+            original["metadata"].get("control_number"),
+            reparsed["metadata"].get("control_number"),
+        )
+
+    def test_834_member_loop_present_after_roundtrip(self):
+        """834_2000 INS loop must survive the round-trip."""
+        _, _, reparsed = self._roundtrip(SAMPLE_834_EDI)
+        loops = reparsed.get("loops", {})
+        self.assertIn("834_2000", loops, "INS loop (834_2000) missing after round-trip")
+
+    def test_834_member_name_loop_present_after_roundtrip(self):
+        """834_2100A NM1 loop must survive the round-trip."""
+        _, _, reparsed = self._roundtrip(SAMPLE_834_EDI)
+        loops = reparsed.get("loops", {})
+        self.assertIn("834_2100A", loops, "NM1 loop (834_2100A) missing after round-trip")
+
+    def test_834_no_critical_errors_after_roundtrip(self):
+        """Re-parsed 834 must not introduce Critical-type errors."""
+        _, _, reparsed = self._roundtrip(SAMPLE_834_EDI)
+        critical = [e for e in reparsed.get("errors", []) if e.get("type") == "Critical"]
+        self.assertEqual(critical, [], f"Critical errors after round-trip: {critical}")
+
+    def test_834_member_count_preserved(self):
+        """Number of INS member loops must be the same before and after."""
+        original, _, reparsed = self._roundtrip(SAMPLE_834_EDI)
+
+        def _count(tree):
+            raw = tree.get("loops", {}).get("834_2000", [])
+            return len(raw) if isinstance(raw, list) else 1
+
+        self.assertEqual(_count(original), _count(reparsed),
+            "Member loop count changed after round-trip")
+
+    def test_834_enrollment_summary_survives_roundtrip(self):
+        """member_enrollment_summary must still be populated after round-trip."""
+        _, _, reparsed = self._roundtrip(SAMPLE_834_EDI)
+        summary = reparsed.get("member_enrollment_summary", [])
+        self.assertGreater(len(summary), 0, "Enrollment summary empty after round-trip")
+
+    def test_834_generate_edi_is_string(self):
+        """generate_edi() must return a non-empty string for 834 input."""
+        from core_parser.edi_generator import generate_edi
+        import tempfile
+        with tempfile.NamedTemporaryFile(mode='w', suffix='.edi', delete=False, encoding='utf-8') as f:
+            f.write(SAMPLE_834_EDI)
+            path = f.name
+        try:
+            tree = EDIParser(path).parse()
+        finally:
+            os.unlink(path)
+        result = generate_edi(tree)
+        self.assertIsInstance(result, str)
+        self.assertGreater(len(result), 50)

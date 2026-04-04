@@ -153,44 +153,44 @@ function TxBadge({ type }: { type: string }) {
 // ── Loop metadata ─────────────────────────────────────────────────────────────
 
 const LOOP_META: Record<string, { title: string; icon: string; desc: string }> = {
-  HEADER:       { title: 'Interchange Envelope',      icon: '📨', desc: 'ISA/GS/ST envelope — sender, receiver, and control info' },
-  '1000A':      { title: 'Submitter',                 icon: '📤', desc: 'Organization or entity submitting this transaction' },
-  '1000B':      { title: 'Receiver',                  icon: '📥', desc: 'Organization or entity receiving this transaction' },
-  '2000A':      { title: 'Billing Provider Hierarchy',icon: '🏥', desc: 'HL level for the billing/rendering provider' },
-  '2000B':      { title: 'Subscriber Hierarchy',      icon: '👤', desc: 'HL level for the insurance subscriber' },
-  '2000C':      { title: 'Patient Hierarchy',         icon: '🧑‍⚕️', desc: 'HL level for the patient (when different from subscriber)' },
-  '2010AA':     { title: 'Billing Provider',          icon: '🏥', desc: 'Name, address, NPI, and Tax ID of the billing provider' },
-  '2010AB':     { title: 'Pay-To Provider',           icon: '💰', desc: 'Provider to whom payment should be sent (if different)' },
-  '2010BA':     { title: 'Subscriber',                icon: '👤', desc: 'Subscriber name, member ID, address, and demographics' },
-  '2010BB':     { title: 'Payer',                     icon: '🏦', desc: 'Insurance payer name and identification' },
-  '2010CA':     { title: 'Patient',                   icon: '🧑', desc: 'Patient name, address, and demographics' },
-  '2010CB':     { title: 'Responsible Party',         icon: '👥', desc: 'Responsible party when different from patient' },
-  '2300':       { title: 'Claim Information',         icon: '📋', desc: 'Claim ID, total charge, facility code, and diagnosis codes' },
-  '2310A':      { title: 'Referring Provider',        icon: '🩺', desc: 'Provider who referred the patient for services' },
-  '2310B':      { title: 'Rendering Provider',        icon: '🩺', desc: 'Provider who rendered the services on the claim' },
-  '2310E':      { title: 'Service Facility',          icon: '🏢', desc: 'Location where services were performed' },
-  '2320':       { title: 'Other Subscriber',          icon: '👥', desc: 'Secondary/tertiary payer — coordination of benefits' },
-  '2400':       { title: 'Service Lines',             icon: '💊', desc: 'Procedure codes, charges, units, and service dates' },
-  '2420A':      { title: 'Rendering Provider (Line)', icon: '🩺', desc: 'Rendering provider at the service line level' },
-  '2420B':      { title: 'Purchased Service Provider',icon: '🔗', desc: 'Provider from whom services were purchased' },
-  '835_HEADER': { title: 'Payment Header',            icon: '💳', desc: 'Payment amount, method (ACH/check), and trace number' },
-  '835_1000A':  { title: 'Payer',                     icon: '🏦', desc: 'Insurance payer name and address' },
-  '835_1000B':  { title: 'Payee',                     icon: '🏥', desc: 'Provider/payee name and address' },
-  '835_2000':   { title: 'Claim Summary',             icon: '📊', desc: 'Header-level claim summary grouping' },
-  '835_2100':   { title: 'Claim Payment',             icon: '📋', desc: 'Claim ID, billed, paid, and patient responsibility' },
-  '835_2110':   { title: 'Service Payment',           icon: '💊', desc: 'Service-level payment, adjustments, and procedure codes' },
-  '834_HEADER': { title: 'Enrollment Header',         icon: '📨', desc: 'BGN segment — file purpose, date, and action code' },
-  '834_1000A':  { title: 'Sponsor / Employer',        icon: '🏢', desc: 'Employer or plan sponsor identification' },
-  '834_1000B':  { title: 'Insurance Payer',           icon: '🏦', desc: 'Insurance carrier identification' },
-  '834_1000C':  { title: 'TPA / Broker',              icon: '🤝', desc: 'Third-party administrator or broker information' },
-  '834_2000':   { title: 'Member Enrollment',         icon: '👤', desc: 'INS — maintenance type, relationship, and benefit status' },
-  '834_2100A':  { title: 'Member Name & Demographics',icon: '🪪', desc: 'Member name, DOB, gender, address, and ID numbers' },
-  '834_2100B':  { title: 'Incorrect Member Name',     icon: '✏️', desc: 'Previous/incorrect member name being corrected' },
-  '834_2100C':  { title: 'Member Mailing Address',    icon: '📬', desc: 'Mailing address if different from residence' },
-  '834_2300':   { title: 'Health Coverage',           icon: '🛡️', desc: 'HD — insurance line, plan description, and coverage dates' },
-  '834_2320':   { title: 'COB Information',           icon: '🔄', desc: 'Coordination of benefits / other insurance information' },
-  '834_2700':   { title: 'Reporting Categories',      icon: '📊', desc: 'Member reporting and classification data' },
-  UNASSIGNED:   { title: 'General Segments',          icon: '📄', desc: 'Segments not assigned to a specific loop' },
+  HEADER:       { title: 'Interchange Envelope',       icon: '📨', desc: 'ISA/GS/ST envelope — sender, receiver, and control info' },
+  '1000A':      { title: 'Submitter',                  icon: '📤', desc: 'Organization or entity submitting this transaction' },
+  '1000B':      { title: 'Receiver',                   icon: '📥', desc: 'Organization or entity receiving this transaction' },
+  '2000A':      { title: 'Billing Provider Hierarchy', icon: '🏥', desc: 'HL level for the billing/rendering provider' },
+  '2000B':      { title: 'Subscriber Hierarchy',       icon: '👤', desc: 'HL level for the insurance subscriber' },
+  '2000C':      { title: 'Patient Hierarchy',          icon: '🧑‍⚕️', desc: 'HL level for the patient (when different from subscriber)' },
+  '2010AA':     { title: 'Billing Provider',           icon: '🏥', desc: 'Name, address, NPI, and Tax ID of the billing provider' },
+  '2010AB':     { title: 'Pay-To Provider',            icon: '💰', desc: 'Provider to whom payment should be sent (if different)' },
+  '2010BA':     { title: 'Subscriber',                 icon: '👤', desc: 'Subscriber name, member ID, address, and demographics' },
+  '2010BB':     { title: 'Payer',                      icon: '🏦', desc: 'Insurance payer name and identification' },
+  '2010CA':     { title: 'Patient',                    icon: '🧑', desc: 'Patient name, address, and demographics' },
+  '2010CB':     { title: 'Responsible Party',          icon: '👥', desc: 'Responsible party when different from patient' },
+  '2300':       { title: 'Claim Information',          icon: '📋', desc: 'Claim ID, total charge, facility code, and diagnosis codes' },
+  '2310A':      { title: 'Referring Provider',         icon: '🩺', desc: 'Provider who referred the patient for services' },
+  '2310B':      { title: 'Rendering Provider',         icon: '🩺', desc: 'Provider who rendered the services on the claim' },
+  '2310E':      { title: 'Service Facility',           icon: '🏢', desc: 'Location where services were performed' },
+  '2320':       { title: 'Other Subscriber',           icon: '👥', desc: 'Secondary/tertiary payer — coordination of benefits' },
+  '2400':       { title: 'Service Lines',              icon: '💊', desc: 'Procedure codes, charges, units, and service dates' },
+  '2420A':      { title: 'Rendering Provider (Line)',  icon: '🩺', desc: 'Rendering provider at the service line level' },
+  '2420B':      { title: 'Purchased Service Provider', icon: '🔗', desc: 'Provider from whom services were purchased' },
+  '835_HEADER': { title: 'Payment Header',             icon: '💳', desc: 'Payment amount, method (ACH/check), and trace number' },
+  '835_1000A':  { title: 'Payer',                      icon: '🏦', desc: 'Insurance payer name and address' },
+  '835_1000B':  { title: 'Payee',                      icon: '🏥', desc: 'Provider/payee name and address' },
+  '835_2000':   { title: 'Claim Summary',              icon: '📊', desc: 'Header-level claim summary grouping' },
+  '835_2100':   { title: 'Claim Payment',              icon: '📋', desc: 'Claim ID, billed, paid, and patient responsibility' },
+  '835_2110':   { title: 'Service Payment',            icon: '💊', desc: 'Service-level payment, adjustments, and procedure codes' },
+  '834_HEADER': { title: 'Enrollment Header',          icon: '📨', desc: 'BGN segment — file purpose, date, and action code' },
+  '834_1000A':  { title: 'Sponsor / Employer',         icon: '🏢', desc: 'Employer or plan sponsor identification' },
+  '834_1000B':  { title: 'Insurance Payer',            icon: '🏦', desc: 'Insurance carrier identification' },
+  '834_1000C':  { title: 'TPA / Broker',               icon: '🤝', desc: 'Third-party administrator or broker information' },
+  '834_2000':   { title: 'Member Enrollment',          icon: '👤', desc: 'INS — maintenance type, relationship, and benefit status' },
+  '834_2100A':  { title: 'Member Name & Demographics', icon: '🪪', desc: 'Member name, DOB, gender, address, and ID numbers' },
+  '834_2100B':  { title: 'Incorrect Member Name',      icon: '✏️', desc: 'Previous/incorrect member name being corrected' },
+  '834_2100C':  { title: 'Member Mailing Address',     icon: '📬', desc: 'Mailing address if different from residence' },
+  '834_2300':   { title: 'Health Coverage',            icon: '🛡️', desc: 'HD — insurance line, plan description, and coverage dates' },
+  '834_2320':   { title: 'COB Information',            icon: '🔄', desc: 'Coordination of benefits / other insurance information' },
+  '834_2700':   { title: 'Reporting Categories',       icon: '📊', desc: 'Member reporting and classification data' },
+  UNASSIGNED:   { title: 'General Segments',           icon: '📄', desc: 'Segments not assigned to a specific loop' },
 }
 
 function getLoopMeta(loopKey: string): { title: string; icon: string; desc: string } {
@@ -295,31 +295,23 @@ const FIELD_LABELS: Record<string, string> = {
   INS_05: 'Benefit Status',        INS_06: 'Medicare Plan',
   INS_07: 'COBRA Event',           INS_08: 'Employment Status',
   INS_09: 'Student Status',        INS_10: 'Handicap Indicator',
-  BGN_01: 'Purpose Code',   BGN_02: 'Reference ID',
-  BGN_03: 'Date',           BGN_04: 'Time',
-  BGN_05: 'Time Zone',      BGN_06: 'Reference ID 2',
+  BGN_01: 'Purpose Code',    BGN_02: 'Reference ID',
+  BGN_03: 'Date',            BGN_04: 'Time',
+  BGN_05: 'Time Zone',       BGN_06: 'Reference ID 2',
   BGN_07: 'Transaction Type',BGN_08: 'Action Code',
-  HD_01: 'Maintenance Type',HD_02: 'Reserved',
-  HD_03: 'Insurance Line',  HD_04: 'Plan Description', HD_05: 'Coverage Level',
+  HD_01: 'Maintenance Type', HD_02: 'Reserved',
+  HD_03: 'Insurance Line',   HD_04: 'Plan Description', HD_05: 'Coverage Level',
   COB_01: 'Payer Responsibility', COB_02: 'Reference ID',
   COB_03: 'COB Code',             COB_04: 'Service Type Code',
 }
 
-/**
- * Resolve a human-readable label for a segment field.
- * Handles both schema-decoded named props (e.g. "PatientControlNumber_01")
- * and raw positional props (e.g. "__raw_2").
- */
 function humanLabel(segId: string, fieldKey: string): string {
-  // 1. Try segment-qualified numeric suffix  → e.g. "CLM_01"
   const idxMatch = fieldKey.match(/_?(\d{2,})$/)
   if (idxMatch) {
     const qualified = `${segId}_${idxMatch[1]}`
     if (FIELD_LABELS[qualified]) return FIELD_LABELS[qualified]
   }
-  // 2. Direct lookup
   if (FIELD_LABELS[fieldKey]) return FIELD_LABELS[fieldKey]
-  // 3. PascalCase split
   const stripped = fieldKey.replace(/_?\d{2,}$/, '')
   return stripped
     .replace(/_/g, ' ')
@@ -328,24 +320,183 @@ function humanLabel(segId: string, fieldKey: string): string {
     .trim() || fieldKey
 }
 
+// ── Qualifier-driven context labels ───────────────────────────────────────────
+// MUST be defined before extractSegmentFields / renderField use them.
+
+const DTP_QUALIFIER_LABELS: Record<string, string> = {
+  '007': 'Coverage Effective',
+  '036': 'Coverage Expiration',
+  '096': 'Discharge Time',
+  '150': 'Service Period Start',
+  '151': 'Service Period End',
+  '232': 'Claim Statement Period Start',
+  '233': 'Claim Statement Period End',
+  '290': 'Claim Received Date',
+  '297': 'Certification Revision Date',
+  '304': 'Latest Visit or Consultation Date',
+  '314': 'Last X-Ray Date',
+  '330': 'Evaluation Date',
+  '356': 'Coverage Effective Date',
+  '357': 'Coverage Expiration Date',
+  '360': 'Discharge Date',
+  '382': 'Last Menstrual Period',
+  '383': 'Last Seen Date',
+  '386': 'Last Worked Date',
+  '431': 'Onset of Current Symptoms',
+  '434': 'Statement Dates',
+  '435': 'Admission Date / Time',
+  '439': 'Accident Date',
+  '440': 'Date of Onset',
+  '441': 'Date of Injury',
+  '442': 'Date of Disability Begin',
+  '443': 'Date of Disability End',
+  '444': 'Initial Treatment Date',
+  '445': 'Last Visit Date',
+  '446': 'Prescription Date',
+  '447': 'Begin Therapy Date',
+  '448': 'Last Certification Date',
+  '449': 'Latest Visit Date',
+  '450': 'Retirement Date',
+  '451': 'Signature Date',
+  '452': 'Date of Last Contact',
+  '453': 'Acute Manifestation Date',
+  '454': 'Initial Disability Period Start',
+  '455': 'Initial Disability Period End',
+  '471': 'Prescription Fill Date',
+  '472': 'Date of Service',
+  '473': 'Authorization Date',
+  '474': 'Begin Anesthesia Admin.',
+  '475': 'End Anesthesia Admin.',
+  '476': 'Claim Adjudication Date',
+  '484': 'Coverage Expiration Date',
+}
+
+const REF_QUALIFIER_LABELS: Record<string, string> = {
+  '0B':  'State License Number',
+  '0F':  'Member Identification Number',
+  '17':  'Client Number',
+  '1A':  'Blue Cross Provider Number',
+  '1B':  'Blue Shield Provider Number',
+  '1C':  'Medicare Provider Number',
+  '1D':  'Medicaid Provider Number',
+  '1G':  'Provider UPIN',
+  '1H':  'CHAMPUS Identification Number',
+  '1J':  'Facility ID Number',
+  '1K':  'Payer Claim Control Number',
+  '1L':  'Group/Plan Number',
+  '1S':  'Ambulatory Patient Group',
+  '1W':  'Member ID',
+  '23':  'Client Number',
+  '28':  'Employee ID',
+  '2U':  'Payer ID',
+  '4N':  'Special Payment Reference',
+  '6R':  'Provider Commercial Number',
+  '9A':  'Repriced Claim Reference Number',
+  '9C':  'Adjusted Repriced Claim Reference Number',
+  '9F':  'Referral Number',
+  '9I':  'Attachment Report Type Code',
+  '9K':  'Payment Adjustment Number',
+  '9Y':  'Plan Network ID',
+  'A6':  'Employee Plan Enrollment Number',
+  'ABB': 'Rollover Account Number',
+  'BB':  'Authorization Number',
+  'CE':  'Class of Contract Code',
+  'D9':  'Claim Adjustment Number',
+  'DK':  'Policy Number',
+  'DN':  'Diagnosis Code',
+  'EA':  'Medical Record ID',
+  'EI':  'Employer ID (EIN)',
+  'EW':  'Mammography Certification Number',
+  'F4':  'Prior Authorization Number',
+  'F5':  'Provider Site Number',
+  'F8':  'Original Reference Number',
+  'G1':  'Prior Authorization Number',
+  'G3':  'Predetermination Number',
+  'G4':  'Peer Review Authorization',
+  'G6':  'Group Number',
+  'HPI': 'National Provider ID (NPI)',
+  'IG':  'Insurance Policy Number',
+  'LU':  'Location Number',
+  'MI':  'Member ID',
+  'MR':  'Medical Record Number',
+  'NF':  'NUBC Revenue Code',
+  'P4':  'Project Code',
+  'PQ':  'Payee Identification',
+  'SY':  'Social Security Number (SSN)',
+  'T4':  'Single Drug Prior Auth. Number',
+  'TJ':  'Federal Taxpayer ID',
+  'XZ':  'Pharmacy Prescription Number',
+  'ZZ':  'Provider Taxonomy Code',
+}
+
+const AMT_QUALIFIER_LABELS: Record<string, string> = {
+  '100': 'Patient Amount Due',
+  '110': 'Estimated Responsibility',
+  '122': 'Service Tax Amount',
+  '130': 'Part B Coinsurance',
+  '131': 'Patient Responsibility Amount',
+  '132': 'New Coverage Not Implemented by HMO',
+  '141': 'Patient Estimated Responsibility',
+  '144': 'Tax Amount',
+  '150': 'Medicare Amount Due',
+  '153': 'Medicare A Cost Covered',
+  '166': 'Provider Penalty Amount',
+  '171': 'Withholding Amount',
+  '193': 'Negative Ledger Balance',
+  '194': 'Positive Ledger Balance',
+  'A1':  'Medicare Allowed Amount',
+  'A2':  'Medicare Paid Amount',
+  'A3':  'Medicare Deductible Amount',
+  'A4':  'Medicare Out of Pocket Amount',
+  'A8':  'Co-Insurance Amount',
+  'AU':  'Coverage Amount',
+  'B6':  'Allowed Amount',
+  'B7':  'Deductible Amount',
+  'B8':  'Copay Amount',
+  'B9':  'Out of Pocket Amount',
+  'D8':  'Discount Amount',
+  'DY':  'Per Day Limit',
+  'F2':  'Tax Amount',
+  'F3':  'Billed Amount (Institutional)',
+  'F4':  'Claim Total Submitted Charges',
+  'F5':  'Claim Total Covered Charges',
+  'NL':  'Negative Ledger Amount',
+  'T':   'Tax Amount',
+  'T2':  'Total Claim Before Taxes',
+  'YU':  'Additional Amount',
+  'ZK':  'Federal Medicare Medicaid Amount',
+}
+
+/**
+ * For qualifier-driven segments (DTP, REF, AMT), read element[1] from raw_data
+ * and return a human-readable context string to prefix element labels with.
+ * Returns null for segments that don't need contextual labelling.
+ */
+function getSegmentContext(segObj: Record<string, unknown>, segId: string): string | null {
+  const rawArr = segObj.raw_data as unknown[] | undefined
+  if (!rawArr || rawArr.length < 2) return null
+  const q = String(rawArr[1] ?? '').trim().toUpperCase()
+  if (!q) return null
+
+  if (segId === 'DTP') return DTP_QUALIFIER_LABELS[q] ?? `Date (${q})`
+  if (segId === 'REF') return REF_QUALIFIER_LABELS[q] ?? `Ref (${q})`
+  if (segId === 'AMT') return AMT_QUALIFIER_LABELS[q] ?? `Amount (${q})`
+  return null
+}
+
 // ── Field extraction ──────────────────────────────────────────────────────────
 
 const SKIP_KEYS = new Set(['Segment_ID', 'raw_data'])
 
 interface ExtractedField {
   segObj: Record<string, unknown>
-  fieldKey: string  // "__raw_N" or real key
+  fieldKey: string
   fieldId: string
   label: string
   techRef: string
   segId: string
 }
 
-/**
- * Extract all editable fields from a segment object.
- * Prefers schema-decoded named props; falls back to raw_data positions.
- * Skips blank/empty values so empty optional elements are not rendered.
- */
 function extractSegmentFields(
   segObj: Record<string, unknown>,
   segId: string,
@@ -355,40 +506,49 @@ function extractSegmentFields(
 ): ExtractedField[] {
   const fields: ExtractedField[] = []
   let hasNamedFields = false
+  const segContext = getSegmentContext(segObj, segId)
 
   for (const fieldKey of Object.keys(segObj)) {
     if (SKIP_KEYS.has(fieldKey)) continue
     const val = segObj[fieldKey]
     if (Array.isArray(val)) {
-      // composite element — ok, but skip if all parts are empty
       if (val.every(v => String(v ?? '').trim() === '')) continue
     } else if (val != null && typeof val !== 'object') {
-      // scalar — skip if blank
       if (String(val).trim() === '') continue
     } else {
       continue
     }
     hasNamedFields = true
+    const baseLabel = humanLabel(segId, fieldKey)
+    const posMatch = fieldKey.match(/_?(\d{2,})$/)
+    const posNum = posMatch ? parseInt(posMatch[1], 10) : null
+    const label = segContext && posNum !== null && posNum > 1
+      ? `${segContext} — ${baseLabel}`
+      : baseLabel
+
     fields.push({
       segObj, fieldKey,
       fieldId: `dyn-${loopKey}-${segId}-${fieldKey}${segIndex > 0 ? `-${segIndex}` : ''}${idSuffix}`,
-      label: humanLabel(segId, fieldKey),
+      label,
       techRef: `${segId}.${fieldKey}`,
       segId,
     })
   }
 
-  // Fallback to raw_data — skip empty positional elements
   if (!hasNamedFields && Array.isArray(segObj.raw_data)) {
     const rawArr = segObj.raw_data as unknown[]
     for (let ri = 1; ri < rawArr.length; ri++) {
       if (String(rawArr[ri] ?? '').trim() === '') continue
       const padIdx = String(ri).padStart(2, '0')
+      const baseLabel = humanLabel(segId, `${segId}_${padIdx}`)
+      const label = segContext && ri > 1
+        ? `${segContext} — ${baseLabel}`
+        : baseLabel
       fields.push({
         segObj,
         fieldKey: `__raw_${ri}`,
         fieldId: `dyn-${loopKey}-${segId}-raw${ri}${segIndex > 0 ? `-${segIndex}` : ''}${idSuffix}`,
-        label: humanLabel(segId, `${segId}_${padIdx}`),
+        label,
         techRef: `${segId}*${ri}`,
         segId,
       })
@@ -397,15 +557,14 @@ function extractSegmentFields(
   return fields
 }
 
-/**
- * Flatten ALL segments across ALL instances of a loop into a single field list,
- * grouped by instance when the loop genuinely repeats (e.g. 2400 service lines).
- *
- * The parser creates a new instance every time it sees a "header" segment like
- * NM1/CLM/LX/INS/HL, so a single logical loop can have many tiny instances.
- * We merge them into one contiguous list for display — unless the loop is a
- * true repeatable (2+ instances each containing the loop's "anchor" segment).
- */
+// ── Rendering helpers ─────────────────────────────────────────────────────────
+
+const ANCHOR_SEGS: Record<string, string> = {
+  '2400':      'LX',  '835_2100': 'CLP', '835_2110': 'SVC',
+  '834_2000':  'INS', '834_2300': 'HD',  '834_2700': 'LX',
+  '2300':      'CLM', '2320':     'SBR',
+}
+
 function flattenLoopInstances(
   instances: Record<string, unknown>[],
   loopKey: string,
@@ -413,23 +572,13 @@ function flattenLoopInstances(
   handleCommit: (seg: Record<string, unknown>, keys: string[], val: string) => void,
   activeFieldPath: string | null,
 ): { fields: React.ReactNode[]; isRepeatable: boolean; instanceCount: number } {
-  // Determine the anchor segment for this loop (the one that triggers a new instance)
-  const ANCHOR_SEGS: Record<string, string> = {
-    '2400': 'LX', '835_2100': 'CLP', '835_2110': 'SVC',
-    '834_2000': 'INS', '834_2300': 'HD', '834_2700': 'LX',
-    '2300': 'CLM', '2320': 'SBR',
-  }
   const anchorSeg = ANCHOR_SEGS[loopKey]
-
-  // Count how many instances actually contain the anchor segment
   const anchoredInstances = anchorSeg
     ? instances.filter(inst => inst[anchorSeg] !== undefined)
     : instances
-
   const isRepeatable = anchoredInstances.length > 1
 
   if (!isRepeatable) {
-    // Merge all instances into a single flat field list
     const allFields: ExtractedField[] = []
     instances.forEach((inst, ii) => {
       Object.keys(inst).forEach((segId) => {
@@ -437,13 +586,11 @@ function flattenLoopInstances(
         const segList = Array.isArray(rawSeg) ? rawSeg : [rawSeg]
         segList.forEach((seg, si) => {
           if (!seg || typeof seg !== 'object') return
-          extractSegmentFields(
-            seg as Record<string, unknown>, segId, si, loopKey, `-inst${ii}`
-          ).forEach(f => allFields.push(f))
+          extractSegmentFields(seg as Record<string, unknown>, segId, si, loopKey, `-inst${ii}`)
+            .forEach(f => allFields.push(f))
         })
       })
     })
-
     return {
       isRepeatable: false,
       instanceCount: 1,
@@ -451,7 +598,6 @@ function flattenLoopInstances(
     }
   }
 
-  // True repeatable — render each anchored instance as a numbered block
   const groups = anchoredInstances.map((inst, groupIdx) => {
     const groupFields: ExtractedField[] = []
     Object.keys(inst).forEach((segId) => {
@@ -459,16 +605,11 @@ function flattenLoopInstances(
       const segList = Array.isArray(rawSeg) ? rawSeg : [rawSeg]
       segList.forEach((seg, si) => {
         if (!seg || typeof seg !== 'object') return
-        extractSegmentFields(
-          seg as Record<string, unknown>, segId, si, loopKey, `-g${groupIdx}`
-        ).forEach(f => groupFields.push(f))
+        extractSegmentFields(seg as Record<string, unknown>, segId, si, loopKey, `-g${groupIdx}`)
+          .forEach(f => groupFields.push(f))
       })
     })
-
-    const renderedFields = groupFields.map(f =>
-      renderField(f, loopKey, errors, handleCommit, activeFieldPath)
-    )
-
+    const renderedFields = groupFields.map(f => renderField(f, loopKey, errors, handleCommit, activeFieldPath))
     return (
       <div key={groupIdx} style={{
         border: '1.5px solid rgba(26,26,46,0.1)', borderRadius: 10,
@@ -508,10 +649,6 @@ function renderField(
     displayVal = Array.isArray(raw) ? raw.join(':') : String(raw ?? '')
   }
 
-  // ── Error matching: scope to THIS field's segment and position only ──────
-  // Errors are keyed on segment+field (e.g. NM109, CLM02).
-  // We build a narrow key like "NM1_09" or "NM109" so a NPI error on NM109
-  // does NOT bleed onto NM101, NM102, etc.
   const narrowKey = f.fieldKey.startsWith('__raw_')
     ? `${f.segId}${f.fieldKey.replace('__raw_', '').padStart(2, '0')}`
     : `${f.segId}${f.fieldKey.replace(/^.*?_(\d+)$/, '$1').padStart(2, '0')}`
@@ -556,10 +693,10 @@ const ROTATIONS = [-0.3, 0.3, -0.4, 0.4, 0, -0.2, 0.2]
 // ── Main FormEditorView ───────────────────────────────────────────────────────
 
 export default function FormEditorView() {
-  const parseResult   = useAppStore((s) => s.parseResult)
+  const parseResult    = useAppStore((s) => s.parseResult)
   const setParseResult = useAppStore((s) => s.setParseResult)
-  const selectedPath  = useAppStore((s) => s.selectedPath)
-  const isLoading     = useAppStore((s) => s.isLoading)
+  const selectedPath   = useAppStore((s) => s.selectedPath)
+  const isLoading      = useAppStore((s) => s.isLoading)
   const transactionType = useAppStore((s) => s.transactionType)
 
   const sectionRefs = useRef<Record<string, React.RefObject<HTMLDivElement | null>>>({})
@@ -586,7 +723,6 @@ export default function FormEditorView() {
 
   const handleCommit = useCallback((segment: Record<string, unknown>, targetKeys: string[], newValue: string) => {
     if (!parseResult || !segment) return
-
     for (const fk of targetKeys) {
       if (fk.startsWith('__raw_')) {
         const ri = parseInt(fk.replace('__raw_', ''), 10)
@@ -596,14 +732,12 @@ export default function FormEditorView() {
         segment[fk] = newValue; break
       }
     }
-
     const newResult = structuredClone(parseResult) as Record<string, unknown>
     const clearErrors = (arr: unknown[]) => arr?.filter((e: unknown) => {
       const err = e as ValidationError
       const el = (err.element || err.field || '').toUpperCase()
       return !targetKeys.some(k => el.includes(k.replace('__raw_', '').toUpperCase()))
     }) ?? arr
-
     if (Array.isArray(newResult.errors)) newResult.errors = clearErrors(newResult.errors)
     const inner = newResult.data as Record<string, unknown> | undefined
     if (inner && Array.isArray(inner.errors)) inner.errors = clearErrors(inner.errors)
@@ -656,7 +790,6 @@ export default function FormEditorView() {
             )
 
             if (fields.length === 0) return null
-
             if (!sectionRefs.current[loopKey]) sectionRefs.current[loopKey] = { current: null }
 
             return (
@@ -671,8 +804,6 @@ export default function FormEditorView() {
                   icon={loopMeta.icon}
                   rotate={rotation}
                 />
-
-                {/* Loop key badge */}
                 <div style={{ position: 'absolute', top: 12, right: 14 }}>
                   <span style={{
                     fontFamily: 'JetBrains Mono, monospace', fontSize: 10, fontWeight: 700,
@@ -682,11 +813,8 @@ export default function FormEditorView() {
                     {loopKey}
                   </span>
                 </div>
-
                 {isRepeatable ? (
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
-                    {fields}
-                  </div>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>{fields}</div>
                 ) : (
                   <FieldGrid cols={2}>{fields}</FieldGrid>
                 )}

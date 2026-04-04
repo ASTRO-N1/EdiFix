@@ -20,9 +20,10 @@ function LogoIcon() {
 export default function WorkspaceTopNav() {
   const navigate = useNavigate()
 
-  // Bring in clearFile and setActiveMainView from the store
-  const { session, parseResult, ediFile, clearFile, setActiveMainView, processFileInWorkspace } = useAppStore()
+  // Bring in saveCurrentWorkspace from the store
+  const { session, parseResult, ediFile, clearFile, setActiveMainView, processFileInWorkspace, saveCurrentWorkspace } = useAppStore()
   const [dropdownOpen, setDropdownOpen] = useState(false)
+  const [isSaving, setIsSaving] = useState(false)
   const dropdownRef = useRef<HTMLDivElement>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
 
@@ -71,6 +72,13 @@ export default function WorkspaceTopNav() {
       // Guest users fall back to the landing page
       navigate('/')
     }
+  }
+
+  // ── Handle Saving the Workspace ──
+  const handleSave = async () => {
+    setIsSaving(true)
+    await saveCurrentWorkspace()
+    setIsSaving(false)
   }
 
   return (
@@ -130,6 +138,30 @@ export default function WorkspaceTopNav() {
         onChange={handleFileChange}
         accept=".edi,.txt,.dat,.x12,.zip"
       />
+
+      {/* SAVE PROGRESS BUTTON */}
+      {session && hasFile && (
+        <button
+          onClick={handleSave}
+          disabled={isSaving}
+          style={{
+            display: 'flex', alignItems: 'center', gap: 6, padding: '5px 14px',
+            background: isSaving ? '#e0e0e0' : '#FFE66D', 
+            border: '2px solid #1A1A2E', borderRadius: 8,
+            boxShadow: '3px 3px 0px #1A1A2E', fontFamily: 'Nunito, sans-serif',
+            fontWeight: 800, fontSize: 13, color: '#1A1A2E', 
+            cursor: isSaving ? 'wait' : 'pointer',
+            flexShrink: 0, transition: 'transform 0.1s, box-shadow 0.1s',
+          }}
+          onMouseEnter={e => { if(!isSaving) { e.currentTarget.style.transform = 'translateY(-1px)'; e.currentTarget.style.boxShadow = '4px 4px 0px #1A1A2E' } }}
+          onMouseLeave={e => { if(!isSaving) { e.currentTarget.style.transform = 'none'; e.currentTarget.style.boxShadow = '3px 3px 0px #1A1A2E' } }}
+        >
+          <svg width="13" height="13" viewBox="0 0 14 14" fill="none">
+            <path d="M11 1H3a2 2 0 0 0-2 2v8a2 2 0 0 0 2 2h8a2 2 0 0 0 2-2V3l-2-2zM10 13V8H4v5M4 1h5v3H4V1z" stroke="#1A1A2E" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+          </svg>
+          {isSaving ? 'Saving...' : 'Save Progress'}
+        </button>
+      )}
 
       {/* TRIGGER BUTTON */}
       <button

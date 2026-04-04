@@ -55,8 +55,18 @@ function ScaleIcon({ active }: { active: boolean }) {
   )
 }
 
+function ExportIcon({ active }: { active: boolean }) {
+  return (
+    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke={active ? '#4ECDC4' : 'rgba(26,26,46,0.45)'} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+      <polyline points="7 10 12 15 17 10" />
+      <line x1="12" y1="15" x2="12" y2="3" />
+    </svg>
+  )
+}
+
 interface ActivityItem {
-  id: ActivePanelView | 'dashboard' | 'welcome'
+  id: ActivePanelView | 'search' | 'dashboard' | 'welcome' | 'export'
   label: string
   icon: (active: boolean) => JSX.Element
   isMainViewToggle?: boolean
@@ -72,10 +82,11 @@ export default function ActivityBar() {
   const session = useAppStore((s) => s.session)
 
   const BASE_ITEMS: ActivityItem[] = [
-    { id: 'welcome',   label: 'Welcome',   icon: (a) => <WelcomeIcon active={a} />,   isMainViewToggle: true },
-    { id: 'dashboard', label: 'Dashboard', icon: (a) => <DashboardIcon active={a} />, isMainViewToggle: true },
-    { id: 'explorer',  label: 'Explorer',  icon: (a) => <ExplorerIcon active={a} /> },
-    { id: 'history',   label: 'History',   icon: (a) => <HistoryIcon active={a} /> },
+    { id: 'welcome', label: 'Welcome', icon: (a: boolean) => <WelcomeIcon active={a} />, isMainViewToggle: true },
+    { id: 'dashboard', label: 'Dashboard', icon: (a: boolean) => <DashboardIcon active={a} />, isMainViewToggle: true },
+    { id: 'explorer', label: 'Explorer', icon: (a: boolean) => <ExplorerIcon active={a} /> },
+    { id: 'history', label: 'History', icon: (a: boolean) => <HistoryIcon active={a} /> },
+    { id: 'export', label: 'Export', icon: (a: boolean) => <ExportIcon active={a} />, isMainViewToggle: true },
   ]
 
   const ITEMS = session ? BASE_ITEMS : BASE_ITEMS.filter((item) => item.id !== 'welcome')
@@ -101,7 +112,7 @@ export default function ActivityBar() {
             title={item.label}
             onClick={() => {
               if (item.isMainViewToggle) {
-                setActiveMainView(item.id as 'welcome' | 'dashboard')
+                setActiveMainView(item.id as 'welcome' | 'dashboard' | 'export')
               } else {
                 setActiveMainView('editor')
                 if (isActive) {

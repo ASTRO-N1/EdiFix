@@ -13,6 +13,7 @@ import DoodleResizeHandle from '../components/workspace/DoodleResizeHandle'
 import OverviewPage from '../components/dashboard/overview/OverviewPage'
 import WorkspaceWelcome from '../components/workspace/WorkspaceWelcome'
 import ReconcileView from '../components/workspace/ReconcileView'
+import ExportPage from '../components/workspace/ExportPage'
 
 const FlexPanelGroup = PanelGroup as any
 
@@ -95,8 +96,12 @@ export default function WorkspacePage() {
           </div>
         )}
 
-        {/* ── Editor view (left sidebar + tabs + validation drawer) ── */}
-        {activeMainView === 'editor' && (
+        {/* ── Editor / Export views (left sidebar + tabs + validation drawer) ── */}
+        {activeMainView === 'export' ? (
+          <div style={{ flex: 1, overflowY: 'auto' }} className="custom-scrollbar">
+            <ExportPage />
+          </div>
+        ) : activeMainView === 'editor' ? (
           <FlexPanelGroup orientation="horizontal" autoSaveId="workspace-layout-v1">
             {isLeftSidebarOpen && (
               <>
@@ -124,7 +129,7 @@ export default function WorkspacePage() {
               </Panel>
             )}
           </FlexPanelGroup>
-        )}
+        ) : null}
       </div>
 
       {/* AI Co-Pilot pull tab — hidden on welcome view */}
@@ -143,7 +148,7 @@ export default function WorkspacePage() {
           onMouseLeave={(e) => { e.currentTarget.style.right = '-2px'; e.currentTarget.style.boxShadow = '-3px 3px 0px #1A1A2E' }}
         >
           <div style={{ writingMode: 'vertical-rl', textOrientation: 'mixed', transform: 'rotate(180deg)', fontFamily: 'Nunito, sans-serif', fontWeight: 800, fontSize: 14, color: '#1A1A2E', letterSpacing: '0.05em' }}>
-            AI Co-Pilot ✨
+            Ask Me Anything ✨
           </div>
         </button>
       )}

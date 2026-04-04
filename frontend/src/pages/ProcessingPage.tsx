@@ -5,7 +5,7 @@ import { RobotScene } from '../components/processing/RobotScene';
 import { FileInfoCard } from '../components/processing/FileInfoCard';
 import { ParseLog } from '../components/processing/ParseLog';
 import { RoughBorder } from '../components/processing/RoughBorder';
-import { WaitingFigure } from '../components/landing/StickFigure';
+//import { WaitingFigure } from '../components/landing/StickFigure';
 import { useIsMobile } from '../hooks/useWindowWidth';
 
 export default function ProcessingPage() {
@@ -114,14 +114,7 @@ export default function ProcessingPage() {
         }}>
           <RobotScene />
           {/* WaitingFigure doodle beside robot — visible on all screen sizes */}
-          <div style={{
-            position: 'absolute',
-            bottom: isMobile ? -8 : 16,
-            right: isMobile ? 12 : 24,
-            opacity: 0.9,
-          }}>
-            <WaitingFigure size={isMobile ? 60 : 80} color="#4ECDC4" />
-          </div>
+          
         </div>
 
         {/* RIGHT / BOTTOM — File info + parse log */}

@@ -713,14 +713,24 @@ function ExplorerView({ onMinimize }: { onMinimize?: () => void }) {
 
 // ── HistoryView ────────────────────────────────────────────────────────────────
 
-const PLACEHOLDER_HISTORY = [
-  { id: 'h1', name: 'claim_837p_acme.edi', type: '837P', date: '2 hours ago' },
-  { id: 'h2', name: 'remittance_835.edi',  type: '835',  date: 'Yesterday'   },
-  { id: 'h3', name: 'enrollment_834.edi',  type: '834',  date: '3 days ago'  },
-]
-
 function HistoryView({ onMinimize }: { onMinimize?: () => void }) {
+  // Added deleteWorkspace here
+  const { historyItems, isHistoryLoading, fetchHistory, loadWorkspace, deleteWorkspace, session } = useAppStore()
   const typeColors: Record<string, string> = { '837P': '#4ECDC4', '835': '#FFE66D', '834': '#FF6B6B' }
+
+  // Fetch history when the view mounts
+  useEffect(() => {
+    if (session) {
+      fetchHistory()
+    }
+  }, [session, fetchHistory])
+
+  // Simple date formatter
+  const formatDate = (dateString: string) => {
+    const d = new Date(dateString)
+    return d.toLocaleDateString() + ' ' + d.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})
+  }
+
   return (
     <div style={{ height: '100%', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
       <div
@@ -756,10 +766,30 @@ function HistoryView({ onMinimize }: { onMinimize?: () => void }) {
           </button>
         )}
       </div>
+      
       <div style={{ flex: 1, overflowY: 'auto', padding: '8px 0' }} className="custom-scrollbar">
-        {PLACEHOLDER_HISTORY.map((file) => (
-          <button
+        {!session && (
+          <div style={{ padding: '20px', textAlign: 'center', fontFamily: 'Nunito', fontSize: 12, color: 'rgba(26,26,46,0.5)' }}>
+            Log in to view and save your history.
+          </div>
+        )}
+        
+        {session && isHistoryLoading && historyItems.length === 0 && (
+          <div style={{ padding: '20px', textAlign: 'center', fontFamily: 'Nunito', fontSize: 12, color: 'rgba(26,26,46,0.5)' }}>
+            Loading history...
+          </div>
+        )}
+
+        {session && !isHistoryLoading && historyItems.length === 0 && (
+          <div style={{ padding: '20px', textAlign: 'center', fontFamily: 'Nunito', fontSize: 12, color: 'rgba(26,26,46,0.5)' }}>
+            No saved files yet.
+          </div>
+        )}
+
+        {historyItems.map((file) => (
+          <div
             key={file.id}
+            onClick={() => loadWorkspace(file)}
             style={{
               display: 'flex',
               flexDirection: 'column',
@@ -767,7 +797,6 @@ function HistoryView({ onMinimize }: { onMinimize?: () => void }) {
               width: '100%',
               padding: '8px 14px',
               background: 'transparent',
-              border: 'none',
               borderBottom: '1px solid rgba(26,26,46,0.06)',
               cursor: 'pointer',
               textAlign: 'left',
@@ -776,7 +805,7 @@ function HistoryView({ onMinimize }: { onMinimize?: () => void }) {
             onMouseEnter={(e) => (e.currentTarget.style.background = 'rgba(78,205,196,0.08)')}
             onMouseLeave={(e) => (e.currentTarget.style.background = 'transparent')}
           >
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8, width: '100%' }}>
               <span
                 style={{
                   fontFamily: 'JetBrains Mono, monospace',
@@ -785,30 +814,60 @@ function HistoryView({ onMinimize }: { onMinimize?: () => void }) {
                   overflow: 'hidden',
                   textOverflow: 'ellipsis',
                   whiteSpace: 'nowrap',
+                  flex: 1
                 }}
               >
-                {file.name}
+                {file.file_name}
               </span>
-              <span
-                style={{
-                  fontFamily: 'Nunito, sans-serif',
-                  fontSize: 10,
-                  fontWeight: 800,
-                  color: '#1A1A2E',
-                  background: typeColors[file.type] ?? '#e0e0e0',
-                  borderRadius: 4,
-                  padding: '1px 6px',
-                  flexShrink: 0,
-                  border: '1.5px solid rgba(26,26,46,0.2)',
-                }}
-              >
-                {file.type}
-              </span>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexShrink: 0 }}>
+                <span
+                  style={{
+                    fontFamily: 'Nunito, sans-serif',
+                    fontSize: 10,
+                    fontWeight: 800,
+                    color: '#1A1A2E',
+                    background: typeColors[file.file_type] ?? '#e0e0e0',
+                    borderRadius: 4,
+                    padding: '1px 6px',
+                    border: '1.5px solid rgba(26,26,46,0.2)',
+                  }}
+                >
+                  {file.file_type}
+                </span>
+                {/* Delete Button */}
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation() // Stops the row click (loadWorkspace) from firing
+                    if (window.confirm('Are you sure you want to delete this saved file?')) {
+                      deleteWorkspace(file.id)
+                    }
+                  }}
+                  style={{
+                    background: 'transparent',
+                    border: 'none',
+                    color: 'rgba(26,26,46,0.4)',
+                    cursor: 'pointer',
+                    padding: 2,
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    borderRadius: 4,
+                    transition: 'all 0.1s'
+                  }}
+                  onMouseEnter={(e) => { e.currentTarget.style.color = '#FF6B6B'; e.currentTarget.style.background = 'rgba(255,107,107,0.1)' }}
+                  onMouseLeave={(e) => { e.currentTarget.style.color = 'rgba(26,26,46,0.4)'; e.currentTarget.style.background = 'transparent' }}
+                  title="Delete saved file"
+                >
+                  <svg width="12" height="12" viewBox="0 0 14 14" fill="none">
+                    <path d="M1 1l12 12M13 1L1 13" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
+                  </svg>
+                </button>
+              </div>
             </div>
             <span style={{ fontFamily: 'Nunito, sans-serif', fontSize: 11, color: 'rgba(26,26,46,0.4)' }}>
-              {file.date}
+              {formatDate(file.created_at)}
             </span>
-          </button>
+          </div>
         ))}
       </div>
     </div>

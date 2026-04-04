@@ -267,39 +267,33 @@ class EDIParser:
     # 2. STREAMING LEXER
     # =========================================================================
     def stream_and_tokenize(self):
-        """Streams segment by segment, reading the file EXACTLY ONCE."""
-        with open(self.file_path, "r", encoding="utf-8") as f:
-            head = f.read(500).replace("\n", "").replace("\r", "")
-            isa_start = head.find("ISA")
-            
-            if isa_start == -1 or len(head) < isa_start + 106:
-                self.errors.append({
-                    "line": 1, "segment": "ISA", "type": "Critical",
-                    "message": "File does not contain a valid 106-character ISA envelope.",
-                    "suggestion": "Ensure the file begins with a strictly formatted 106-character ISA segment.",
-                })
-                return
+        """Reads the file once, strips BOM/junk before ISA, yields segment element lists."""
+        with open(self.file_path, "r", encoding="utf-8-sig") as f:
+            raw = f.read().replace("\n", "").replace("\r", "")
 
-            isa_string = head[isa_start:isa_start+106]
-            
-            self.element_sep    = isa_string[3]   
-            self.subelement_sep = isa_string[104] 
-            self.segment_sep    = isa_string[105] 
+        # Find ISA and strip anything before it (BOM, whitespace, junk bytes)
+        isa_start = raw.find("ISA")
+        if isa_start == -1 or len(raw) < isa_start + 106:
+            self.errors.append({
+                "line": 1, "segment": "ISA", "type": "Critical",
+                "message": "File does not contain a valid 106-character ISA envelope.",
+                "suggestion": "Ensure the file begins with a strictly formatted 106-character ISA segment.",
+            })
+            return
 
-            f.seek(0)
-            buffer = ""
-            while True:
-                chunk = f.read(4096)
-                if not chunk:
-                    if buffer.strip():
-                        yield buffer.strip().split(self.element_sep)
-                    break
-                buffer += chunk.replace("\n", "").replace("\r", "")
-                while self.segment_sep in buffer:
-                    segment, buffer = buffer.split(self.segment_sep, 1)
-                    segment = segment.strip()
-                    if segment:
-                        yield segment.split(self.element_sep)
+        # Trim everything before ISA
+        raw = raw[isa_start:]
+
+        # Detect delimiters from ISA fixed positions
+        self.element_sep    = raw[3]
+        self.subelement_sep = raw[104]
+        self.segment_sep    = raw[105]
+
+        # Split into segments and yield element lists
+        for segment in raw.split(self.segment_sep):
+            segment = segment.strip()
+            if segment:
+                yield segment.split(self.element_sep)
 
     # =========================================================================
     # 3. SCHEMA LOADER

@@ -4,6 +4,201 @@ import { motion, AnimatePresence } from 'framer-motion'
 import { supabase } from '../lib/supabase'
 import { useIsMobile } from '../hooks/useWindowWidth'
 
+// ── Demo credentials sticky note ─────────────────────────────────────────────
+function DemoStickyNote() {
+  return (
+    <motion.div
+      initial={{ opacity: 0, y: -20, rotate: 3 }}
+      animate={{ opacity: 1, y: 0, rotate: 3 }}
+      transition={{ type: 'spring', stiffness: 200, damping: 18, delay: 0.6 }}
+      style={{
+        position: 'fixed',
+        top: 64,
+        right: 60,
+        zIndex: 200,
+        width: 210,
+        background: '#feed96ff',
+        border: '2px solid #1A1A2E',
+        borderRadius: '3px 12px 10px 3px',
+        boxShadow: '5px 5px 0px #1A1A2E',
+        padding: '28px 16px 16px',
+        fontFamily: 'Nunito, sans-serif',
+        cursor: 'default',
+        transformOrigin: 'top right',
+      }}
+      whileHover={{
+        rotate: 1,
+        boxShadow: '8px 8px 0px #1A1A2E',
+        y: -3,
+        transition: { duration: 0.15 },
+      }}
+    >
+      {/* Band-aid at top */}
+      <svg
+        width="80"
+        height="30"
+        viewBox="0 0 72 28"
+        fill="none"
+        style={{
+          position: 'absolute',
+          top: -18,
+          left: '50%',
+          transform: 'translateX(-50%) rotate(-10deg)',
+          transformOrigin: 'center center',
+        }}
+      >
+        {/* Outer band-aid body */}
+        <rect x="1" y="5" width="70" height="18" rx="9" fill="#F0A878" stroke="#C87848" strokeWidth="1.5" />
+
+        {/* Left adhesive section — dot texture */}
+        <rect x="1" y="5" width="22" height="18" rx="9" fill="#E8956A" stroke="none" />
+        <circle cx="8"  cy="10" r="1.1" fill="#8B4A20" opacity="0.35" />
+        <circle cx="13" cy="10" r="1.1" fill="#8B4A20" opacity="0.35" />
+        <circle cx="18" cy="10" r="1.1" fill="#8B4A20" opacity="0.35" />
+        <circle cx="8"  cy="15" r="1.1" fill="#8B4A20" opacity="0.35" />
+        <circle cx="13" cy="15" r="1.1" fill="#8B4A20" opacity="0.35" />
+        <circle cx="18" cy="15" r="1.1" fill="#8B4A20" opacity="0.35" />
+        <circle cx="8"  cy="20" r="1.1" fill="#8B4A20" opacity="0.35" />
+        <circle cx="13" cy="20" r="1.1" fill="#8B4A20" opacity="0.35" />
+        <circle cx="18" cy="20" r="1.1" fill="#8B4A20" opacity="0.35" />
+
+        {/* Right adhesive section — dot texture */}
+        <rect x="49" y="5" width="22" height="18" rx="9" fill="#E8956A" stroke="none" />
+        <circle cx="54" cy="10" r="1.1" fill="#8B4A20" opacity="0.35" />
+        <circle cx="59" cy="10" r="1.1" fill="#8B4A20" opacity="0.35" />
+        <circle cx="64" cy="10" r="1.1" fill="#8B4A20" opacity="0.35" />
+        <circle cx="54" cy="15" r="1.1" fill="#8B4A20" opacity="0.35" />
+        <circle cx="59" cy="15" r="1.1" fill="#8B4A20" opacity="0.35" />
+        <circle cx="64" cy="15" r="1.1" fill="#8B4A20" opacity="0.35" />
+        <circle cx="54" cy="20" r="1.1" fill="#8B4A20" opacity="0.35" />
+        <circle cx="59" cy="20" r="1.1" fill="#8B4A20" opacity="0.35" />
+        <circle cx="64" cy="20" r="1.1" fill="#8B4A20" opacity="0.35" />
+
+        {/* Centre gauze pad */}
+        <rect x="23" y="6" width="26" height="16" rx="2" fill="#F5C4A0" stroke="#C87848" strokeWidth="1.2" />
+        {/* Gauze cross-hatch lines */}
+        <line x1="27" y1="9"  x2="27" y2="19" stroke="#8B4A20" strokeWidth="0.8" opacity="0.2" />
+        <line x1="31" y1="9"  x2="31" y2="19" stroke="#8B4A20" strokeWidth="0.8" opacity="0.2" />
+        <line x1="35" y1="9"  x2="35" y2="19" stroke="#8B4A20" strokeWidth="0.8" opacity="0.2" />
+        <line x1="39" y1="9"  x2="39" y2="19" stroke="#8B4A20" strokeWidth="0.8" opacity="0.2" />
+        <line x1="43" y1="9"  x2="43" y2="19" stroke="#8B4A20" strokeWidth="0.8" opacity="0.2" />
+        <line x1="23" y1="12" x2="49" y2="12" stroke="#8B4A20" strokeWidth="0.8" opacity="0.2" />
+        <line x1="23" y1="16" x2="49" y2="16" stroke="#8B4A20" strokeWidth="0.8" opacity="0.2" />
+
+        {/* Outer border re-drawn on top */}
+        <rect x="1" y="5" width="70" height="18" rx="9" fill="none" stroke="#C87848" strokeWidth="1.5" />
+        {/* Divider lines between adhesive and pad */}
+        <line x1="23" y1="5" x2="23" y2="23" stroke="#C87848" strokeWidth="1" opacity="0.5" />
+        <line x1="49" y1="5" x2="49" y2="23" stroke="#C87848" strokeWidth="1" opacity="0.5" />
+      </svg>
+
+
+      {/* Pin circle */}
+      <div
+        style={{
+          position: 'absolute',
+          top: 8,
+          right: 10,
+          width: 10,
+          height: 10,
+          borderRadius: '50%',
+          background: '#FF6B6B',
+          border: '1.5px solid #1A1A2E',
+          boxShadow: '1px 1px 0px #1A1A2E',
+        }}
+      />
+      {/* Content */}
+      <p
+        style={{
+          margin: '0 0 10px',
+          fontSize: 12,
+          fontWeight: 800,
+          color: '#1A1A2E',
+          textTransform: 'uppercase',
+          letterSpacing: '0.5px',
+          paddingBottom: 6,
+          borderBottom: '1.5px dashed rgba(26,26,46,0.3)',
+        }}
+      >
+        Use these credentials for Demo
+      </p>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+        <div>
+          <span
+            style={{
+              display: 'block',
+              fontFamily: 'JetBrains Mono, monospace',
+              fontSize: 10,
+              fontWeight: 700,
+              color: 'rgba(26,26,46,0.55)',
+              textTransform: 'uppercase',
+              letterSpacing: '0.4px',
+              marginBottom: 1,
+            }}
+          >
+            Username
+          </span>
+          <span
+            style={{
+              display: 'block',
+              fontFamily: 'JetBrains Mono, monospace',
+              fontSize: 11,
+              fontWeight: 600,
+              color: '#1A1A2E',
+              wordBreak: 'break-all',
+            }}
+          >
+            ikoomanoo@gmail.com
+          </span>
+        </div>
+        <div>
+          <span
+            style={{
+              display: 'block',
+              fontFamily: 'JetBrains Mono, monospace',
+              fontSize: 10,
+              fontWeight: 700,
+              color: 'rgba(26,26,46,0.55)',
+              textTransform: 'uppercase',
+              letterSpacing: '0.4px',
+              marginBottom: 1,
+            }}
+          >
+            Password
+          </span>
+          <span
+            style={{
+              display: 'block',
+              fontFamily: 'JetBrains Mono, monospace',
+              fontSize: 12,
+              fontWeight: 700,
+              color: '#1A1A2E',
+              letterSpacing: '0.5px',
+            }}
+          >
+            ABCDEFG
+          </span>
+        </div>
+      </div>
+      {/* Bottom squiggle decoration */}
+      <svg
+        width="100%"
+        height="8"
+        viewBox="0 0 180 8"
+        fill="none"
+        style={{ marginTop: 10, opacity: 0.35 }}
+      >
+        <path
+          d="M0 4 Q15 0 30 4 Q45 8 60 4 Q75 0 90 4 Q105 8 120 4 Q135 0 150 4 Q165 8 180 4"
+          stroke="#1A1A2E"
+          strokeWidth="1.5"
+          strokeLinecap="round"
+        />
+      </svg>
+    </motion.div>
+  )
+}
+
 // ── Google "G" icon ──────────────────────────────────────────────────────────
 function GoogleIcon() {
   return (
@@ -106,6 +301,9 @@ export default function AuthPage() {
         position: 'relative',
       }}
     >
+      {/* Demo credentials sticky note (top-right corner) */}
+      <DemoStickyNote />
+
       {/* Background doodle stars */}
       <svg width="40" height="40" style={{ position: 'absolute', top: '12%', left: '8%', opacity: 0.15 }} viewBox="0 0 40 40" fill="none">
         <path d="M20 4 L23 16 L36 20 L23 24 L20 36 L17 24 L4 20 L17 16 Z" stroke="#FF6B6B" strokeWidth="2" fill="none" />

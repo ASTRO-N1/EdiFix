@@ -1,12 +1,14 @@
 from fastapi import FastAPI, UploadFile, File, Depends, HTTPException, status, Body
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.security import APIKeyHeader
+from fastapi.responses import PlainTextResponse
 from pydantic import BaseModel
 import os
 import tempfile
 import uvicorn
 from groq import Groq
 from core_parser.edi_parser import EDIParser
+from core_parser.edi_generator import EDIGenerator
 from auth import verify_api_key, generate_api_key, verify_supabase_session
 import httpx
 from dotenv import load_dotenv
@@ -35,13 +37,20 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# \u2500\u2500 Request model \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500
+# ── Request models ────────────────────────────────────────────────────────────
 class ChatRequest(BaseModel):
     message: str
     parseResult: dict | None = None
     transactionType: str | None = None
 
-# \u2500\u2500 AI Chat endpoint \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500
+
+class GenerateRequest(BaseModel):
+    """Request body for EDI generation endpoint."""
+    tree: dict
+    delimiters: dict | None = None
+
+
+# ── AI Chat endpoint ──────────────────────────────────────────────────────────
 @app.post("/chat")
 async def chat(req: ChatRequest):
     system_prompt = """You are an expert EDI (Electronic Data Interchange) assistant.
@@ -66,12 +75,12 @@ User Question: {req.message}"""
         )
         reply = completion.choices[0].message.content
     except Exception as e:
-        reply = f"\u26a0\ufe0f AI error: {str(e)}"
+        reply = f"⚠️ AI error: {str(e)}"
 
     return {"reply": reply}
 
 
-# \u2500\u2500 Health check \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500
+# ── Health check ─────────────────────────────────────────────────────────────
 @app.get("/")
 def health_check():
     """Simple health check endpoint."""
@@ -87,12 +96,16 @@ def options_parse_edi_file():
 def options_keys():
     return {}
 
+@app.options("/api/v1/generate")
+def options_generate():
+    return {}
 
-# ── Parse endpoint (now secured with API key) ─────────────────────────────────
+
+# ── Parse endpoint (secured with API key) ─────────────────────────────────────
 @app.post("/api/v1/parse")
 async def parse_edi_file(
     file: UploadFile = File(...),
-    api_caller: dict = Depends(verify_api_key),   # ← API key required
+    api_caller: dict = Depends(verify_api_key),
 ):
     """
     Parses an EDI file and returns the JSON tree.
@@ -129,15 +142,95 @@ async def parse_edi_file(
             os.remove(temp_path)
 
 
-# ── API Key management endpoints (called by the frontend dashboard) ───────────
+# ── Generate endpoint — Convert JSON tree back to EDI string ─────────────────
+@app.post("/api/v1/generate", response_class=PlainTextResponse)
+async def generate_edi_file(
+    req: GenerateRequest,
+    api_caller: dict = Depends(verify_api_key),
+):
+    """
+    Generates an X12 EDI string from a JSON AST tree.
+    
+    Request Body:
+        {
+            "tree": { ... },
+            "delimiters": { "element_sep": "*", "subelement_sep": ":", "segment_sep": "~" }
+        }
+    
+    Returns: Plain text EDI string
+    """
+    try:
+        tree = req.tree
+        
+        if not tree:
+            raise HTTPException(status_code=400, detail="Missing 'tree' in request body.")
+        
+        if "envelope" not in tree:
+            raise HTTPException(status_code=400, detail="Invalid tree structure: missing 'envelope' key.")
+        
+        generator = EDIGenerator(tree)
+        
+        if req.delimiters:
+            generator.set_delimiters(
+                element_sep=req.delimiters.get("element_sep"),
+                subelement_sep=req.delimiters.get("subelement_sep"),
+                segment_sep=req.delimiters.get("segment_sep"),
+            )
+        
+        edi_string = generator.generate()
+        return edi_string
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"EDI generation failed: {str(e)}")
+
+
+@app.post("/api/v1/generate/json")
+async def generate_edi_file_json(
+    req: GenerateRequest,
+    api_caller: dict = Depends(verify_api_key),
+):
+    """
+    Same as /api/v1/generate but returns JSON with metadata.
+    """
+    try:
+        tree = req.tree
+        
+        if not tree:
+            raise HTTPException(status_code=400, detail="Missing 'tree' in request body.")
+        
+        generator = EDIGenerator(tree)
+        
+        if req.delimiters:
+            generator.set_delimiters(
+                element_sep=req.delimiters.get("element_sep"),
+                subelement_sep=req.delimiters.get("subelement_sep"),
+                segment_sep=req.delimiters.get("segment_sep"),
+            )
+        
+        edi_string = generator.generate()
+        
+        return {
+            "status": "success",
+            "edi_string": edi_string,
+            "segment_count": generator._segment_count,
+            "transaction_count": generator._transaction_count,
+            "group_count": generator._group_count,
+            "delimiters": generator.get_delimiters(),
+            "called_by": api_caller.get("name", "unknown") if api_caller else "web-dashboard",
+        }
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"EDI generation failed: {str(e)}")
+
+
+# ── API Key management endpoints ──────────────────────────────────────────────
 
 @app.post("/api/v1/keys")
 async def create_api_key(payload: dict = Body(...), verified_user_id: str = Depends(verify_supabase_session)):
-    """
-    Generate a new API key for the verified user.
-    Called by the frontend after the user is signed in.
-    Body: { "name": "My Key" }
-    """
     user_id = verified_user_id
     name = payload.get("name", "My API Key")
 
@@ -173,7 +266,7 @@ async def create_api_key(payload: dict = Body(...), verified_user_id: str = Depe
     return {
         "id": created["id"],
         "name": created["name"],
-        "key": raw_key,          # ← shown to the user ONCE
+        "key": raw_key,
         "key_prefix": key_prefix,
         "created_at": created["created_at"],
     }
@@ -181,9 +274,6 @@ async def create_api_key(payload: dict = Body(...), verified_user_id: str = Depe
 
 @app.get("/api/v1/keys")
 async def list_api_keys(verified_user_id: str = Depends(verify_supabase_session)):
-    """
-    List all API keys (masked) for a user.
-    """
     headers = {
         "apikey": SUPABASE_SERVICE_ROLE_KEY,
         "Authorization": f"Bearer {SUPABASE_SERVICE_ROLE_KEY}",
@@ -208,9 +298,6 @@ async def list_api_keys(verified_user_id: str = Depends(verify_supabase_session)
 
 @app.delete("/api/v1/keys/{key_id}")
 async def revoke_api_key(key_id: str, verified_user_id: str = Depends(verify_supabase_session)):
-    """
-    Revoke (delete) an API key by its UUID, verifying ownership.
-    """
     headers = {
         "apikey": SUPABASE_SERVICE_ROLE_KEY,
         "Authorization": f"Bearer {SUPABASE_SERVICE_ROLE_KEY}",

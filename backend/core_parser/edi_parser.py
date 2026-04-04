@@ -872,34 +872,37 @@ class EDIParser:
                 self._claim_amounts[cid]["claimed"] = claimed
 
             # ── Gap 2: CLM05 Place of Service / Frequency validation ──────────
-            clm05_raw = elements[5].strip() if len(elements) > 5 else ""
-            if clm05_raw:
-                clm05_parts = clm05_raw.split(self.subelement_sep)
-                pos_code    = clm05_parts[0].strip() if len(clm05_parts) > 0 else ""
-                freq_code   = clm05_parts[2].strip() if len(clm05_parts) > 2 else ""
+            # Guard: CLM05 only applies to 837 transactions, not 835/834
+            txn = self.metadata.get("transaction_type", "")
+            if txn == "837":
+                clm05_raw = elements[5].strip() if len(elements) > 5 else ""
+                if clm05_raw:
+                    clm05_parts = clm05_raw.split(self.subelement_sep)
+                    pos_code  = clm05_parts[0].strip() if len(clm05_parts) > 0 else ""
+                    freq_code = clm05_parts[2].strip() if len(clm05_parts) > 2 else ""
 
-                if not pos_code or not re.fullmatch(r"\d{2}", pos_code):
-                    self.errors.append({
-                        "line": line, "segment": "CLM", "field": "CLM05-1",
-                        "type": "InvalidPlaceOfService", "loop": self.get_current_loop(),
-                        "message": f"CLM05 Place of Service '{pos_code}' must be a 2-digit numeric code.",
-                        "suggestion": "Common values: 11=Office, 21=Inpatient Hospital, 22=Outpatient Hospital.",
-                    })
+                    if not pos_code or not re.fullmatch(r"\d{2}", pos_code):
+                        self.errors.append({
+                            "line": line, "segment": "CLM", "field": "CLM05-1",
+                            "type": "InvalidPlaceOfService", "loop": self.get_current_loop(),
+                            "message": f"CLM05 Place of Service '{pos_code}' must be a 2-digit numeric code.",
+                            "suggestion": "Common values: 11=Office, 21=Inpatient Hospital, 22=Outpatient Hospital.",
+                        })
 
-                if not freq_code or not re.fullmatch(r"\d", freq_code):
+                    if not freq_code or not re.fullmatch(r"\d", freq_code):
+                        self.errors.append({
+                            "line": line, "segment": "CLM", "field": "CLM05-3",
+                            "type": "InvalidClaimFrequency", "loop": self.get_current_loop(),
+                            "message": f"CLM05 Claim Frequency '{freq_code}' must be a single digit.",
+                            "suggestion": "Common values: 1=Original, 7=Replacement, 8=Void/Cancel.",
+                        })
+                else:
                     self.errors.append({
-                        "line": line, "segment": "CLM", "field": "CLM05-3",
-                        "type": "InvalidClaimFrequency", "loop": self.get_current_loop(),
-                        "message": f"CLM05 Claim Frequency '{freq_code}' must be a single digit.",
-                        "suggestion": "Common values: 1=Original, 7=Replacement, 8=Void/Cancel.",
+                        "line": line, "segment": "CLM", "field": "CLM05",
+                        "type": "MissingCLM05", "loop": self.get_current_loop(),
+                        "message": "CLM05 (Place of Service/Frequency composite) is missing or empty.",
+                        "suggestion": "CLM05 is required and must contain POS (2-digit) and frequency (1-digit) sub-elements.",
                     })
-            else:
-                self.errors.append({
-                    "line": line, "segment": "CLM", "field": "CLM05",
-                    "type": "MissingCLM05", "loop": self.get_current_loop(),
-                    "message": "CLM05 (Place of Service/Frequency composite) is missing or empty.",
-                    "suggestion": "CLM05 is required and must contain POS (2-digit) and frequency (1-digit) sub-elements.",
-                })
 
         elif seg_id == "HI":
             for idx in range(1, len(elements)):

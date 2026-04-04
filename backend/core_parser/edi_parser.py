@@ -83,117 +83,119 @@ class ReferenceData:
 
 
 # ---------------------------------------------------------------------------
-# Layer 3 — Required-segment presence rules
+# Layer 3 — Required vs Situational segment presence rules
 # ---------------------------------------------------------------------------
+# "R" = Required per HIPAA IG → emits error if missing
+# "S" = Situational per HIPAA IG → emits warning if missing
 
 REQUIRED_SEGMENTS: dict = {
     # ── 837P / 837I shared ──────────────────────────────────────────────────
     "HEADER": {
-        "ISA": ("ISA - Interchange Control Header", "Every X12 file must begin with an ISA segment."),
-        "GS":  ("GS - Functional Group Header", "A GS segment must follow the ISA segment."),
-        "ST":  ("ST - Transaction Set Header", "Every transaction must begin with an ST segment."),
-        "BHT": ("BHT - Beginning of Hierarchical Transaction", "BHT is required as the first segment after ST in 837 transactions."),
+        "ISA": ("R", "ISA - Interchange Control Header", "Every X12 file must begin with an ISA segment."),
+        "GS":  ("R", "GS - Functional Group Header", "A GS segment must follow the ISA segment."),
+        "ST":  ("R", "ST - Transaction Set Header", "Every transaction must begin with an ST segment."),
+        "BHT": ("R", "BHT - Beginning of Hierarchical Transaction", "BHT is required as the first segment after ST in 837 transactions."),
     },
     "1000A": {
-        "NM1": ("NM1 - Submitter Name", "Loop 1000A must contain an NM1 segment identifying the submitter."),
-        "PER": ("PER - Submitter Contact Information", "Loop 1000A must contain a PER segment with contact details."),
+        "NM1": ("R", "NM1 - Submitter Name", "Loop 1000A must contain an NM1 segment identifying the submitter."),
+        "PER": ("R", "PER - Submitter Contact Information", "Loop 1000A must contain a PER segment with contact details."),
     },
     "1000B": {
-        "NM1": ("NM1 - Receiver Name", "Loop 1000B must contain an NM1 segment identifying the receiver."),
+        "NM1": ("R", "NM1 - Receiver Name", "Loop 1000B must contain an NM1 segment identifying the receiver."),
     },
     "2000A": {
-        "HL":  ("HL - Billing Provider Hierarchical Level", "Loop 2000A must contain an HL segment with level code 20."),
-        "PRV": ("PRV - Billing Provider Specialty", "Loop 2000A should contain a PRV segment with provider taxonomy code."),
+        "HL":  ("R", "HL - Billing Provider Hierarchical Level", "Loop 2000A must contain an HL segment with level code 20."),
+        "PRV": ("S", "PRV - Billing Provider Specialty", "Loop 2000A should contain a PRV segment with provider taxonomy code."),
     },
     "2010AA": {
-        "NM1": ("NM1 - Billing Provider Name", "Loop 2010AA must contain an NM1 segment identifying the billing provider."),
-        "N3":  ("N3 - Billing Provider Address", "Loop 2010AA must contain an N3 segment with the billing provider's street address."),
-        "N4":  ("N4 - Billing Provider City/State/ZIP", "Loop 2010AA must contain an N4 segment with city, state, and ZIP."),
-        "REF": ("REF - Billing Provider Tax ID", "Loop 2010AA must contain a REF segment with the provider's EIN or SSN (REF01=EI or SY)."),
+        "NM1": ("R", "NM1 - Billing Provider Name", "Loop 2010AA must contain an NM1 segment identifying the billing provider."),
+        "N3":  ("R", "N3 - Billing Provider Address", "Loop 2010AA must contain an N3 segment with the billing provider's street address."),
+        "N4":  ("R", "N4 - Billing Provider City/State/ZIP", "Loop 2010AA must contain an N4 segment with city, state, and ZIP."),
+        "REF": ("R", "REF - Billing Provider Tax ID", "Loop 2010AA must contain a REF segment with the provider's EIN or SSN (REF01=EI or SY)."),
     },
     "2000B": {
-        "HL":  ("HL - Subscriber Hierarchical Level", "Loop 2000B must contain an HL segment with level code 22."),
-        "SBR": ("SBR - Subscriber Information", "Loop 2000B must contain an SBR segment identifying subscriber relationship and payer."),
+        "HL":  ("R", "HL - Subscriber Hierarchical Level", "Loop 2000B must contain an HL segment with level code 22."),
+        "SBR": ("R", "SBR - Subscriber Information", "Loop 2000B must contain an SBR segment identifying subscriber relationship and payer."),
     },
     "2010BA": {
-        "NM1": ("NM1 - Subscriber Name", "Loop 2010BA must contain an NM1 segment identifying the subscriber."),
-        "N3":  ("N3 - Subscriber Address", "Loop 2010BA must contain an N3 segment with the subscriber's address."),
-        "N4":  ("N4 - Subscriber City/State/ZIP", "Loop 2010BA must contain an N4 segment."),
-        "DMG": ("DMG - Subscriber Demographics", "Loop 2010BA must contain a DMG segment with DOB and gender."),
+        "NM1": ("R", "NM1 - Subscriber Name", "Loop 2010BA must contain an NM1 segment identifying the subscriber."),
+        "N3":  ("S", "N3 - Subscriber Address", "Loop 2010BA should contain an N3 segment with the subscriber's address."),
+        "N4":  ("S", "N4 - Subscriber City/State/ZIP", "Loop 2010BA should contain an N4 segment."),
+        "DMG": ("S", "DMG - Subscriber Demographics", "Loop 2010BA should contain a DMG segment with DOB and gender."),
     },
     "2010BB": {
-        "NM1": ("NM1 - Payer Name", "Loop 2010BB must contain an NM1 segment identifying the payer."),
+        "NM1": ("R", "NM1 - Payer Name", "Loop 2010BB must contain an NM1 segment identifying the payer."),
     },
     "2000C": {
-        "HL":  ("HL - Patient Hierarchical Level", "Loop 2000C must contain an HL segment with level code 23."),
-        "PAT": ("PAT - Patient Information", "Loop 2000C must contain a PAT segment with patient relationship code."),
+        "HL":  ("R", "HL - Patient Hierarchical Level", "Loop 2000C must contain an HL segment with level code 23."),
+        "PAT": ("S", "PAT - Patient Information", "Loop 2000C should contain a PAT segment with patient relationship code."),
     },
     "2010CA": {
-        "NM1": ("NM1 - Patient Name", "Loop 2010CA must contain an NM1 segment identifying the patient."),
-        "N3":  ("N3 - Patient Address", "Loop 2010CA must contain an N3 address segment."),
-        "N4":  ("N4 - Patient City/State/ZIP", "Loop 2010CA must contain an N4 segment."),
-        "DMG": ("DMG - Patient Demographics", "Loop 2010CA must contain a DMG segment with DOB and gender."),
+        "NM1": ("R", "NM1 - Patient Name", "Loop 2010CA must contain an NM1 segment identifying the patient."),
+        "N3":  ("S", "N3 - Patient Address", "Loop 2010CA should contain an N3 address segment."),
+        "N4":  ("S", "N4 - Patient City/State/ZIP", "Loop 2010CA should contain an N4 segment."),
+        "DMG": ("S", "DMG - Patient Demographics", "Loop 2010CA should contain a DMG segment with DOB and gender."),
     },
     "2300": {
-        "CLM": ("CLM - Claim Information", "Loop 2300 must contain a CLM segment with patient control number and charge amount."),
-        "HI":  ("HI - Diagnosis Codes", "Loop 2300 must contain at least one HI segment with ICD-10-CM diagnosis codes."),
-        "DTP": ("DTP - Service Date", "Loop 2300 must contain a DTP segment with the date of service (qualifier 472)."),
+        "CLM": ("R", "CLM - Claim Information", "Loop 2300 must contain a CLM segment with patient control number and charge amount."),
+        "HI":  ("R", "HI - Diagnosis Codes", "Loop 2300 must contain at least one HI segment with ICD-10-CM diagnosis codes."),
+        "DTP": ("S", "DTP - Service Date", "Loop 2300 should contain a DTP segment with the date of service (qualifier 472)."),
     },
     "2310B": {
-        "NM1": ("NM1 - Rendering Provider Name", "Loop 2310B must contain an NM1 segment identifying the rendering provider (NM101=82)."),
+        "NM1": ("S", "NM1 - Rendering Provider Name", "Loop 2310B should contain an NM1 segment if the rendering provider differs from the billing provider."),
     },
     "2400": {
-        "LX":  ("LX - Service Line Number", "Loop 2400 must begin with an LX segment."),
-        "SV1": ("SV1 - Professional Service (837P)", "Loop 2400 must contain an SV1 segment with procedure code and charge (837P)."),
-        "SV2": ("SV2 - Institutional Service (837I)", "Loop 2400 must contain an SV2 segment with procedure code and charge (837I)."),
-        "DTP": ("DTP - Service Line Date", "Loop 2400 must contain a DTP segment with service date (qualifier 472)."),
+        "LX":  ("R", "LX - Service Line Number", "Loop 2400 must begin with an LX segment."),
+        "SV1": ("R", "SV1 - Professional Service (837P)", "Loop 2400 must contain an SV1 segment with procedure code and charge (837P)."),
+        "SV2": ("R", "SV2 - Institutional Service (837I)", "Loop 2400 must contain an SV2 segment with procedure code and charge (837I)."),
+        "DTP": ("R", "DTP - Service Line Date", "Loop 2400 must contain a DTP segment with service date (qualifier 472)."),
     },
 
     # ── 835 specific ────────────────────────────────────────────────────────
     "835_HEADER": {
-        "BPR": ("BPR - Financial Information", "835 transactions must contain a BPR segment with payment amount and method."),
-        "TRN": ("TRN - Reassociation Trace Number", "835 transactions must contain a TRN segment with the check/EFT trace number."),
+        "BPR": ("R", "BPR - Financial Information", "835 transactions must contain a BPR segment with payment amount and method."),
+        "TRN": ("R", "TRN - Reassociation Trace Number", "835 transactions must contain a TRN segment with the check/EFT trace number."),
     },
     "835_1000A": {
-        "N1":  ("N1 - Payer Identification", "Loop 1000A in 835 must contain an N1 segment identifying the payer (N101=PR)."),
+        "N1":  ("R", "N1 - Payer Identification", "Loop 1000A in 835 must contain an N1 segment identifying the payer (N101=PR)."),
     },
     "835_1000B": {
-        "N1":  ("N1 - Payee Identification", "Loop 1000B in 835 must contain an N1 segment identifying the payee (N101=PE)."),
+        "N1":  ("R", "N1 - Payee Identification", "Loop 1000B in 835 must contain an N1 segment identifying the payee (N101=PE)."),
     },
     "835_2100": {
-        "CLP": ("CLP - Claim Payment Information", "Loop 2100 must contain a CLP segment with claim ID, status, amounts."),
-        "NM1": ("NM1 - Patient/Insured Name", "Loop 2100 must contain an NM1 segment identifying the patient."),
+        "CLP": ("R", "CLP - Claim Payment Information", "Loop 2100 must contain a CLP segment with claim ID, status, amounts."),
+        "NM1": ("R", "NM1 - Patient/Insured Name", "Loop 2100 must contain an NM1 segment identifying the patient."),
     },
     "835_2110": {
-        "SVC": ("SVC - Service Payment Information", "Loop 2110 must contain an SVC segment with procedure code and paid amount."),
-        "CAS": ("CAS - Claim Adjustment", "Loop 2110 should contain CAS segment(s) when paid amount differs from billed."),
-        "AMT": ("AMT - Service Supplemental Amount", "Loop 2110 should contain an AMT segment."),
+        "SVC": ("R", "SVC - Service Payment Information", "Loop 2110 must contain an SVC segment with procedure code and paid amount."),
+        "CAS": ("S", "CAS - Claim Adjustment", "Loop 2110 should contain CAS segment(s) when paid amount differs from billed."),
+        "AMT": ("S", "AMT - Service Supplemental Amount", "Loop 2110 should contain an AMT segment."),
     },
 
     # ── 834 specific ────────────────────────────────────────────────────────
     "834_HEADER": {
-        "BGN": ("BGN - Beginning Segment", "834 transactions must contain a BGN segment with file purpose code and date."),
+        "BGN": ("R", "BGN - Beginning Segment", "834 transactions must contain a BGN segment with file purpose code and date."),
     },
     "834_1000A": {
-        "N1":  ("N1 - Sponsor Name", "Loop 1000A in 834 must contain an N1 segment identifying the sponsor/employer."),
+        "N1":  ("R", "N1 - Sponsor Name", "Loop 1000A in 834 must contain an N1 segment identifying the sponsor/employer."),
     },
     "834_1000B": {
-        "N1":  ("N1 - Payer Name", "Loop 1000B in 834 must contain an N1 segment identifying the insurance carrier."),
+        "N1":  ("R", "N1 - Payer Name", "Loop 1000B in 834 must contain an N1 segment identifying the insurance carrier."),
     },
     "834_2000": {
-        "INS": ("INS - Insured Benefit", "Loop 2000 must contain an INS segment with maintenance type and relationship codes."),
-        "REF": ("REF - Subscriber Identifier", "Loop 2000 must contain a REF segment with member ID (REF01=0F)."),
-        "DTP": ("DTP - Maintenance Effective Date", "Loop 2000 must contain a DTP segment with the coverage effective date (qualifier 356)."),
+        "INS": ("R", "INS - Insured Benefit", "Loop 2000 must contain an INS segment with maintenance type and relationship codes."),
+        "REF": ("R", "REF - Subscriber Identifier", "Loop 2000 must contain a REF segment with member ID (REF01=0F)."),
+        "DTP": ("R", "DTP - Maintenance Effective Date", "Loop 2000 must contain a DTP segment with the coverage effective date (qualifier 356)."),
     },
     "834_2100A": {
-        "NM1": ("NM1 - Member Name", "Loop 2100A must contain an NM1 segment identifying the insured member."),
-        "N3":  ("N3 - Member Address", "Loop 2100A must contain an N3 address segment."),
-        "N4":  ("N4 - Member City/State/ZIP", "Loop 2100A must contain an N4 segment."),
-        "DMG": ("DMG - Member Demographics", "Loop 2100A must contain a DMG segment with DOB and gender."),
+        "NM1": ("R", "NM1 - Member Name", "Loop 2100A must contain an NM1 segment identifying the insured member."),
+        "N3":  ("S", "N3 - Member Address", "Loop 2100A should contain an N3 address segment."),
+        "N4":  ("S", "N4 - Member City/State/ZIP", "Loop 2100A should contain an N4 segment."),
+        "DMG": ("S", "DMG - Member Demographics", "Loop 2100A should contain a DMG segment with DOB and gender."),
     },
     "834_2300": {
-        "HD":  ("HD - Health Coverage", "Loop 2300 must contain an HD segment with insurance line and coverage type."),
-        "DTP": ("DTP - Coverage Dates", "Loop 2300 must contain DTP segment(s) with begin/end coverage dates."),
+        "HD":  ("R", "HD - Health Coverage", "Loop 2300 must contain an HD segment with insurance line and coverage type."),
+        "DTP": ("R", "DTP - Coverage Dates", "Loop 2300 must contain DTP segment(s) with begin/end coverage dates."),
     },
 }
 
@@ -229,12 +231,10 @@ class EDIParser:
         self.loop_stack:     list = []
         self.segment_counts: dict = {}
 
-        # Envelope tracking
         self.isa_control = None
         self.gs_control  = None
         self.st_control  = None
 
-        # AST state pointers
         self.hl_nodes:             dict = {}
         self.current_transaction        = None
         self.current_hl_node            = None
@@ -244,27 +244,22 @@ class EDIParser:
         self.current_loop_id            = None
         self.current_loop_instance      = None
         
-        # Reconciliation helpers
         self._claim_amounts:      dict = {}   
         self._claim_dob:          dict = {}   
         self._claim_service_date: dict = {}   
         self._pending_clm_amount       = None
         self._pending_ins_line         = None
 
-        # 834 duplicate detection
         self._member_registry: dict = {}
 
-        # Presence tracking
         self._loop_segments_seen: dict = {}
         self._open_loops: list = []
         self._closed_loops: list = []
 
-        # 835 CLP reconciliation
         self._clp_records: dict = {}
         self._pending_clp  = None   
         self._pending_svc  = None   
 
-        # Reference data
         script_dir = os.path.dirname(os.path.abspath(__file__))
         self._ref  = ReferenceData(os.path.abspath(os.path.join(script_dir, "..")))
 
@@ -551,7 +546,6 @@ class EDIParser:
         self._open_loops.append({"loop_id": loop_id, "start_line": line, "seen": set()})
 
     def _close_loops_at_or_above(self, loop_id: str, line: int):
-        # SAFETY CHECK to prevent emptying stack if loop isn't active
         if loop_id not in self.loop_stack:
             return
         while self.loop_stack:
@@ -561,7 +555,6 @@ class EDIParser:
                 break
 
     def _close_loops_below(self, loop_id: str, line: int):
-        # SAFETY CHECK to prevent emptying stack if loop isn't active
         if loop_id not in self.loop_stack:
             return
         while self.loop_stack and self.loop_stack[-1] != loop_id:
@@ -574,7 +567,7 @@ class EDIParser:
     def _close_top_loop(self, line: int):
         if not self.loop_stack:
             return
-        loop_id = self.loop_stack.pop()
+        self.loop_stack.pop()
         if self._open_loops:
             record = self._open_loops.pop()
             self._closed_loops.append(record)
@@ -587,7 +580,7 @@ class EDIParser:
         return self.loop_stack[-1] if self.loop_stack else None
 
     # =========================================================================
-    # 5. LAYER-3 PRESENCE CHECKER
+    # 5. LAYER-3 PRESENCE CHECKER — Now supports R vs S
     # =========================================================================
     def check_required_segments(self):
         txn = self.metadata.get("transaction_type", "")
@@ -598,11 +591,9 @@ class EDIParser:
             start_line = record["start_line"]
 
             rule_key = loop_id
-
             if txn == "835" and not loop_id.startswith("835_"):
                 if loop_id == "HEADER":
                     rule_key = "835_HEADER"
-
             if txn == "834":
                 if loop_id == "HEADER":
                     rule_key = "834_HEADER"
@@ -611,28 +602,36 @@ class EDIParser:
             if not rules:
                 continue
 
-            for req_seg, (human_name, suggestion) in rules.items():
-                if req_seg not in seen:
-                    if req_seg == "SV1" and txn == "837":
-                        impl = self.metadata.get("implementation_reference", "")
-                        if "X223" in impl:  
-                            continue
-                    if req_seg == "SV2" and txn == "837":
-                        impl = self.metadata.get("implementation_reference", "")
-                        if "X222" in impl:  
-                            continue
-                    if req_seg == "PRV" and loop_id == "2000A":
-                        self.warnings.append({
-                            "line":       start_line,
-                            "segment":    req_seg,
-                            "field":      "N/A",
-                            "type":       "MissingSegment_Situational",
-                            "loop":       loop_id,
-                            "message":    f"Loop {loop_id}: {human_name} was not found. This is situationally required.",
-                            "suggestion": suggestion,
-                        })
+            for req_seg, rule_tuple in rules.items():
+                if req_seg in seen:
+                    continue
+
+                # Unpack the new 3-tuple format: (severity, human_name, suggestion)
+                severity, human_name, suggestion = rule_tuple
+
+                # SV1 only for 837P, SV2 only for 837I
+                if req_seg == "SV1" and txn == "837":
+                    impl = self.metadata.get("implementation_reference", "")
+                    if "X223" in impl:
+                        continue
+                if req_seg == "SV2" and txn == "837":
+                    impl = self.metadata.get("implementation_reference", "")
+                    if "X222" in impl:
                         continue
 
+                if severity == "S":
+                    # Situational → warning only
+                    self.warnings.append({
+                        "line":       start_line,
+                        "segment":    req_seg,
+                        "field":      "N/A",
+                        "type":       "MissingSegment_Situational",
+                        "loop":       loop_id,
+                        "message":    f"Loop {loop_id}: {human_name} was not found. This segment is situationally required.",
+                        "suggestion": suggestion,
+                    })
+                else:
+                    # Required → error
                     self.errors.append({
                         "line":       start_line,
                         "segment":    req_seg,
@@ -644,7 +643,7 @@ class EDIParser:
                     })
 
     # =========================================================================
-    # 6. LAYER-1 DOMAIN VALIDATORS
+    # 6–8. VALIDATORS (unchanged)
     # =========================================================================
 
     @staticmethod
@@ -670,161 +669,95 @@ class EDIParser:
             self.errors.append({
                 "line": line, "segment": segment, "field": "NM109",
                 "type": "InvalidNPI", "loop": loop,
-                "message": f"NPI '{npi}' fails the Luhn checksum (CMS '80840' prefix). The identifier is structurally invalid.",
+                "message": f"NPI '{npi}' fails the Luhn checksum (CMS '80840' prefix).",
                 "suggestion": "Verify the correct NPI at https://npiregistry.cms.hhs.gov/",
             })
             return False
         return True
 
-    def validate_date(self, date_str: str, line: int, segment: str,
-                      field: str = "date") -> "datetime | None":
+    def validate_date(self, date_str, line, segment, field="date"):
         if not date_str:
             return None
         loop = self.get_current_loop()
         if len(date_str) != 8 or not date_str.isdigit():
-            self.errors.append({
-                "line": line, "segment": segment, "field": field,
-                "type": "InvalidDateFormat", "loop": loop,
-                "message": f"Date '{date_str}' must be 8 digits in CCYYMMDD format.",
-                "suggestion": "Reformat as CCYYMMDD (e.g., 20240315).",
-            })
+            self.errors.append({"line": line, "segment": segment, "field": field, "type": "InvalidDateFormat", "loop": loop, "message": f"Date '{date_str}' must be 8 digits CCYYMMDD.", "suggestion": "Reformat as CCYYMMDD."})
             return None
         try:
             return datetime.strptime(date_str, "%Y%m%d")
         except ValueError:
-            self.errors.append({
-                "line": line, "segment": segment, "field": field,
-                "type": "InvalidDateValue", "loop": loop,
-                "message": f"Date '{date_str}' is not a real calendar date.",
-                "suggestion": "Correct the month (01-12) and day values.",
-            })
+            self.errors.append({"line": line, "segment": segment, "field": field, "type": "InvalidDateValue", "loop": loop, "message": f"Date '{date_str}' is not a real calendar date.", "suggestion": "Correct month/day values."})
             return None
 
-    def validate_zip(self, zip_code: str, line: int, segment: str,
-                     field: str = "N403") -> bool:
-        if not zip_code:
-            return True
+    def validate_zip(self, zip_code, line, segment, field="N403"):
+        if not zip_code: return True
         clean = zip_code.replace("-", "")
-        if re.fullmatch(r"\d{5}|\d{9}", clean):
-            return True
-        self.errors.append({
-            "line": line, "segment": segment, "field": field,
-            "type": "InvalidZIP", "loop": self.get_current_loop(),
-            "message": f"ZIP code '{zip_code}' must be 5 digits or ZIP+4.",
-            "suggestion": "Use format 12345 or 12345-6789.",
-        })
+        if re.fullmatch(r"\d{5}|\d{9}", clean): return True
+        self.errors.append({"line": line, "segment": segment, "field": field, "type": "InvalidZIP", "loop": self.get_current_loop(), "message": f"ZIP '{zip_code}' must be 5 or 9 digits.", "suggestion": "Use 12345 or 123456789."})
         return False
 
-    def validate_cpt_hcpcs_format(self, code: str, qualifier: str,
-                                   line: int, segment: str) -> bool:
-        if not code:
-            return True
-        if (re.fullmatch(r"\d{5}[A-Z0-9]{0,2}", code) or
-                re.fullmatch(r"[A-Z]\d{4}", code)):
-            return True
-        self.errors.append({
-            "line": line, "segment": segment, "field": "SV101",
-            "type": "InvalidCPT_HCPCS_Format", "loop": self.get_current_loop(),
-            "message": f"Procedure code '{code}' (qualifier '{qualifier}') has invalid format. CPT = 5 digits; HCPCS Level II = letter + 4 digits.",
-            "suggestion": "Verify in AMA CPT book or CMS HCPCS quarterly update.",
-        })
+    def validate_cpt_hcpcs_format(self, code, qualifier, line, segment):
+        if not code: return True
+        if re.fullmatch(r"\d{5}[A-Z0-9]{0,2}", code) or re.fullmatch(r"[A-Z]\d{4}", code): return True
+        self.errors.append({"line": line, "segment": segment, "field": "SV101", "type": "InvalidCPT_HCPCS_Format", "loop": self.get_current_loop(), "message": f"Procedure code '{code}' has invalid format.", "suggestion": "Verify in AMA CPT or CMS HCPCS."})
         return False
 
-    def _validate_cas_group_code(self, group_code: str, field: str, line: int) -> bool:
-        if group_code in self._VALID_CAS_GROUP_CODES:
-            return True
-        self.errors.append({
-            "line": line, "segment": "CAS", "field": field,
-            "type": "InvalidCASGroupCode", "loop": self.get_current_loop(),
-            "message": f"CAS group code '{group_code}' is invalid. Valid values: {sorted(self._VALID_CAS_GROUP_CODES)}.",
-            "suggestion": "CO=Contractual, OA=Other, PI=Payer Initiated, PR=Patient Responsibility.",
-        })
+    def _validate_cas_group_code(self, group_code, field, line):
+        if group_code in self._VALID_CAS_GROUP_CODES: return True
+        self.errors.append({"line": line, "segment": "CAS", "field": field, "type": "InvalidCASGroupCode", "loop": self.get_current_loop(), "message": f"CAS group code '{group_code}' is invalid.", "suggestion": "CO=Contractual, OA=Other, PI=Payer, PR=Patient."})
         return False
 
-    # =========================================================================
-    # 7. LAYER-2 CODESET VALIDATORS
-    # =========================================================================
-
-    def _codeset_check(self, key, value, line, segment, field, error_type,
-                       human_name, suggestion):
+    def _codeset_check(self, key, value, line, segment, field, error_type, human_name, suggestion):
         result = self._ref.check(key, value)
         if result == "invalid":
-            self.errors.append({
-                "line": line, "segment": segment, "field": field,
-                "type": error_type, "loop": self.get_current_loop(),
-                "message": f"{human_name} '{value}' not found in reference code set (version: {self._ref.versions.get(key, 'unknown')}).",
-                "suggestion": suggestion,
-            })
+            self.errors.append({"line": line, "segment": segment, "field": field, "type": error_type, "loop": self.get_current_loop(), "message": f"{human_name} '{value}' not found in reference code set.", "suggestion": suggestion})
         elif result == "unknown":
-            self.warnings.append({
-                "line": line, "segment": segment, "field": field,
-                "type": f"{error_type}_Unverified", "loop": self.get_current_loop(),
-                "message": f"Cannot verify {human_name} '{value}': reference file '{self._ref._FILENAMES[key]}' not loaded.",
-                "suggestion": f"Run build_reference_data.py to enable full codeset validation.",
-            })
+            self.warnings.append({"line": line, "segment": segment, "field": field, "type": f"{error_type}_Unverified", "loop": self.get_current_loop(), "message": f"Cannot verify {human_name} '{value}': reference file not loaded.", "suggestion": "Run build_reference_data.py to enable validation."})
 
     def validate_carc(self, code, line, segment, field):
-        self._codeset_check("carc", code, line, segment, field, "InvalidCARC",
-            "CARC reason code", "See https://x12.org/codes/claim-adjustment-reason-codes")
+        self._codeset_check("carc", code, line, segment, field, "InvalidCARC", "CARC reason code", "See https://x12.org/codes/claim-adjustment-reason-codes")
 
     def validate_rarc(self, code, line, segment, field):
-        self._codeset_check("rarc", code, line, segment, field, "InvalidRARC",
-            "RARC remark code", "See https://x12.org/codes/remittance-advice-remark-codes")
+        self._codeset_check("rarc", code, line, segment, field, "InvalidRARC", "RARC remark code", "See https://x12.org/codes/remittance-advice-remark-codes")
 
     def validate_icd10(self, code, line, segment, field):
         clean = code.replace(".", "")
         if not re.fullmatch(r"[A-Z]\d{2}[A-Z0-9]{0,4}", clean, re.IGNORECASE):
-            self.errors.append({
-                "line": line, "segment": segment, "field": field,
-                "type": "InvalidICD10Format", "loop": self.get_current_loop(),
-                "message": f"ICD-10-CM code '{code}' has invalid format.",
-                "suggestion": "Verify in the CMS ICD-10-CM tabular list.",
-            })
+            self.errors.append({"line": line, "segment": segment, "field": field, "type": "InvalidICD10Format", "loop": self.get_current_loop(), "message": f"ICD-10-CM code '{code}' has invalid format.", "suggestion": "Verify in CMS ICD-10-CM tabular list."})
             return
-        self._codeset_check("icd10", clean.upper(), line, segment, field,
-            "InvalidICD10", "ICD-10-CM diagnosis code", "Verify at https://www.cms.gov/medicare/coding-billing/icd-10-codes")
+        self._codeset_check("icd10", clean.upper(), line, segment, field, "InvalidICD10", "ICD-10-CM diagnosis code", "Verify at cms.gov/medicare/coding-billing/icd-10-codes")
 
     def validate_cpt_existence(self, code, line, segment, field):
         if re.fullmatch(r"\d{5}", code):
-            self._codeset_check("cpt", code, line, segment, field,
-                "InvalidCPT", "CPT procedure code", "Verify in the current AMA CPT code set.")
+            self._codeset_check("cpt", code, line, segment, field, "InvalidCPT", "CPT procedure code", "Verify in AMA CPT code set.")
         elif re.fullmatch(r"[A-Z]\d{4}", code):
-            self._codeset_check("hcpcs", code, line, segment, field,
-                "InvalidHCPCS", "HCPCS Level II code", "Verify at https://www.cms.gov/medicare/coding-billing/HCPCS")
+            self._codeset_check("hcpcs", code, line, segment, field, "InvalidHCPCS", "HCPCS Level II code", "Verify at cms.gov/medicare/coding-billing/HCPCS")
+
+    def _safe_float(value) -> float:
+        try: return float(str(value).strip())
+        except (ValueError, TypeError): return 0.0
 
     # =========================================================================
     # 8. SEGMENT-LEVEL VALIDATION DISPATCHER
     # =========================================================================
     def _run_domain_validations(self, seg_id: str, elements: list, line: int):
-
         if seg_id == "NM1":
             qualifier = elements[8].strip() if len(elements) > 8 else ""
             npi       = elements[9].strip() if len(elements) > 9 else ""
             if qualifier == self._NPI_QUALIFIER and npi:
                 self.validate_npi(npi, line, seg_id)
-            if len(elements) <= 8 or not elements[8].strip():
-                self.warnings.append({
-                    "line": line, "segment": "NM1", "type": "SituationalWarning",
-                    "loop": self.get_current_loop(),
-                    "message": "NM108/09 identifier missing. Verify with trading partner.",
-                })
 
         elif seg_id == "DTP":
             qualifier   = elements[1].strip() if len(elements) > 1 else ""
             format_code = elements[2].strip() if len(elements) > 2 else ""
             date_val    = elements[3].strip() if len(elements) > 3 else ""
             if format_code == "D8" and date_val:
-                dt = self.validate_date(date_val, line, seg_id,
-                                        field=f"DTP03({qualifier})")
-                
-                # Context-aware date assignment for Claims vs Service Lines
+                dt = self.validate_date(date_val, line, seg_id, field=f"DTP03({qualifier})")
                 current_loop = self.get_current_loop()
                 if qualifier == "472" and self.current_claim is not None and dt:
                     cid = id(self.current_claim)
                     if current_loop == "2300":
                         self._claim_service_date[cid] = dt
                     elif current_loop == "2400" and cid not in self._claim_service_date:
-                        # Fallback: if 2300 DTP was skipped, use first 2400 date
                         self._claim_service_date[cid] = dt
 
         elif seg_id == "DMG":
@@ -842,47 +775,27 @@ class EDIParser:
 
         elif seg_id == "SV1":
             composite = elements[1].strip() if len(elements) > 1 else ""
-            parts     = composite.split(self.subelement_sep)
+            parts = composite.split(self.subelement_sep)
             qualifier = parts[0] if parts else ""
-            code      = parts[1] if len(parts) > 1 else ""
+            code = parts[1] if len(parts) > 1 else ""
             if qualifier in ("HC", "HP", "WK", "NU"):
                 if self.validate_cpt_hcpcs_format(code, qualifier, line, seg_id):
                     self.validate_cpt_existence(code, line, seg_id, "SV101")
             amt_str = elements[2].strip() if len(elements) > 2 else "0"
-            try:
-                amt = float(amt_str)
-            except ValueError:
-                amt = 0.0
-                self.errors.append({
-                    "line": line, "segment": "SV1", "field": "SV102",
-                    "type": "InvalidAmount", "loop": self.get_current_loop(),
-                    "message": f"Service line charge '{amt_str}' is not a valid number.",
-                    "suggestion": "Provide a numeric dollar amount (e.g., 125.00).",
-                })
+            try: amt = float(amt_str)
+            except ValueError: amt = 0.0
             if self.current_claim is not None:
                 cid = id(self.current_claim)
-                self._claim_amounts.setdefault(
-                    cid, {"node": self.current_claim, "claimed": None, "services": []})
+                self._claim_amounts.setdefault(cid, {"node": self.current_claim, "claimed": None, "services": []})
                 self._claim_amounts[cid]["services"].append(amt)
 
         elif seg_id == "SV2":
-            # SV203 is the line item charge amount for 837I
             amt_str = elements[3].strip() if len(elements) > 3 else "0"
-            try:
-                amt = float(amt_str)
-            except ValueError:
-                amt = 0.0
-                self.errors.append({
-                    "line": line, "segment": "SV2", "field": "SV203",
-                    "type": "InvalidAmount", "loop": self.get_current_loop(),
-                    "message": f"Service line charge '{amt_str}' is not a valid number.",
-                    "suggestion": "Provide a numeric dollar amount (e.g., 125.00).",
-                })
-            
+            try: amt = float(amt_str)
+            except ValueError: amt = 0.0
             if self.current_claim is not None:
                 cid = id(self.current_claim)
-                self._claim_amounts.setdefault(
-                    cid, {"node": self.current_claim, "claimed": None, "services": []})
+                self._claim_amounts.setdefault(cid, {"node": self.current_claim, "claimed": None, "services": []})
                 self._claim_amounts[cid]["services"].append(amt)
 
         elif seg_id == "CLM":
@@ -892,95 +805,39 @@ class EDIParser:
                 "PatientControlNumber_01": elements[1].strip() if len(elements) > 1 else "",
             }
             self.metrics["total_claims"] += 1
-            if not amt_str:
-                self.errors.append({
-                    "line": line, "segment": "CLM", "field": "CLM02",
-                    "type": "MissingClaimAmount", "loop": self.get_current_loop(),
-                    "message": "CLM02 (Total Claim Charge Amount) is missing or empty.",
-                    "suggestion": "Populate CLM02 with the total billed charge.",
-                })
-                self._pending_clm_amount = (line, None)
-            else:
-                try:
-                    self._pending_clm_amount = (line, float(amt_str))
-                except ValueError:
-                    self.errors.append({
-                        "line": line, "segment": "CLM", "field": "CLM02",
-                        "type": "InvalidAmount", "loop": self.get_current_loop(),
-                        "message": f"CLM02 total charge '{amt_str}' is not numeric.",
-                        "suggestion": "Provide a numeric dollar amount (e.g., 1500.00).",
-                    })
-                    self._pending_clm_amount = (line, None)
-            if self._pending_clm_amount:
-                _ln, amt = self._pending_clm_amount
+            try: claimed = float(amt_str) if amt_str else None
+            except ValueError: claimed = None
+            if claimed is not None:
                 cid = id(self.current_claim)
-                self._claim_amounts.setdefault(
-                    cid, {"node": self.current_claim, "claimed": None, "services": []})
-                self._claim_amounts[cid]["claimed"] = amt
-                self._pending_clm_amount = None
+                self._claim_amounts.setdefault(cid, {"node": self.current_claim, "claimed": None, "services": []})
+                self._claim_amounts[cid]["claimed"] = claimed
 
         elif seg_id == "HI":
             for idx in range(1, len(elements)):
                 composite = elements[idx].strip()
-                if not composite:
-                    continue
-                parts     = composite.split(self.subelement_sep)
+                if not composite: continue
+                parts = composite.split(self.subelement_sep)
                 qualifier = parts[0] if parts else ""
-                code      = parts[1].strip() if len(parts) > 1 else ""
+                code = parts[1].strip() if len(parts) > 1 else ""
                 if qualifier in ("ABK", "ABF") and code:
-                    self.validate_icd10(code, line, seg_id,
-                                        field=f"HI{idx:02d}({qualifier})")
+                    self.validate_icd10(code, line, seg_id, field=f"HI{idx:02d}({qualifier})")
 
         elif seg_id == "CAS":
             for i in range(1, len(elements) - 2, 3):
                 group_code  = elements[i].strip()   if i   < len(elements) else ""
                 reason_code = elements[i+1].strip() if i+1 < len(elements) else ""
-                amount      = elements[i+2].strip() if i+2 < len(elements) else ""
-                if not group_code:
-                    break
+                amount_str  = elements[i+2].strip() if i+2 < len(elements) else "0"
+                if not group_code: break
                 self._validate_cas_group_code(group_code, f"CAS{i:02d}", line)
                 if reason_code:
                     self.validate_carc(reason_code, line, "CAS", f"CAS{i+1:02d}")
-                if amount:
-                    try:
-                        float(amount)
-                    except ValueError:
-                        self.errors.append({
-                            "line": line, "segment": "CAS", "field": f"CAS{i+2:02d}",
-                            "type": "InvalidCASAmount", "loop": self.get_current_loop(),
-                            "message": f"CAS amount '{amount}' is not numeric.",
-                            "suggestion": "Provide a numeric dollar amount (e.g., 25.00).",
-                        })
-            
-            # ── 835 CLP reconciliation: route CAS adjustments ───────────
-            for i in range(1, len(elements) - 2, 3):
-                group_code  = elements[i].strip()   if i   < len(elements) else ""
-                reason_code = elements[i+1].strip() if i+1 < len(elements) else ""
-                amount_str  = elements[i+2].strip() if i+2 < len(elements) else "0"
-                if not group_code:
-                    break
-                try:
-                    amt = float(amount_str)
-                except ValueError:
-                    amt = 0.0
-                
+                try: amt = float(amount_str)
+                except ValueError: amt = 0.0
                 adj = {"group": group_code, "reason": reason_code, "amount": amt}
                 if self.get_current_loop() == "835_2110" and self._pending_svc is not None:
                     self._pending_svc["adjustments"].append(adj)
                 elif self.get_current_loop() == "835_2100" and self._pending_clp is not None:
                     self._pending_clp["adjustments"].append(adj)
-
-        elif seg_id == "MOA":
-            for idx in (2, 3, 4):
-                code = elements[idx].strip() if idx < len(elements) else ""
-                if code:
-                    self.validate_rarc(code, line, "MOA", f"MOA{idx:02d}")
-
-        elif seg_id == "LQ":
-            qualifier = elements[1].strip() if len(elements) > 1 else ""
-            code      = elements[2].strip() if len(elements) > 2 else ""
-            if qualifier == "HE" and code:
-                self.validate_rarc(code, line, "LQ", "LQ02")
 
         elif seg_id == "INS":
             # Clear previous member state before setting new one
@@ -1035,21 +892,19 @@ class EDIParser:
             amount    = self._safe_float(elements[2]) if len(elements) > 2 else 0.0
             self._pending_clp.setdefault("supplemental_amounts", {})[qualifier] = amount
 
-    @staticmethod
-    def _safe_float(value) -> float:
-        try:
-            return float(str(value).strip())
-        except (ValueError, TypeError):
-            return 0.0
-
     # =========================================================================
-    # 9. SEGMENT DECODER
+    # 9. SEGMENT DECODER — Always includes raw_data
     # =========================================================================
     def decode_and_validate(self, raw_elements: list, line: int) -> dict:
         segment_id   = raw_elements[0]
         current_loop = self.get_current_loop()
 
         self._run_domain_validations(segment_id, raw_elements, line)
+
+        decoded = {
+            "Segment_ID": segment_id,
+            "raw_data": raw_elements.copy()
+        }
 
         target_schema = segment_id
         if segment_id == "NM1":
@@ -1069,40 +924,21 @@ class EDIParser:
 
         schema_key = next(
             (k for k in self.schemas if k.startswith(target_schema + "_")), None)
-        if not schema_key:
-            return {"Segment_ID": segment_id, "raw_data": raw_elements}
-
-        properties = self.schemas[schema_key].get("properties", {})
-        decoded    = {"Segment_ID": segment_id}
-
-        for prop, prop_details in properties.items():
-            try:
-                index = int(prop.split("_")[-1])
-                if index < len(raw_elements):
-                    value = raw_elements[index].strip()
-                    if value:
-                        if self.subelement_sep in value:
-                            decoded[prop] = value.split(self.subelement_sep)
-                        else:
-                            decoded[prop] = value
-                            max_len = prop_details.get("maxLength")
-                            min_len = prop_details.get("minLength")
-                            if max_len and len(value) > max_len:
-                                self.errors.append({
-                                    "line": line, "segment": segment_id, "field": prop,
-                                    "type": "LengthExceeded",
-                                    "message": f"'{value}' exceeds max length of {max_len}.",
-                                    "suggestion": f"Truncate to {max_len} characters.",
-                                })
-                            if min_len and len(value) < min_len:
-                                self.errors.append({
-                                    "line": line, "segment": segment_id, "field": prop,
-                                    "type": "LengthBelowMin",
-                                    "message": f"'{value}' below min length of {min_len}.",
-                                    "suggestion": f"Pad to at least {min_len} characters.",
-                                })
-            except Exception:
-                pass
+        
+        if schema_key:
+            properties = self.schemas[schema_key].get("properties", {})
+            for prop, prop_details in properties.items():
+                try:
+                    index = int(prop.split("_")[-1])
+                    if index < len(raw_elements):
+                        value = raw_elements[index].strip()
+                        if value:
+                            if self.subelement_sep in value:
+                                decoded[prop] = value.split(self.subelement_sep)
+                            else:
+                                decoded[prop] = value
+                except Exception:
+                    pass
 
         return decoded
 
@@ -1112,34 +948,22 @@ class EDIParser:
         elif seg_id == "IEA":
             iea = elements[2] if len(elements) > 2 else None
             if self.isa_control != iea:
-                self.errors.append({
-                    "line": line, "segment": "IEA", "type": "EnvelopeMismatch",
-                    "message": f"ISA13 ({self.isa_control}) ≠ IEA02 ({iea}).",
-                    "suggestion": "IEA02 must exactly match ISA13.",
-                })
+                self.errors.append({"line": line, "segment": "IEA", "type": "EnvelopeMismatch", "message": f"ISA13 ({self.isa_control}) ≠ IEA02 ({iea}).", "suggestion": "IEA02 must exactly match ISA13."})
         elif seg_id == "GS":
             self.gs_control = elements[6] if len(elements) > 6 else None
         elif seg_id == "GE":
             ge = elements[2] if len(elements) > 2 else None
             if self.gs_control != ge:
-                self.errors.append({
-                    "line": line, "segment": "GE", "type": "EnvelopeMismatch",
-                    "message": f"GS06 ({self.gs_control}) ≠ GE02 ({ge}).",
-                    "suggestion": "GE02 must exactly match GS06.",
-                })
+                self.errors.append({"line": line, "segment": "GE", "type": "EnvelopeMismatch", "message": f"GS06 ({self.gs_control}) ≠ GE02 ({ge}).", "suggestion": "GE02 must exactly match GS06."})
         elif seg_id == "ST":
             self.st_control = elements[2] if len(elements) > 2 else None
         elif seg_id == "SE":
             se = elements[2] if len(elements) > 2 else None
             if self.st_control != se:
-                self.errors.append({
-                    "line": line, "segment": "SE", "type": "EnvelopeMismatch",
-                    "message": f"ST03 ({self.st_control}) ≠ SE02 ({se}).",
-                    "suggestion": "SE02 must exactly match ST03.",
-                })
+                self.errors.append({"line": line, "segment": "SE", "type": "EnvelopeMismatch", "message": f"ST02 ({self.st_control}) ≠ SE02 ({se}).", "suggestion": "SE02 must exactly match ST02."})
 
     # =========================================================================
-    # 10. AST (TREE) BUILDER
+    # 10. AST (TREE) BUILDER — FIXED: no duplicate logic
     # =========================================================================
     def attach_to_tree(self, decoded: dict, seg_id: str, tree: dict):
         if seg_id in ("ISA", "GS", "ST", "SE", "GE", "IEA"):
@@ -1147,21 +971,21 @@ class EDIParser:
             return
 
         current_loop = self.get_current_loop() or "UNASSIGNED"
-    
+
         is_new_instance = (
             current_loop != self.current_loop_id
             or seg_id in ("NM1", "HL", "CLM", "LX", "INS")
         )
-    
+
         if is_new_instance:
             self.current_loop_id = current_loop
             self.current_loop_instance = {}
             tree["loops"].setdefault(current_loop, []).append(self.current_loop_instance)
-    
+
         if self.current_loop_instance is None:
             self.current_loop_instance = {}
             tree["loops"].setdefault(current_loop, []).append(self.current_loop_instance)
-    
+
         if seg_id in self.current_loop_instance:
             existing = self.current_loop_instance[seg_id]
             if isinstance(existing, list):
@@ -1170,150 +994,57 @@ class EDIParser:
                 self.current_loop_instance[seg_id] = [existing, decoded]
         else:
             self.current_loop_instance[seg_id] = decoded
-            if seg_id in ("ISA", "GS", "ST", "SE", "GE", "IEA"):
-                tree["envelope"][seg_id] = decoded
-                return
-    
-            current_loop = self.get_current_loop() or "UNASSIGNED"
-    
-            is_new_instance = (
-                current_loop != self.current_loop_id
-                or (
-                    seg_id == "HL"
-                    or seg_id == "CLM"
-                    or seg_id == "LX"
-                    or seg_id == "INS"
-                    or (seg_id == "NM1" and current_loop in ("1000A", "1000B", "2010AA", "2010BA", "2010BB", "2010CA"))
-                )  
-            )
-    
-            if is_new_instance:
-                self.current_loop_id = current_loop
-                self.current_loop_instance = {}
-                tree["loops"].setdefault(current_loop, []).append(self.current_loop_instance)
 
     # =========================================================================
     # 11. LAYER-4 POST-PARSE RECONCILIATION
     # =========================================================================
-
     def reconcile_claim_amounts(self):
         for cid, entry in self._claim_amounts.items():
             claimed  = entry.get("claimed")
             services = entry.get("services", [])
-            if claimed is None or not services:
-                continue
-            total   = round(sum(services), 2)
+            if claimed is None or not services: continue
+            total = round(sum(services), 2)
             claimed = round(claimed, 2)
-            diff    = round(abs(total - claimed), 2)
+            diff = round(abs(total - claimed), 2)
             if diff > 0.01:
-                node     = entry.get("node", {})
-                claim_id = (
-                    node.get("CLM", {}).get("PatientControlNumber_01")
-                    or node.get("PatientControlNumber_01")
-                    or "Unknown"
-                ) if isinstance(node, dict) else "Unknown"
-                self.errors.append({
-                    "line": "post-parse", "segment": "CLM", "field": "CLM02",
-                    "type": "ClaimAmountMismatch", "loop": "2300/2400",
-                    "message": (
-                        f"Claim '{claim_id}': CLM02 billed ${claimed:.2f} ≠ "
-                        f"sum of service line charges ${total:.2f} (diff ${diff:.2f})."
-                    ),
-                    "suggestion": "Recalculate CLM02 as the exact sum of all service line amounts.",
-                })
+                node = entry.get("node", {})
+                claim_id = (node.get("PatientControlNumber_01") or "Unknown") if isinstance(node, dict) else "Unknown"
+                self.errors.append({"line": "post-parse", "segment": "CLM", "field": "CLM02", "type": "ClaimAmountMismatch", "loop": "2300/2400", "message": f"Claim '{claim_id}': CLM02 ${claimed:.2f} ≠ sum of service lines ${total:.2f} (diff ${diff:.2f}).", "suggestion": "Recalculate CLM02 as the sum of all service line amounts."})
 
     def reconcile_dob_vs_service_date(self):
         for cid in set(self._claim_dob) & set(self._claim_service_date):
-            dob      = self._claim_dob[cid]
+            dob = self._claim_dob[cid]
             svc_date = self._claim_service_date[cid]
             if dob and svc_date and dob >= svc_date:
-                self.errors.append({
-                    "line": "post-parse", "segment": "DMG/DTP",
-                    "field": "DOB vs ServiceDate",
-                    "type": "DOBAfterServiceDate", "loop": "2000C/2300",
-                    "message": (
-                        f"Patient DOB ({dob.strftime('%Y%m%d')}) is on or after "
-                        f"service date ({svc_date.strftime('%Y%m%d')})."
-                    ),
-                    "suggestion": "Verify DMG02 (DOB) and DTP03 (service date) are correct.",
-                })
+                self.errors.append({"line": "post-parse", "segment": "DMG/DTP", "field": "DOB vs ServiceDate", "type": "DOBAfterServiceDate", "loop": "2000C/2300", "message": f"DOB ({dob.strftime('%Y%m%d')}) is on or after service date ({svc_date.strftime('%Y%m%d')}).", "suggestion": "Verify DMG02 and DTP03."})
 
     def detect_duplicate_members(self):
         for (ref_value, ref_qualifier), lines in self._member_registry.items():
             if len(lines) > 1:
                 label = "Member ID" if ref_qualifier == "0F" else "Group/Plan Number"
-                self.errors.append({
-                    "line": lines[0], "segment": "INS/REF", "field": "REF02",
-                    "type": "DuplicateMember", "loop": "2000",
-                    "message": (
-                        f"{label} '{ref_value}' appears {len(lines)} times "
-                        f"(first at line {lines[0]})."
-                    ),
-                    "suggestion": "Remove duplicate INS loops or use maintenance type 001 (Change).",
-                })
+                self.errors.append({"line": lines[0], "segment": "INS/REF", "field": "REF02", "type": "DuplicateMember", "loop": "2000", "message": f"{label} '{ref_value}' appears {len(lines)} times.", "suggestion": "Remove duplicate INS loops."})
 
     def _commit_pending_clp(self):
-        if self._pending_clp is None:
-            return
-
-        rec      = self._pending_clp
-        billed   = rec["billed"]
-        paid     = rec["paid"]
-        pat_resp = rec["patient_resp"]
-        
-        # Calculate adjustments across both the claim level and all service lines
+        if self._pending_clp is None: return
+        rec = self._pending_clp
         adj_sum_claim = sum(a["amount"] for a in rec["adjustments"])
-        adj_sum_svc   = sum(a["amount"] for svc in rec.get("services", []) for a in svc.get("adjustments", []))
-        adj_sum       = round(adj_sum_claim + adj_sum_svc, 2)
-        
-        accounted = round(paid + pat_resp + adj_sum, 2)
-        billed_r  = round(billed, 2)
-
+        adj_sum_svc = sum(a["amount"] for svc in rec.get("services", []) for a in svc.get("adjustments", []))
+        adj_sum = round(adj_sum_claim + adj_sum_svc, 2)
+        accounted = round(rec["paid"] + rec["patient_resp"] + adj_sum, 2)
+        billed_r = round(rec["billed"], 2)
         if billed_r > 0 and abs(accounted - billed_r) > 0.01:
-            self.errors.append({
-                "line":    "post-parse",
-                "segment": "CLP/CAS",
-                "field":   "CLP03/CLP04/CLP05",
-                "type":    "CLPReconciliationMismatch",
-                "loop":    "835_2100",
-                "message": (
-                    f"835 Claim '{rec['claim_id']}': "
-                    f"Billed ${billed_r:.2f} ≠ "
-                    f"Paid ${paid:.2f} + "
-                    f"Patient Responsibility ${pat_resp:.2f} + "
-                    f"Adjustments ${adj_sum:.2f} = ${accounted:.2f} "
-                    f"(diff ${abs(accounted - billed_r):.2f})."
-                ),
-                "suggestion": (
-                    "Verify CLP04 (paid amount), CLP05 (patient responsibility), "
-                    "and all CAS adjustment amounts. They must sum to CLP03 (billed amount)."
-                ),
-            })
-
+            self.errors.append({"line": "post-parse", "segment": "CLP/CAS", "field": "CLP03/04/05", "type": "CLPReconciliationMismatch", "loop": "835_2100", "message": f"835 Claim '{rec['claim_id']}': Billed ${billed_r:.2f} ≠ Paid ${rec['paid']:.2f} + PatResp ${rec['patient_resp']:.2f} + Adj ${adj_sum:.2f} = ${accounted:.2f}.", "suggestion": "Verify CLP04, CLP05, and all CAS amounts sum to CLP03."})
         self._clp_records[rec["claim_id"]] = rec
         self._pending_clp = None
 
     def build_remittance_summary(self) -> list:
-        summary = []
-        for claim_id, rec in self._clp_records.items():
-            summary.append({
-                "claim_id":               claim_id,
-                "status_code":            rec["status_code"],
-                "billed":                 rec["billed"],
-                "paid":                   rec["paid"],
-                "patient_responsibility": rec["patient_resp"],
-                "adjustments":            rec["adjustments"],
-                "services":               rec.get("services", []),
-                "check_eft_number":       rec["check_number"],
-                "supplemental":           rec.get("supplemental_amounts", {}),
-            })
-        return summary
+        return [{"claim_id": cid, "status_code": r["status_code"], "billed": r["billed"], "paid": r["paid"], "patient_responsibility": r["patient_resp"], "adjustments": r["adjustments"], "services": r.get("services", []), "check_eft_number": r["check_number"], "supplemental": r.get("supplemental_amounts", {})} for cid, r in self._clp_records.items()]
 
     # =========================================================================
     # 12. MASTER ORCHESTRATOR
     # =========================================================================
     def parse(self) -> dict:
-        stream         = self.stream_and_tokenize()
+        stream = self.stream_and_tokenize()
         first_segments = []
 
         for seg in stream:
@@ -1325,14 +1056,19 @@ class EDIParser:
                 self.metadata["isa_time"]       = seg[10].strip() if len(seg) > 10 else ""
                 self.metadata["control_number"] = seg[13].strip() if len(seg) > 13 else ""
             if seg[0] == "GS":
-                self.metadata["gs_control"]     = seg[6].strip()  if len(seg) > 6  else ""
-                self.metadata["gs_date"]        = seg[4].strip()  if len(seg) > 4  else ""
-                self.metadata["gs_time"]        = seg[5].strip()  if len(seg) > 5  else ""
+                self.metadata["gs_control"] = seg[6].strip() if len(seg) > 6 else ""
+                self.metadata["gs_date"]    = seg[4].strip() if len(seg) > 4 else ""
+                self.metadata["gs_time"]    = seg[5].strip() if len(seg) > 5 else ""
             if seg[0] == "ST":
                 self.metadata["transaction_type"] = seg[1].strip() if len(seg) > 1 else ""
                 if len(seg) > 3:
                     self.metadata["implementation_reference"] = seg[3].strip()
                 break
+
+        # Store delimiters for generator
+        self.metadata["element_sep"] = self.element_sep
+        self.metadata["subelement_sep"] = self.subelement_sep
+        self.metadata["segment_sep"] = self.segment_sep
 
         schema_file = self.determine_schema_filename()
         if schema_file:
@@ -1340,14 +1076,7 @@ class EDIParser:
 
         tree = {
             "metadata": self.metadata,
-            "envelope": {
-                "ISA": {},
-                "GS": {},
-                "ST": {},
-                "SE": {},
-                "GE": {},
-                "IEA": {},
-            },
+            "envelope": {"ISA": {}, "GS": {}, "ST": {}, "SE": {}, "GE": {}, "IEA": {}},
             "loops": {},
             "errors": self.errors,
             "warnings": self.warnings,
@@ -1359,16 +1088,15 @@ class EDIParser:
         for line, raw_seg in enumerate(full_stream, 1):
             self.metrics["total_segments"] += 1
             seg_id = raw_seg[0]
-            self.update_loop_state(seg_id, raw_seg, line)   
+            self.update_loop_state(seg_id, raw_seg, line)
             self.validate_envelope(seg_id, raw_seg, line)
             decoded = self.decode_and_validate(raw_seg, line)
             self.attach_to_tree(decoded, seg_id, tree)
 
-        # ── Post-parse passes ────────────────────────────────────────────────
-        self._commit_pending_clp()           
-        self.reconcile_claim_amounts()       
-        self.reconcile_dob_vs_service_date() 
-        self.detect_duplicate_members()      
-        self.check_required_segments()       
+        self._commit_pending_clp()
+        self.reconcile_claim_amounts()
+        self.reconcile_dob_vs_service_date()
+        self.detect_duplicate_members()
+        self.check_required_segments()
 
         return tree

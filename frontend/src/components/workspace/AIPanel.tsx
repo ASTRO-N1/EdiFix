@@ -10,7 +10,7 @@ interface Message {
 
 export default function AIPanel() {
   const [messages, setMessages] = useState<Message[]>([
-    { id: '1', role: 'assistant', text: 'Hi! I’m your AI Co-Pilot. Click on any error or segment in your file and I can explain it, or use “Ask AI to Fix” on any field.' }
+    { id: '1', role: 'assistant', text: 'Hi! I’m your virtual EDI assistant. Click on any error or segment in your file and I can explain it, or use “Ask AI to Fix” on any field.' }
   ])
   const [input, setInput] = useState('')
   const [isTyping, setIsTyping] = useState(false)
@@ -93,7 +93,7 @@ export default function AIPanel() {
       }}>
         <div style={{ fontSize: 18 }}>✦</div>
         <span style={{ fontFamily: 'Nunito, sans-serif', fontWeight: 800, fontSize: 13, color: '#1A1A2E', letterSpacing: '0.05em', textTransform: 'uppercase' }}>
-          AI Co-Pilot
+          Ask Me Anything!
         </span>
         <div style={{ flex: 1 }} />
         <button

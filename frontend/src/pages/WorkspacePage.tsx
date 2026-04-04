@@ -125,7 +125,7 @@ export default function WorkspacePage() {
           onMouseLeave={(e) => { e.currentTarget.style.right = '-2px'; e.currentTarget.style.boxShadow = '-3px 3px 0px #1A1A2E' }}
         >
           <div style={{ writingMode: 'vertical-rl', textOrientation: 'mixed', transform: 'rotate(180deg)', fontFamily: 'Nunito, sans-serif', fontWeight: 800, fontSize: 14, color: '#1A1A2E', letterSpacing: '0.05em' }}>
-            AI Co-Pilot ✨
+            Ask Me Anything ✨
           </div>
         </button>
       )}

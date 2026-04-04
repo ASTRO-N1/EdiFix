@@ -459,11 +459,10 @@ function InstanceFields({ instance, loopKey, errors, handleCommit, activeFieldPa
 
         // Convert arrays (composite elements like ["HC","99213"]) to joined string
         // Skip nested objects that aren't arrays (shouldn't happen, but safety)
-        let displayVal: string
         if (Array.isArray(val)) {
-          displayVal = val.join(':')
+          // array composites are fine — will be joined at render time
         } else if (val != null && typeof val !== 'object') {
-          displayVal = String(val)
+          // scalar — fine
         } else {
           continue
         }

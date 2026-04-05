@@ -289,8 +289,13 @@ export default function ActivityBar() {
             isActive={isActive}
             showLabel={showLabel}
             onClick={() => {
-              if (item.collapsesBar) {
-                // Explorer: open the panel AND collapse the bar
+              if (item.id === 'welcome') {
+                // Home: expand bar and navigate
+                setCollapsed(false)
+                setHovered(false)
+                setActiveMainView('welcome')
+              } else if (item.collapsesBar) {
+                // Explorer: collapse bar AND open editor panel
                 setCollapsed(true)
                 setHovered(false)
                 setActiveMainView('editor')
@@ -301,10 +306,14 @@ export default function ActivityBar() {
                   setIsLeftSidebarOpen(true)
                 }
               } else if (item.isMainViewToggle) {
-                // Home / Dashboard / Export: expand bar back
-                setCollapsed(false)
+                // Dashboard / Export: collapse bar and navigate
+                setCollapsed(true)
+                setHovered(false)
                 setActiveMainView(item.id as 'welcome' | 'dashboard' | 'export')
               } else {
+                // History and other panel items: collapse bar
+                setCollapsed(true)
+                setHovered(false)
                 setActiveMainView('editor')
                 if (isActive) {
                   setIsLeftSidebarOpen(!isLeftSidebarOpen)
@@ -410,7 +419,7 @@ export default function ActivityBar() {
           isActive={isReconcileActive}
           showLabel={showLabel}
           accentColor="#FFE66D"
-          onClick={() => { setCollapsed(false); setActiveMainView('reconcile') }}
+          onClick={() => { setCollapsed(true); setHovered(false); setActiveMainView('reconcile') }}
         />
 
         {/* Change Report */}
@@ -421,7 +430,7 @@ export default function ActivityBar() {
           isActive={isChangeReportActive}
           showLabel={showLabel}
           accentColor="#95E1D3"
-          onClick={() => { setCollapsed(false); setActiveMainView('change-report') }}
+          onClick={() => { setCollapsed(true); setHovered(false); setActiveMainView('change-report') }}
         />
 
         {/* Eligibility Check */}
@@ -432,7 +441,7 @@ export default function ActivityBar() {
           isActive={isEligibilityActive}
           showLabel={showLabel}
           accentColor="#FFE66D"
-          onClick={() => { setCollapsed(false); setActiveMainView('eligibility-scrubber') }}
+          onClick={() => { setCollapsed(true); setHovered(false); setActiveMainView('eligibility-scrubber') }}
         />
       </div>
     </div>

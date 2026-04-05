@@ -15,6 +15,7 @@ from core_parser.reconciliation import reconcile as run_reconciliation
 from auth import verify_api_key, generate_api_key, verify_supabase_session
 import httpx
 from dotenv import load_dotenv
+from core_parser.eligibility_scrubber import run_eligibility_scrubber
 
 load_dotenv(override=True)
 
@@ -458,6 +459,44 @@ async def reconcile_834_json_endpoint(
         return {"status": "error", "message": str(e)}
 
 
+class EligibilityScrubberRequest(BaseModel):
+    parsed_834_files: List[dict]
+    parsed_837: dict
+
+
+@app.options("/api/eligibility/scrub")
+def options_eligibility_srub():
+    return {}
+
+
+@app.post("/api/eligibility/scrub")
+async def eligibility_scrubber_endpoint(
+    req: EligibilityScrubberRequest,
+    api_caller: dict = Depends(verify_api_key),
+):
+    """
+    Eligibility Scrubber — validate 837 claims against 834 roster.
+    
+    Body:
+      {
+        "parsed_834_files": [<parse response>, <parse response>, ...],
+        "parsed_837": <parse response>
+      }
+      
+    Returns: Eligibility report with flagged claims.
+    """
+    try:
+        if len(req.parsed_834_files) == 0:
+            return {"status": "error", "message": "At least one 834 file is required."}
+        
+        report = run_eligibility_scrubber(req.parsed_834_files, req.parsed_837)
+        return {"status": "success", "report": report}
+    except Exception as e:
+        import traceback
+        print("Eligibility scrubber error:", traceback.format_exc())
+        return {"status": "error", "message": str(e)}
+
+
 # ── Helper to extract tree from various request formats ──────────────────────
 def _extract_tree_from_body(body: dict) -> dict:
     """
@@ -722,5 +761,41 @@ async def revoke_api_key(key_id: str, verified_user_id: str = Depends(verify_sup
     return {"status": "revoked", "id": key_id}
 
 
-if __name__ == "__main__":
-    uvicorn.run("main:app", host="0.0.0.0", port=8000, reload=True)
+# ── Eligibility Scrubber endpoint ────────────────────────────────────────────
+
+class EligibilityScrubberRequest(BaseModel):
+    parsed_834_files: List[dict]
+    parsed_837: dict
+
+
+@app.options("/api/eligibility/scrub")
+def options_eligibility_srub():
+    return {}
+
+
+@app.post("/api/eligibility/scrub")
+async def eligibility_scrubber_endpoint(
+    req: EligibilityScrubberRequest,
+    api_caller: dict = Depends(verify_api_key),
+):
+    """
+    Eligibility Scrubber — validate 837 claims against 834 roster.
+    
+    Body:
+      {
+        "parsed_834_files": [<parse response>, <parse response>, ...],
+        "parsed_837": <parse response>
+      }
+      
+    Returns: Eligibility report with flagged claims.
+    """
+    try:
+        if len(req.parsed_834_files) == 0:
+            return {"status": "error", "message": "At least one 834 file is required."}
+        
+        report = run_eligibility_scrubber(req.parsed_834_files, req.parsed_837)
+        return {"status": "success", "report": report}
+    except Exception as e:
+        import traceback
+        print("Eligibility scrubber error:", traceback.format_exc())
+        return {"status": "error", "message": str(e)}

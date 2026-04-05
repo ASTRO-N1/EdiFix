@@ -796,24 +796,51 @@ class EDIParser:
 
         elif seg_id == "SV1":
             composite = elements[1].strip() if len(elements) > 1 else ""
-            parts = composite.split(self.subelement_sep)
+            parts     = composite.split(self.subelement_sep)
             qualifier = parts[0] if parts else ""
-            code = parts[1] if len(parts) > 1 else ""
+            code      = parts[1] if len(parts) > 1 else ""
             if qualifier in ("HC", "HP", "WK", "NU"):
                 if self.validate_cpt_hcpcs_format(code, qualifier, line, seg_id):
                     self.validate_cpt_existence(code, line, seg_id, "SV101")
-            amt_str = elements[2].strip() if len(elements) > 2 else "0"
-            try: amt = float(amt_str)
-            except ValueError: amt = 0.0
+
+            # ── Gap 1: SV1 amount format validation ──────────────────────────
+            amt_str = elements[2].strip() if len(elements) > 2 else ""
+            try:
+                amt = float(amt_str) if amt_str else 0.0
+            except ValueError:
+                self.errors.append({
+                    "line": line, "segment": "SV1", "field": "SV102",
+                    "type": "InvalidAmountFormat", "loop": self.get_current_loop(),
+                    "message": f"SV102 charge amount '{amt_str}' is not a valid decimal number.",
+                    "suggestion": "SV102 must be a numeric value, e.g. '125.00'.",
+                })
+                amt = 0.0
             if self.current_claim is not None:
                 cid = id(self.current_claim)
                 self._claim_amounts.setdefault(cid, {"node": self.current_claim, "claimed": None, "services": []})
                 self._claim_amounts[cid]["services"].append(amt)
 
         elif seg_id == "SV2":
-            amt_str = elements[3].strip() if len(elements) > 3 else "0"
-            try: amt = float(amt_str)
-            except ValueError: amt = 0.0
+            # ── Gap 3: SVC procedure code validation (SV2 procedure code) ────
+            proc_composite = elements[2].strip() if len(elements) > 2 else ""
+            if proc_composite:
+                proc_parts     = proc_composite.split(self.subelement_sep)
+                proc_qualifier = proc_parts[0] if proc_parts else ""
+                proc_code      = proc_parts[1] if len(proc_parts) > 1 else proc_parts[0]
+                self.validate_cpt_hcpcs_format(proc_code, proc_qualifier, line, seg_id)
+
+            # ── Gap 1: SV2 amount format validation ──────────────────────────
+            amt_str = elements[3].strip() if len(elements) > 3 else ""
+            try:
+                amt = float(amt_str) if amt_str else 0.0
+            except ValueError:
+                self.errors.append({
+                    "line": line, "segment": "SV2", "field": "SV203",
+                    "type": "InvalidAmountFormat", "loop": self.get_current_loop(),
+                    "message": f"SV203 charge amount '{amt_str}' is not a valid decimal number.",
+                    "suggestion": "SV203 must be a numeric value, e.g. '250.00'.",
+                })
+                amt = 0.0
             if self.current_claim is not None:
                 cid = id(self.current_claim)
                 self._claim_amounts.setdefault(cid, {"node": self.current_claim, "claimed": None, "services": []})
@@ -826,46 +853,139 @@ class EDIParser:
                 "PatientControlNumber_01": elements[1].strip() if len(elements) > 1 else "",
             }
             self.metrics["total_claims"] += 1
-            try: claimed = float(amt_str) if amt_str else None
-            except ValueError: claimed = None
+
+            # ── Gap 1: CLM amount format validation ──────────────────────────
+            try:
+                claimed = float(amt_str) if amt_str else None
+            except ValueError:
+                self.errors.append({
+                    "line": line, "segment": "CLM", "field": "CLM02",
+                    "type": "InvalidAmountFormat", "loop": self.get_current_loop(),
+                    "message": f"CLM02 total charge '{amt_str}' is not a valid decimal number.",
+                    "suggestion": "CLM02 must be a numeric value, e.g. '500.00'.",
+                })
+                claimed = None
+
             if claimed is not None:
                 cid = id(self.current_claim)
                 self._claim_amounts.setdefault(cid, {"node": self.current_claim, "claimed": None, "services": []})
                 self._claim_amounts[cid]["claimed"] = claimed
 
+            # ── Gap 2: CLM05 Place of Service / Frequency validation ──────────
+            # Guard: CLM05 only applies to 837 transactions, not 835/834
+            txn = self.metadata.get("transaction_type", "")
+            if txn == "837":
+                clm05_raw = elements[5].strip() if len(elements) > 5 else ""
+                if clm05_raw:
+                    clm05_parts = clm05_raw.split(self.subelement_sep)
+                    pos_code  = clm05_parts[0].strip() if len(clm05_parts) > 0 else ""
+                    freq_code = clm05_parts[2].strip() if len(clm05_parts) > 2 else ""
+
+                    if not pos_code or not re.fullmatch(r"\d{2}", pos_code):
+                        self.errors.append({
+                            "line": line, "segment": "CLM", "field": "CLM05-1",
+                            "type": "InvalidPlaceOfService", "loop": self.get_current_loop(),
+                            "message": f"CLM05 Place of Service '{pos_code}' must be a 2-digit numeric code.",
+                            "suggestion": "Common values: 11=Office, 21=Inpatient Hospital, 22=Outpatient Hospital.",
+                        })
+
+                    if not freq_code or not re.fullmatch(r"\d", freq_code):
+                        self.errors.append({
+                            "line": line, "segment": "CLM", "field": "CLM05-3",
+                            "type": "InvalidClaimFrequency", "loop": self.get_current_loop(),
+                            "message": f"CLM05 Claim Frequency '{freq_code}' must be a single digit.",
+                            "suggestion": "Common values: 1=Original, 7=Replacement, 8=Void/Cancel.",
+                        })
+                else:
+                    self.errors.append({
+                        "line": line, "segment": "CLM", "field": "CLM05",
+                        "type": "MissingCLM05", "loop": self.get_current_loop(),
+                        "message": "CLM05 (Place of Service/Frequency composite) is missing or empty.",
+                        "suggestion": "CLM05 is required and must contain POS (2-digit) and frequency (1-digit) sub-elements.",
+                    })
+
         elif seg_id == "HI":
             for idx in range(1, len(elements)):
                 composite = elements[idx].strip()
                 if not composite: continue
-                parts = composite.split(self.subelement_sep)
+                parts     = composite.split(self.subelement_sep)
                 qualifier = parts[0] if parts else ""
-                code = parts[1].strip() if len(parts) > 1 else ""
+                code      = parts[1].strip() if len(parts) > 1 else ""
                 if qualifier in ("ABK", "ABF") and code:
                     self.validate_icd10(code, line, seg_id, field=f"HI{idx:02d}({qualifier})")
 
         elif seg_id == "CAS":
             for i in range(1, len(elements) - 2, 3):
-                group_code  = elements[i].strip()   if i   < len(elements) else ""
-                reason_code = elements[i+1].strip() if i+1 < len(elements) else ""
-                amount_str  = elements[i+2].strip() if i+2 < len(elements) else "0"
-                if not group_code: break
+                group_code  = elements[i].strip()   if i     < len(elements) else ""
+                reason_code = elements[i+1].strip() if i + 1 < len(elements) else ""
+                amount_str  = elements[i+2].strip() if i + 2 < len(elements) else "0"
+                if not group_code:
+                    break
                 self._validate_cas_group_code(group_code, f"CAS{i:02d}", line)
                 if reason_code:
                     self.validate_carc(reason_code, line, "CAS", f"CAS{i+1:02d}")
-                try: amt = float(amount_str)
-                except ValueError: amt = 0.0
-                adj = {"group": group_code, "reason": reason_code, "amount": amt, "group_code": group_code, "reason_code": reason_code}
+                try:
+                    amt = float(amount_str)
+                except ValueError:
+                    amt = 0.0
+                adj = {
+                    "group": group_code, "reason": reason_code, "amount": amt,
+                    "group_code": group_code, "reason_code": reason_code,
+                }
                 if self.get_current_loop() == "835_2110" and self._pending_svc is not None:
                     self._pending_svc["adjustments"].append(adj)
                 elif self.get_current_loop() == "835_2100" and self._pending_clp is not None:
                     self._pending_clp["adjustments"].append(adj)
 
         elif seg_id == "INS":
-            # Clear previous member state before setting new one
             self._pending_ins_line = line
 
+            # ── Gap 5: 834 INS code validation ───────────────────────────────
+            # INS02 = Member Relationship Code (2-char alphanumeric, e.g. "18", "01")
+            relationship_code = elements[2].strip() if len(elements) > 2 else ""
+            if not relationship_code:
+                self.errors.append({
+                    "line": line, "segment": "INS", "field": "INS02",
+                    "type": "MissingINSCode", "loop": self.get_current_loop(),
+                    "message": "INS02 (Member Relationship Code) is missing.",
+                    "suggestion": "Common values: 18=Self, 01=Spouse, 19=Child, 34=Other Adult.",
+                })
+            elif not re.fullmatch(r"[A-Z0-9]{2}", relationship_code, re.IGNORECASE):
+                self.errors.append({
+                    "line": line, "segment": "INS", "field": "INS02",
+                    "type": "InvalidINSCode", "loop": self.get_current_loop(),
+                    "message": f"INS02 Member Relationship Code '{relationship_code}' must be 2 alphanumeric characters.",
+                    "suggestion": "Common values: 18=Self, 01=Spouse, 19=Child, 34=Other Adult.",
+                })
+
+            # INS03 = Maintenance Type Code (2-char, e.g. "001"=Change, "021"=Addition)
+            maintenance_type = elements[3].strip() if len(elements) > 3 else ""
+            if not maintenance_type:
+                self.errors.append({
+                    "line": line, "segment": "INS", "field": "INS03",
+                    "type": "MissingINSCode", "loop": self.get_current_loop(),
+                    "message": "INS03 (Maintenance Type Code) is missing.",
+                    "suggestion": "Common values: 001=Change, 021=Addition, 024=Cancellation/Termination.",
+                })
+            elif not re.fullmatch(r"[A-Z0-9]{3}", maintenance_type, re.IGNORECASE):
+                self.errors.append({
+                    "line": line, "segment": "INS", "field": "INS03",
+                    "type": "InvalidINSCode", "loop": self.get_current_loop(),
+                    "message": f"INS03 Maintenance Type Code '{maintenance_type}' must be 3 alphanumeric characters.",
+                    "suggestion": "Common values: 001=Change, 021=Addition, 024=Cancellation/Termination.",
+                })
+
+            # INS04 = Maintenance Reason Code (2-char, e.g. "25"=Change in enrollment)
+            maintenance_reason = elements[4].strip() if len(elements) > 4 else ""
+            if maintenance_reason and not re.fullmatch(r"[A-Z0-9]{2}", maintenance_reason, re.IGNORECASE):
+                self.errors.append({
+                    "line": line, "segment": "INS", "field": "INS04",
+                    "type": "InvalidINSCode", "loop": self.get_current_loop(),
+                    "message": f"INS04 Maintenance Reason Code '{maintenance_reason}' must be 2 alphanumeric characters.",
+                    "suggestion": "Common values: 25=Change in Enrollment, AI=Initial Enrollment.",
+                })
+
         elif seg_id in ("HD", "LX"):
-            # Exiting the REF loop for members
             self._pending_ins_line = None
 
         elif seg_id == "REF" and self._pending_ins_line:
@@ -878,11 +998,18 @@ class EDIParser:
                 else:
                     self._member_registry[key] = [self._pending_ins_line, line]
 
+        # ── Gap 4: RARC validation via LQ segment ────────────────────────────
+        # LQ is the Health Care Remark Code segment used in 835 remittance.
+        # LQ01 = qualifier (e.g. "HE" for RARC), LQ02 = the remark code itself.
+        elif seg_id == "LQ":
+            lq_qualifier = elements[1].strip() if len(elements) > 1 else ""
+            lq_code      = elements[2].strip() if len(elements) > 2 else ""
+            if lq_qualifier == "HE" and lq_code:
+                self.validate_rarc(lq_code, line, "LQ", "LQ02")
+
         # ── 835 CLP: capture payment amounts for reconciliation ──────────────
         elif seg_id == "CLP":
-            # Commit the PREVIOUS pending CLP before starting a new one
             self._commit_pending_clp()
-
             claim_id     = elements[1].strip() if len(elements) > 1 else "Unknown"
             status_code  = elements[2].strip() if len(elements) > 2 else ""
             billed       = self._safe_float(elements[3]) if len(elements) > 3 else 0.0
@@ -896,228 +1023,368 @@ class EDIParser:
                 "patient_resp": patient_resp,
                 "adjustments":  [],
                 "services":     [],
-                "check_number": self._header_check_number if hasattr(self, '_header_check_number') else "",
+                "check_number": self._header_check_number if hasattr(self, "_header_check_number") else "",
             }
 
         elif seg_id == "SVC":
+            # ── Gap 3: SVC procedure code format validation ───────────────────
+            svc_composite = elements[1].strip() if len(elements) > 1 else ""
+            if svc_composite:
+                svc_parts      = svc_composite.split(self.subelement_sep)
+                svc_qualifier  = svc_parts[0].strip() if svc_parts else ""
+                svc_code       = svc_parts[1].strip() if len(svc_parts) > 1 else ""
+                if svc_code:
+                    self.validate_cpt_hcpcs_format(svc_code, svc_qualifier, line, seg_id)
+
             self._pending_svc = {"adjustments": []}
             if self._pending_clp is not None:
                 self._pending_clp["services"].append(self._pending_svc)
 
         elif seg_id == "TRN":
-            # TRN02 = check/EFT reference number
             ref = elements[2].strip() if len(elements) > 2 else ""
-            # Store at header level so all CLPs inherit it
             self._header_check_number = ref
-            # Also set on current CLP if one is open
             if self._pending_clp is not None:
                 self._pending_clp["check_number"] = ref
 
     # =========================================================================
-    # 9. SEGMENT DECODER — Always includes raw_data
+    # 9. REMITTANCE HELPERS  (called from _run_domain_validations)
     # =========================================================================
-    def decode_and_validate(self, raw_elements: list, line: int) -> dict:
-        segment_id   = raw_elements[0]
-        current_loop = self.get_current_loop()
-
-        self._run_domain_validations(segment_id, raw_elements, line)
-
-        decoded = {
-            "Segment_ID": segment_id,
-            "raw_data": raw_elements.copy()
-        }
-
-        target_schema = segment_id
-        if segment_id == "NM1":
-            ctx = {
-                "1000A":  "NM1_SubmitterName",
-                "1000B":  "NM1_ReceiverName",
-                "2010AA": "NM1_BillingProviderName",
-                "2010AB": "NM1_PayToProviderName",
-                "2010BA": "NM1_SubscriberName",
-                "2010BB": "NM1_PayerName",
-                "2010CA": "NM1_PatientName",
-                "2310A":  "NM1_ReferringProviderName",
-                "2310B":  "NM1_RenderingProviderName",
-                "2420A":  "NM1_RenderingProviderName"
-            }
-            target_schema = ctx.get(current_loop, segment_id)
-
-        schema_key = next(
-            (k for k in self.schemas if k.startswith(target_schema + "_")), None)
-        
-        if schema_key:
-            properties = self.schemas[schema_key].get("properties", {})
-            for prop, prop_details in properties.items():
-                try:
-                    index = int(prop.split("_")[-1])
-                    if index < len(raw_elements):
-                        value = raw_elements[index].strip()
-                        if value:
-                            if self.subelement_sep in value:
-                                decoded[prop] = value.split(self.subelement_sep)
-                            else:
-                                decoded[prop] = value
-                except Exception:
-                    pass
-
-        return decoded
-
-    def validate_envelope(self, seg_id: str, elements: list, line: int):
-        if seg_id == "ISA":
-            self.isa_control = elements[13] if len(elements) > 13 else None
-        elif seg_id == "IEA":
-            iea = elements[2] if len(elements) > 2 else None
-            if self.isa_control != iea:
-                self.errors.append({"line": line, "segment": "IEA", "type": "EnvelopeMismatch", "message": f"ISA13 ({self.isa_control}) ≠ IEA02 ({iea}).", "suggestion": "IEA02 must exactly match ISA13."})
-        elif seg_id == "GS":
-            self.gs_control = elements[6] if len(elements) > 6 else None
-        elif seg_id == "GE":
-            ge = elements[2] if len(elements) > 2 else None
-            if self.gs_control != ge:
-                self.errors.append({"line": line, "segment": "GE", "type": "EnvelopeMismatch", "message": f"GS06 ({self.gs_control}) ≠ GE02 ({ge}).", "suggestion": "GE02 must exactly match GS06."})
-        elif seg_id == "ST":
-            self.st_control = elements[2] if len(elements) > 2 else None
-        elif seg_id == "SE":
-            se = elements[2] if len(elements) > 2 else None
-            if self.st_control != se:
-                self.errors.append({"line": line, "segment": "SE", "type": "EnvelopeMismatch", "message": f"ST02 ({self.st_control}) ≠ SE02 ({se}).", "suggestion": "SE02 must exactly match ST02."})
-
-    # =========================================================================
-    # 10. AST (TREE) BUILDER — FIXED: no duplicate logic
-    # =========================================================================
-    def attach_to_tree(self, decoded: dict, seg_id: str, tree: dict):
-        if seg_id in ("ISA", "GS", "ST", "SE", "GE", "IEA"):
-            tree["envelope"][seg_id] = decoded
-            return
-
-        current_loop = self.get_current_loop() or "UNASSIGNED"
-
-        is_new_instance = (
-            current_loop != self.current_loop_id
-            or seg_id in ("NM1", "HL", "CLM", "LX", "INS", "HD", "COB")
-        )
-
-        if is_new_instance:
-            self.current_loop_id = current_loop
-            self.current_loop_instance = {}
-            tree["loops"].setdefault(current_loop, []).append(self.current_loop_instance)
-
-        if self.current_loop_instance is None:
-            self.current_loop_instance = {}
-            tree["loops"].setdefault(current_loop, []).append(self.current_loop_instance)
-
-        if seg_id in self.current_loop_instance:
-            existing = self.current_loop_instance[seg_id]
-            if isinstance(existing, list):
-                existing.append(decoded)
-            else:
-                self.current_loop_instance[seg_id] = [existing, decoded]
-        else:
-            self.current_loop_instance[seg_id] = decoded
-
-    # =========================================================================
-    # 11. LAYER-4 POST-PARSE RECONCILIATION
-    # =========================================================================
-    def reconcile_claim_amounts(self):
-        for cid, entry in self._claim_amounts.items():
-            claimed  = entry.get("claimed")
-            services = entry.get("services", [])
-            if claimed is None or not services: continue
-            total = round(sum(services), 2)
-            claimed = round(claimed, 2)
-            diff = round(abs(total - claimed), 2)
-            if diff > 0.01:
-                node = entry.get("node", {})
-                claim_id = (node.get("PatientControlNumber_01") or "Unknown") if isinstance(node, dict) else "Unknown"
-                self.errors.append({"line": "post-parse", "segment": "CLM", "field": "CLM02", "type": "ClaimAmountMismatch", "loop": "2300/2400", "message": f"Claim '{claim_id}': CLM02 ${claimed:.2f} ≠ sum of service lines ${total:.2f} (diff ${diff:.2f}).", "suggestion": "Recalculate CLM02 as the sum of all service line amounts."})
-
-    def reconcile_dob_vs_service_date(self):
-        for cid in set(self._claim_dob) & set(self._claim_service_date):
-            dob = self._claim_dob[cid]
-            svc_date = self._claim_service_date[cid]
-            if dob and svc_date and dob >= svc_date:
-                self.errors.append({"line": "post-parse", "segment": "DMG/DTP", "field": "DOB vs ServiceDate", "type": "DOBAfterServiceDate", "loop": "2000C/2300", "message": f"DOB ({dob.strftime('%Y%m%d')}) is on or after service date ({svc_date.strftime('%Y%m%d')}).", "suggestion": "Verify DMG02 and DTP03."})
-
-    def detect_duplicate_members(self):
-        for (ref_value, ref_qualifier), lines in self._member_registry.items():
-            if len(lines) > 1:
-                label = "Member ID" if ref_qualifier == "0F" else "Group/Plan Number"
-                self.errors.append({"line": lines[0], "segment": "INS/REF", "field": "REF02", "type": "DuplicateMember", "loop": "2000", "message": f"{label} '{ref_value}' appears {len(lines)} times.", "suggestion": "Remove duplicate INS loops."})
 
     def _commit_pending_clp(self):
-        if self._pending_clp is None: return
-        rec = self._pending_clp
-        adj_sum_claim = sum(a["amount"] for a in rec["adjustments"])
-        adj_sum_svc = sum(a["amount"] for svc in rec.get("services", []) for a in svc.get("adjustments", []))
-        adj_sum = round(adj_sum_claim + adj_sum_svc, 2)
-        accounted = round(rec["paid"] + rec["patient_resp"] + adj_sum, 2)
-        billed_r = round(rec["billed"], 2)
-        if billed_r > 0 and abs(accounted - billed_r) > 0.01:
-            self.errors.append({"line": "post-parse", "segment": "CLP/CAS", "field": "CLP03/04/05", "type": "CLPReconciliationMismatch", "loop": "835_2100", "message": f"835 Claim '{rec['claim_id']}': Billed ${billed_r:.2f} ≠ Paid ${rec['paid']:.2f} + PatResp ${rec['patient_resp']:.2f} + Adj ${adj_sum:.2f} = ${accounted:.2f}.", "suggestion": "Verify CLP04, CLP05, and all CAS amounts sum to CLP03."})
-        self._clp_records[rec["claim_id"]] = rec
+        """
+        Finalises the in-flight CLP record and moves it into _clp_records.
+        Called whenever a new CLP segment is encountered, or at end-of-parse.
+        Safe to call with no pending record (no-op).
+        """
+        if self._pending_clp is None:
+            return
+        clp = self._pending_clp
+        self._clp_records[clp["claim_id"]] = clp
         self._pending_clp = None
 
     def build_remittance_summary(self) -> list:
-        return [{"claim_id": cid, "status_code": r["status_code"], "billed": r["billed"], "paid": r["paid"], "patient_responsibility": r["patient_resp"], "adjustments": r["adjustments"], "services": r.get("services", []), "check_eft_number": r["check_number"], "supplemental": r.get("supplemental_amounts", {})} for cid, r in self._clp_records.items()]
+        """
+        Returns a clean, serialisation-safe list of CLP claim records.
+        Called by the /api/v1/parse-835 endpoint after parse() completes.
+        Each record shape:
+          {
+            claim_id, status_code, billed, paid,
+            patient_responsibility, adjustments, services,
+            check_eft_number
+          }
+        """
+        # Commit any still-open record (last CLP in file has no following CLP to trigger commit)
+        self._commit_pending_clp()
 
-    # =========================================================================
-    # 12. MASTER ORCHESTRATOR
-    # =========================================================================
-    def parse(self) -> dict:
-        stream = self.stream_and_tokenize()
-        first_segments = []
+        result = []
+        for claim_id, rec in self._clp_records.items():
+            result.append({
+                "claim_id":               rec.get("claim_id",    claim_id),
+                "status_code":            rec.get("status_code", ""),
+                "billed":                 rec.get("billed",      0.0),
+                "paid":                   rec.get("paid",        0.0),
+                "patient_responsibility": rec.get("patient_resp", 0.0),
+                "adjustments":            rec.get("adjustments", []),
+                "services":               rec.get("services",    []),
+                "check_eft_number":       rec.get("check_number", self._header_check_number),
+            })
+        return result
 
-        for seg in stream:
-            first_segments.append(seg)
-            if seg[0] == "ISA":
-                self.metadata["sender_id"]      = seg[6].strip()  if len(seg) > 6  else ""
-                self.metadata["receiver_id"]    = seg[8].strip()  if len(seg) > 8  else ""
-                self.metadata["isa_date"]       = seg[9].strip()  if len(seg) > 9  else ""
-                self.metadata["isa_time"]       = seg[10].strip() if len(seg) > 10 else ""
-                self.metadata["control_number"] = seg[13].strip() if len(seg) > 13 else ""
-            if seg[0] == "GS":
-                self.metadata["gs_control"] = seg[6].strip() if len(seg) > 6 else ""
-                self.metadata["gs_date"]    = seg[4].strip() if len(seg) > 4 else ""
-                self.metadata["gs_time"]    = seg[5].strip() if len(seg) > 5 else ""
-            if seg[0] == "ST":
-                self.metadata["transaction_type"] = seg[1].strip() if len(seg) > 1 else ""
-                if len(seg) > 3:
-                    self.metadata["implementation_reference"] = seg[3].strip()
-                break
-
-        # Store delimiters for generator
-        self.metadata["element_sep"] = self.element_sep
-        self.metadata["subelement_sep"] = self.subelement_sep
-        self.metadata["segment_sep"] = self.segment_sep
-
-        schema_file = self.determine_schema_filename()
-        if schema_file:
-            self.load_schema(schema_file)
-
-        tree = {
-            "metadata": self.metadata,
-            "envelope": {"ISA": {}, "GS": {}, "ST": {}, "SE": {}, "GE": {}, "IEA": {}},
-            "loops": {},
-            "errors": self.errors,
-            "warnings": self.warnings,
-            "metrics": self.metrics,
+    def _build_member_enrollment_summary(self, loops: dict) -> list:
+        """
+        Zips Loop 2000 (INS/REF/DTP), 2100A (NM1/DMG), 2300 (HD/DTP), 2320 (COB)
+        into grouped family units. Subscribers (INS01=Y) are group roots; dependents
+        (INS01=N) are nested under the most recent subscriber.
+        """
+        MAINT_LABELS = {
+            "001": "Change",
+            "021": "Addition",
+            "024": "Termination",
+            "030": "Audit / Active",
+        }
+        REL_LABELS = {
+            "18": "Self",
+            "01": "Spouse",
+            "19": "Child",
+            "34": "Other Adult",
+            "15": "Ward",
+            "53": "Life Partner",
         }
 
-        full_stream = itertools.chain(first_segments, stream)
+        def _raw(seg: dict, idx: int, fallback: str = "") -> str:
+            rd = seg.get("raw_data", [])
+            return rd[idx].strip() if idx < len(rd) else fallback
 
-        for line, raw_seg in enumerate(full_stream, 1):
+        def _get_instances(key: str):
+            raw = loops.get(key, [])
+            return raw if isinstance(raw, list) else [raw]
+
+        ins_instances  = _get_instances("834_2000")
+        nm1_instances  = _get_instances("834_2100A")
+        hd_instances   = _get_instances("834_2300")
+        cob_instances  = _get_instances("834_2320")
+
+        # Index COB and HD by position (each 2000 loop can have multiple 2300/2320)
+        # Simple approach: iterate in order and assign to the last seen member index
+        groups: list = []
+        current_sub_group: dict | None = None
+        hd_idx  = 0
+        cob_idx = 0
+
+        for i, ins_loop in enumerate(ins_instances):
+            ins_seg  = ins_loop.get("INS", {})
+            ref_seg  = ins_loop.get("REF", {})
+            dtp_seg  = ins_loop.get("DTP", {})
+            nm1_loop = nm1_instances[i] if i < len(nm1_instances) else {}
+            nm1_seg  = nm1_loop.get("NM1", {})
+            dmg_seg  = nm1_loop.get("DMG", {})
+
+            is_subscriber     = _raw(ins_seg, 1, "N").upper() == "Y"
+            relationship_code = _raw(ins_seg, 2)
+            maintenance_type  = _raw(ins_seg, 3)
+            member_id         = _raw(ref_seg, 2) or f"UNK-{i+1}"
+
+            first   = _raw(nm1_seg, 4)
+            last    = _raw(nm1_seg, 3)
+            name    = f"{first} {last}".strip() or "Unknown"
+
+            dob     = _raw(dmg_seg, 2)
+            gender_code = _raw(dmg_seg, 3)
+            gender  = "Male" if gender_code == "M" else "Female" if gender_code == "F" else gender_code
+
+            eff_date = _raw(dtp_seg, 3)
+
+            # Collect HD (coverage) records for this member
+            coverage: list = []
+            next_ins_hd = i + 1  # crude but effective for sequential files
+            while hd_idx < len(hd_instances):
+                hd_loop   = hd_instances[hd_idx]
+                hd_seg    = hd_loop.get("HD", {})
+                hd_dtp    = hd_loop.get("DTP", {})
+                ins_line  = _raw(hd_seg, 3)  # HD03 = insurance line
+                coverage_type = _raw(hd_seg, 4)  # HD04 = plan/coverage ID
+                coverage_level = _raw(hd_seg, 5)  # HD05 = coverage level
+                cov_date  = _raw(hd_dtp, 3)
+                coverage.append({
+                    "insurance_line":  ins_line,
+                    "plan_id":         coverage_type,
+                    "coverage_level":  coverage_level,
+                    "effective_date":  cov_date,
+                })
+                hd_idx += 1
+                # Stop collecting when we hit as many HDs as expected per member
+                # (safe heuristic: stop when we encounter a new subscriber)
+                if is_subscriber and len(coverage) >= 2:
+                    break
+                if not is_subscriber and len(coverage) >= 1:
+                    break
+
+            # Collect COB records for this member
+            cob_list: list = []
+            while cob_idx < len(cob_instances):
+                cob_loop = cob_instances[cob_idx]
+                cob_seg  = cob_loop.get("COB", {})
+                cob_nm1  = cob_loop.get("NM1", {})
+                payer_resp = _raw(cob_seg, 1)   # COB01 = payer responsibility
+                other_id   = _raw(cob_seg, 2)   # COB02 = other coverage ID
+                payer_name = _raw(cob_nm1, 3)   # NM103 = org name
+                cob_list.append({
+                    "payer_responsibility": payer_resp,
+                    "other_coverage_id":    other_id,
+                    "other_payer_name":     payer_name,
+                })
+                cob_idx += 1
+                break  # one COB block per member in most files
+
+            member_record = {
+                "member_id":          member_id,
+                "name":               name,
+                "dob":                dob,
+                "gender":             gender,
+                "relationship_code":  relationship_code,
+                "relationship_label": REL_LABELS.get(relationship_code, relationship_code or "Unknown"),
+                "is_subscriber":      is_subscriber,
+                "maintenance_type":   maintenance_type,
+                "maintenance_label":  MAINT_LABELS.get(maintenance_type, maintenance_type or "Unknown"),
+                "effective_date":     eff_date,
+                "coverage":           coverage,
+                "cob":                cob_list,
+            }
+
+            if is_subscriber:
+                current_sub_group = {
+                    "subscriber_id":   member_id,
+                    "subscriber_name": name,
+                    "family_members":  [member_record],
+                }
+                groups.append(current_sub_group)
+            else:
+                if current_sub_group is not None:
+                    current_sub_group["family_members"].append(member_record)
+                else:
+                    # Orphaned dependent — create a synthetic group
+                    orphan_group = {
+                        "subscriber_id":   "UNKNOWN",
+                        "subscriber_name": "Unknown Subscriber",
+                        "family_members":  [member_record],
+                    }
+                    groups.append(orphan_group)
+                    current_sub_group = orphan_group
+
+        return groups
+
+    # =========================================================================
+    # 10. TOP-LEVEL PARSE ENTRY POINT
+    # =========================================================================
+
+    def parse(self) -> dict:
+        """
+        Full parse pipeline:
+          1. Lex → token stream
+          2. Per-segment: update metadata, loop state, domain validations
+          3. Layer-3 presence checks on closed loops
+          4. Cross-segment reconciliation
+        Returns the complete JSON tree dict.
+        """
+        loops:    dict = {}
+        envelope: dict = {}
+        line = 0
+
+        for elements in self.stream_and_tokenize():
+            if not elements:
+                continue
+
+            line      += 1
+            seg_id     = elements[0].strip().upper()
             self.metrics["total_segments"] += 1
-            seg_id = raw_seg[0]
-            self.update_loop_state(seg_id, raw_seg, line)
-            self.validate_envelope(seg_id, raw_seg, line)
-            decoded = self.decode_and_validate(raw_seg, line)
-            self.attach_to_tree(decoded, seg_id, tree)
 
-        self._commit_pending_clp()
-        self.reconcile_claim_amounts()
-        self.reconcile_dob_vs_service_date()
-        self.detect_duplicate_members()
+            # ── Envelope / metadata segments ─────────────────────────────────
+            if seg_id == "ISA":
+                self.isa_control = elements[13].strip() if len(elements) > 13 else ""
+                self.metadata["sender_id"]   = elements[6].strip()  if len(elements) > 6  else ""
+                self.metadata["receiver_id"] = elements[8].strip()  if len(elements) > 8  else ""
+                self.metadata["control_number"] = self.isa_control
+                envelope["ISA"] = {f"ISA{i:02d}": v for i, v in enumerate(elements[1:], 1)}
+
+            elif seg_id == "GS":
+                self.gs_control = elements[6].strip() if len(elements) > 6 else ""
+                envelope["GS"]  = {f"GS{i:02d}": v for i, v in enumerate(elements[1:], 1)}
+
+            elif seg_id == "ST":
+                self.st_control = elements[2].strip() if len(elements) > 2 else ""
+                txn_set_id      = elements[1].strip() if len(elements) > 1 else ""
+                txn_map         = {"837": "837", "835": "835", "834": "834"}
+                self.metadata["transaction_type"] = txn_map.get(txn_set_id, txn_set_id)
+                impl = elements[3].strip() if len(elements) > 3 else ""
+                if impl:
+                    self.metadata["implementation_reference"] = impl
+                envelope["ST"] = {f"ST{i:02d}": v for i, v in enumerate(elements[1:], 1)}
+
+                # Load matching schema now that we know the transaction type
+                schema_file = self.determine_schema_filename()
+                if schema_file:
+                    self.load_schema(schema_file)
+
+            elif seg_id == "GS":
+                impl_ref = elements[8].strip() if len(elements) > 8 else ""
+                if impl_ref and "implementation_reference" not in self.metadata:
+                    self.metadata["implementation_reference"] = impl_ref
+
+            elif seg_id in ("SE", "GE", "IEA"):
+                envelope[seg_id] = {f"{seg_id}{i:02d}": v for i, v in enumerate(elements[1:], 1)}
+
+            # ── Loop state machine ────────────────────────────────────────────
+            self.update_loop_state(seg_id, elements, line)
+
+            # ── Segment → loop instance tree ──────────────────────────────────
+            current_loop = self.get_current_loop()
+            if current_loop and seg_id not in ("ISA", "GS", "ST", "SE", "GE", "IEA"):
+                seg_dict: dict = {"raw_data": elements}
+
+                # Decode named fields from schema if available
+                schema_key = seg_id
+                seg_schema  = self.schemas.get(schema_key, {})
+                if seg_schema:
+                    props = seg_schema.get("properties", {})
+                    for field_name, field_def in props.items():
+                        idx = field_def.get("x-index")
+                        if idx is not None and idx < len(elements):
+                            seg_dict[field_name] = elements[idx]
+
+                # Place segment into the correct loop bucket
+                if current_loop not in loops:
+                    loops[current_loop] = []
+
+                bucket = loops[current_loop]
+                # Always work with the last instance in the bucket
+                if not bucket or seg_id in bucket[-1]:
+                    bucket.append({})
+                bucket[-1][seg_id] = seg_dict
+
+            # ── Domain validations ────────────────────────────────────────────
+            self._run_domain_validations(seg_id, elements, line)
+
+        # ── Post-parse steps ──────────────────────────────────────────────────
+        self._close_all_loops(line)
         self.check_required_segments()
+        self._commit_pending_clp()          # finalise last open CLP record
+        self._run_cross_segment_checks()
 
-        return tree
+        # ── 834: Build member enrollment summary ─────────────────────────────
+        member_enrollment_summary = []
+        if self.metadata.get("transaction_type") == "834":
+            member_enrollment_summary = self._build_member_enrollment_summary(loops)
+
+        return {
+            "metadata": self.metadata,
+            "envelope": envelope,
+            "loops":    loops,
+            "errors":   self.errors,
+            "warnings": self.warnings,
+            "metrics":  self.metrics,
+            "member_enrollment_summary": member_enrollment_summary,
+        }
+
+    # =========================================================================
+    # 11. CROSS-SEGMENT RECONCILIATION  (Layer 4)
+    # =========================================================================
+
+    def _run_cross_segment_checks(self):
+        """Layer-4: checks that span multiple segments / loops."""
+
+        # ── 837: Service-line totals must equal CLM02 ────────────────────────
+        for cid, rec in self._claim_amounts.items():
+            claimed  = rec.get("claimed")
+            services = rec.get("services", [])
+            node     = rec.get("node", {})
+            if claimed is None or not services:
+                continue
+            total_svc = round(sum(services), 2)
+            if abs(total_svc - claimed) > 0.02:
+                pcn = node.get("PatientControlNumber_01", "unknown")
+                self.warnings.append({
+                    "line":       0,
+                    "segment":    "CLM",
+                    "field":      "CLM02",
+                    "type":       "AmountMismatch",
+                    "loop":       "2300",
+                    "message":    (
+                        f"Claim {pcn}: CLM02 billed amount ${claimed:,.2f} does not match "
+                        f"sum of service line charges ${total_svc:,.2f}."
+                    ),
+                    "suggestion": "Ensure SV1/SV2 line amounts add up to the CLM02 total.",
+                })
+
+        # ── 834: Duplicate member IDs ────────────────────────────────────────
+        for key, lines in self._member_registry.items():
+            if len(lines) > 2:          # more than one INS+REF pair with same ID
+                ref_val, qualifier = key
+                self.warnings.append({
+                    "line":       lines[0],
+                    "segment":    "REF",
+                    "field":      "REF02",
+                    "type":       "DuplicateMemberID",
+                    "loop":       "834_2000",
+                    "message":    f"Member ID '{ref_val}' ({qualifier}) appears on multiple INS loops (lines {lines}).",
+                    "suggestion": "Verify that each member has a unique subscriber identifier.",
+                })

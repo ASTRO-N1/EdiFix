@@ -15,6 +15,7 @@ import WorkspaceWelcome from '../components/workspace/WorkspaceWelcome'
 import ReconcileView from '../components/workspace/ReconcileView'
 import ExportPage from '../components/workspace/ExportPage'
 import ChangeReport834View from '../components/workspace/ChangeReport834View'
+import EligibilityScrubberView from '../components/workspace/EligibilityScrubberView'
 
 const FlexPanelGroup = PanelGroup as any
 
@@ -101,6 +102,13 @@ export default function WorkspacePage() {
         {activeMainView === 'change-report' && (
           <div style={{ flex: 1, overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
             <ChangeReport834View />
+          </div>
+        )}
+
+        {/* ── Eligibility Scrubber page — full area ── */}
+        {activeMainView === 'eligibility-scrubber' && (
+          <div style={{ flex: 1, overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
+            <EligibilityScrubberView />
           </div>
         )}
 

@@ -543,22 +543,6 @@ export default function AuthPage() {
           </p>
         </div>
       </motion.div>
-      {!isMobile && (
-        <img
-          src="/claimed-illustration.png"
-          alt="Two people holding a Claimed document"
-          style={{
-            position: 'fixed',
-            bottom: 0,
-            left: 0,
-            width: 300,
-            pointerEvents: 'none',
-            zIndex: 10,
-            transform: 'rotate(0deg)',
-            transformOrigin: 'bottom left',
-          }}
-        />
-      )}
     </div>
   )
 }

@@ -30,6 +30,17 @@ export default function WorkspacePage() {
   const activePanelView = useAppStore(s => s.activePanelView)
 
   const hasInitialized = useRef(false)
+  const walkthroughStep    = useAppStore(s => s.walkthroughStep)
+  const advanceWalkthrough = useAppStore(s => s.advanceWalkthrough)
+  const activeTabId        = useAppStore(s => s.activeTabId)
+
+  // When user clicks the summary tab while on the workspace-summary step,
+  // auto-advance to the full-editor reveal step.
+  useEffect(() => {
+    if (walkthroughStep === 'workspace-summary' && activeTabId === 'summary') {
+      advanceWalkthrough()
+    }
+  }, [activeTabId, walkthroughStep, advanceWalkthrough])
 
   useEffect(() => {
     if (authLoading) return

@@ -36,15 +36,16 @@ export type ActivePanelView = 'explorer' | 'history'
 
 // ── Walkthrough Step IDs ──────────────────────────────────────────────────────
 export type WalkthroughStep =
-  | 'welcome-greeting'     // Phase 0
-  | 'upload-file'          // Phase 1
-  | 'overview-proceed'     // Phase 2
-  | 'workspace-explorer'   // Phase 3.1
-  | 'workspace-validation' // Phase 3.2
-  | 'workspace-form'       // Phase 3.3
-  | 'workspace-form-val'   // Phase 3.4
-  | 'workspace-ai'         // Phase 3.5
-  | 'workspace-summary'    // Phase 4 (834/835 only)
+  | 'welcome-greeting'      // Phase 0
+  | 'upload-file'           // Phase 1
+  | 'overview-proceed'      // Phase 2
+  | 'workspace-explorer'    // Phase 3.1
+  | 'workspace-validation'  // Phase 3.2
+  | 'workspace-form'        // Phase 3.3
+  | 'workspace-form-val'    // Phase 3.4
+  | 'workspace-ai'          // Phase 3.5
+  | 'workspace-summary'     // Phase 4 — tab highlight (834/835 only)
+  | 'workspace-summary-view'// Phase 4 — full editor reveal after tab click
   | null
 
 interface AppState {
@@ -355,7 +356,7 @@ const useAppStore = create<AppState>((set, get) => ({
 
   batchResults: null,
 
-  processBatchZip: async (zipFile: File, unzippedFiles: File[]) => {
+  processBatchZip: async (_zipFile: File, unzippedFiles: File[]) => {
     const state = get();
     // Move to full page view 'batch'
     set({ isLoading: true, error: null, batchResults: null });
@@ -585,6 +586,17 @@ const useAppStore = create<AppState>((set, get) => ({
     const state = get()
     const current = state.walkthroughStep
     if (!current) return
+
+    // ── Conditional steps outside the main sequence ──────────────────────
+    if (current === 'workspace-summary') {
+      // After user clicks the summary tab, reveal the full editor
+      set({ walkthroughStep: 'workspace-summary-view' })
+      return
+    }
+    if (current === 'workspace-summary-view') {
+      state.endWalkthrough()
+      return
+    }
 
     const idx = WALKTHROUGH_SEQUENCE.indexOf(current)
     if (idx === -1) { state.endWalkthrough(); return }

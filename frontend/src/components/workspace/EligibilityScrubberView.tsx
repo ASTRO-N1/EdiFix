@@ -186,13 +186,23 @@ function UploadView({ onResult }: { onResult: (r: EligibilityReport) => void }) 
     setQueue834(q => [...q, ...newEntries])
   }, [parseFile, queue834])
 
+  const parseFile837 = useCallback(async (entry: QueuedFile, raw: File) => {
+    setFile837({ ...entry, status: 'loading' })
+    const r = await parseEdiFile(raw)
+    if (r.ok) {
+      setFile837({ ...entry, status: 'ok', parsed: r.data })
+    } else {
+      setFile837({ ...entry, status: 'error', error: r.error })
+    }
+  }, [])
+
   const onDrop837 = useCallback((accepted: File[]) => {
     if (!accepted[0]) return
     const raw = accepted[0]
     const entry: QueuedFile = { id: uid(), name: raw.name, size: raw.size, status: 'idle' }
     setFile837(entry)
-    parseFile(entry, raw, [entry], (updated) => setFile837(updated[0]))
-  }, [parseFile])
+    parseFile837(entry, raw)
+  }, [parseFile837])
 
   const { getRootProps: get834Props, getInputProps: get834Input, isDragActive: isDrag834 } = useDropzone({
     onDrop: onDrop834,
@@ -479,12 +489,12 @@ function ResultView({ report, onReset }: { report: EligibilityReport; onReset: (
           </div>
           <div style={{ display: 'flex', gap: 14, flexWrap: 'wrap' }}>
             {[
-              { label: 'Total Claims', value: report.total_claims, accent: INK, icon: '🧾' },
-              { label: 'Cleared', value: report.cleared_count, accent: '#27AE60', icon: '✓' },
-              { label: 'Not Found', value: report.flagged_not_found, accent: CORAL, icon: '✕' },
-              { label: 'Not Yet Effective', value: report.flagged_not_yet_effective, accent: '#B89000', icon: '⚠' },
-              { label: 'Terminated', value: report.flagged_terminated, accent: '#922B21', icon: '🚫' },
-              { label: 'Roster Size', value: report.roster_stats.total_members, accent: TEAL, icon: '👥' },
+//             { label: 'Total Claims', value: report.total_claims, accent: INK, icon: '🧾' },
+//             { label: 'Cleared', value: report.cleared_count, accent: '#27AE60', icon: '✓' },
+//             { label: 'Not Found', value: report.flagged_not_found, accent: CORAL, icon: '✕' },
+//             { label: 'Not Yet Effective', value: report.flagged_not_yet_effective, accent: '#B89000', icon: '⚠' },
+//             { label: 'Terminated', value: report.flagged_terminated, accent: '#922B21', icon: '🚫' },
+//             { label: 'Roster Size', value: report.roster_stats.total_members, accent: TEAL, icon: '👥' },
             ].map((card) => (
               <div
                 key={card.label}
@@ -547,12 +557,12 @@ function ResultView({ report, onReset }: { report: EligibilityReport; onReset: (
                 <thead>
                   <tr>
                     {[
-                      { label: 'Claim ID', col: 'claim_id' as keyof ClaimResult },
-                      { label: 'Patient ID', col: 'patient_id' as keyof ClaimResult },
-                      { label: 'Patient Name', col: 'member_name' as keyof ClaimResult },
-                      { label: 'Date of Service', col: 'date_of_service' as keyof ClaimResult },
-                      { label: 'Status', col: 'flag' as keyof ClaimResult },
-                      { label: 'Details', col: undefined },
+//                     { label: 'Claim ID', col: 'claim_id' as keyof ClaimResult },
+//                     { label: 'Patient ID', col: 'patient_id' as keyof ClaimResult },
+//                     { label: 'Patient Name', col: 'member_name' as keyof ClaimResult },
+//                     { label: 'Date of Service', col: 'date_of_service' as keyof ClaimResult },
+//                     { label: 'Status', col: 'flag' as keyof ClaimResult },
+//                     { label: 'Details', col: undefined },
                     ].map(({ label, col }) => (
                       <th
                         key={label}

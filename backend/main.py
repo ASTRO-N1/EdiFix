@@ -785,16 +785,21 @@ async def suggest_fixes_endpoint(
 ):
     """
     Analyzes validation errors and returns deterministic fix suggestions.
-    
-    Body: { "parse_result": {...} }
-    Returns: { "suggestions": [...] }
     """
     try:
+        print("[suggest-fixes] Received request")
+        print(f"[suggest-fixes] Parse result has {len(req.parse_result.get('errors', []))} errors")
+        
         suggestions = analyze_and_suggest_fixes(req.parse_result)
+        
+        print(f"[suggest-fixes] Generated {len(suggestions)} suggestions")
+        for s in suggestions:
+            print(f"  - {s['fix_type']}: {s['current_value']} → {s['suggested_value']}")
+        
         return {"status": "success", "suggestions": suggestions}
     except Exception as e:
         import traceback
-        print("Fix suggestion error:", traceback.format_exc())
+        print("[suggest-fixes] ERROR:", traceback.format_exc())
         return {"status": "error", "message": str(e)}
 
 
@@ -810,13 +815,13 @@ async def apply_fix_endpoint(
 ):
     """
     Applies a single fix suggestion and re-validates.
-    
-    Body: { "parse_result": {...}, "suggestion": {...} }
-    Returns: { "updated_parse_result": {...} }
     """
     try:
-        # Apply the fix
+        print("[apply-fix] Applying fix:", req.suggestion.get('fix_type'))
+        
         updated = apply_fix_to_tree(req.parse_result, req.suggestion)
+        
+        print("[apply-fix] Fix applied successfully")
         
         return {
             "status": "success",
@@ -824,7 +829,7 @@ async def apply_fix_endpoint(
         }
     except Exception as e:
         import traceback
-        print("Apply fix error:", traceback.format_exc())
+        print("[apply-fix] ERROR:", traceback.format_exc())
         return {"status": "error", "message": str(e)}
 
 if __name__ == "__main__":

@@ -2,6 +2,13 @@ import { create } from 'zustand'
 import type { Session } from '@supabase/supabase-js'
 import { supabase } from '../lib/supabase'
 
+export interface BatchValidationResult {
+  fileName: string
+  status: 'Valid' | 'Invalid'
+  errorCount: number
+  data: Record<string, unknown> | null
+}
+
 interface EDIFile {
   file: File | null
   fileName: string
@@ -59,17 +66,17 @@ interface AppState {
   error: string | null
   setError: (error: string | null) => void
 
-  // NEW: Global parsing action
   processFileInWorkspace: (file: File) => Promise<void>
 
-  // Active section (for dashboard navigation)
+  batchResults: BatchValidationResult[] | null
+  processBatchZip: (zipFile: File, unzippedFiles: File[]) => Promise<void>
+
   activeSection: string
   setActiveSection: (section: string) => void
 
-  // ── Workspace IDE State ────────────────────────────────
-
-  activeMainView: 'welcome' | 'dashboard' | 'editor' | 'export' | 'reconcile' | 'change-report' | 'eligibility-scrubber'
-  setActiveMainView: (view: 'welcome' | 'dashboard' | 'editor' | 'export' | 'reconcile' | 'change-report' | 'eligibility-scrubber') => void
+  // Added 'batch' to main views
+  activeMainView: 'welcome' | 'dashboard' | 'editor' | 'export' | 'reconcile' | 'change-report' | 'eligibility-scrubber' | 'batch'
+  setActiveMainView: (view: 'welcome' | 'dashboard' | 'editor' | 'export' | 'reconcile' | 'change-report' | 'eligibility-scrubber' | 'batch') => void
 
   activePanelView: ActivePanelView
   setActivePanelView: (view: ActivePanelView) => void
@@ -94,7 +101,6 @@ interface AppState {
   aiPromptContext: string | null
   setAiPromptContext: (ctx: string | null) => void
 
-  // ── Reconciliation State ────────────────────────────────────────────────
   auditParsed837: Record<string, unknown> | null
   setAuditParsed837: (data: Record<string, unknown> | null) => void
   auditParsed835: Record<string, unknown> | null
@@ -106,7 +112,6 @@ interface AppState {
   isReconcileModalOpen: boolean
   setIsReconcileModalOpen: (v: boolean) => void
 
-  // ── Eligibility Scrubber State ──────────────────────────────────────────
   eligibilityScrubberResult: Record<string, unknown> | null
   setEligibilityScrubberResult: (data: Record<string, unknown> | null) => void
 
@@ -117,21 +122,18 @@ interface AppState {
   addTab: (tab: WorkspaceTab) => void
   closeTab: (id: string) => void
 
-  // ── 834 Change Report State ─────────────────────────────────
   changeReport834Result: Record<string, unknown> | null
   setChangeReport834Result: (data: Record<string, unknown> | null) => void
   isChangeReport834Loading: boolean
   setIsChangeReport834Loading: (v: boolean) => void
 
-  // ── Fix Assistant State ──────────────────────────────────────────────
   fixSuggestions: Record<string, any>[]
   setFixSuggestions: (suggestions: Record<string, any>[]) => void
   pendingFix: Record<string, any> | null
   setPendingFix: (fix: Record<string, any> | null) => void
   fixHistory: Array<{ before: Record<string, unknown>; after: Record<string, unknown>; suggestion: Record<string, any> }>
   pushFixHistory: (entry: { before: Record<string, unknown>; after: Record<string, unknown>; suggestion: Record<string, any> }) => void
-  
-  // Actions
+
   fetchFixSuggestions: () => Promise<void>
   applyFix: (suggestion: Record<string, any>) => Promise<void>
   acceptFix: () => void
@@ -169,10 +171,10 @@ const useAppStore = create<AppState>((set, get) => ({
       file: null,
       parseResult: null,
       transactionType: null,
+      batchResults: null,
     }),
 
-
-    historyItems: [],
+  historyItems: [],
   isHistoryLoading: false,
 
   fetchHistory: async () => {
@@ -215,8 +217,6 @@ const useAppStore = create<AppState>((set, get) => ({
         })
 
       if (error) throw error
-      
-      // Refresh history so the new item appears
       await state.fetchHistory()
     } catch (err: any) {
       set({ error: err.message })
@@ -246,9 +246,9 @@ const useAppStore = create<AppState>((set, get) => ({
         .from('saved_workspaces')
         .delete()
         .eq('id', id)
-        
+
       if (error) throw error
-      
+
       set((state) => ({
         historyItems: state.historyItems.filter((item) => item.id !== id)
       }))
@@ -274,27 +274,25 @@ const useAppStore = create<AppState>((set, get) => ({
 
   processFileInWorkspace: async (file: File) => {
     set({ isLoading: true, error: null })
-    
-    set({ 
-      ediFile: { 
-        file, 
-        fileName: file.name, 
-        fileType: detectFileType(file.name), 
-        parseResult: null 
-      }, 
-      file 
+
+    set({
+      ediFile: {
+        file,
+        fileName: file.name,
+        fileType: detectFileType(file.name),
+        parseResult: null
+      },
+      file
     })
-      try {
+    try {
       const formData = new FormData()
       formData.append('file', file)
 
       const apiUrl = import.meta.env.VITE_API_URL || 'https://edi-parser-production.up.railway.app'
-      
+
       const response = await fetch(`${apiUrl}/api/v1/parse`, {
         method: 'POST',
-        headers: { 
-          'X-Internal-Bypass': 'frontend-ui-secret' 
-        },
+        headers: { 'X-Internal-Bypass': 'frontend-ui-secret' },
         body: formData,
       })
 
@@ -302,16 +300,11 @@ const useAppStore = create<AppState>((set, get) => ({
         const errorData = await response.json().catch(() => ({}))
         throw new Error(errorData.detail || 'Failed to parse file')
       }
-      
+
       const data = await response.json()
 
-      // data = { status, filename, data: { metadata, loops, errors, ... } }
-      // Extract the inner tree for components that expect it at the root level
-      const innerTree = data.data || data
-      const txnType =
-        innerTree?.metadata?.transaction_type ||
-        data.transaction_type ||
-        detectFileType(file.name)
+      const innerTree = data.parsed_data || data.data || data
+      const txnType = innerTree?.metadata?.transaction_type || data.transaction_type || detectFileType(file.name)
 
       set({
         parseResult: innerTree,
@@ -324,6 +317,54 @@ const useAppStore = create<AppState>((set, get) => ({
     } finally {
       set({ isLoading: false })
     }
+  },
+
+  batchResults: null,
+
+  processBatchZip: async (zipFile: File, unzippedFiles: File[]) => {
+    const state = get();
+    // Move to full page view 'batch'
+    set({ isLoading: true, error: null, batchResults: null });
+    state.setActiveMainView('batch');
+
+    const results: BatchValidationResult[] = [];
+    const apiUrl = import.meta.env.VITE_API_URL || 'https://edi-parser-production.up.railway.app';
+
+    for (const file of unzippedFiles) {
+      try {
+        const formData = new FormData();
+        formData.append('file', file);
+
+        const response = await fetch(`${apiUrl}/api/v1/parse`, {
+          method: 'POST',
+          headers: { 'X-Internal-Bypass': 'frontend-ui-secret' },
+          body: formData,
+        });
+
+        if (!response.ok) throw new Error('Parse failed');
+
+        const data = await response.json();
+        const innerTree = data.parsed_data || data.data || data;
+        const errors = innerTree.errors || data.errors || [];
+        const errorCount = errors.length;
+
+        results.push({
+          fileName: file.name,
+          status: errorCount === 0 ? 'Valid' : 'Invalid',
+          errorCount: errorCount,
+          data: innerTree,
+        });
+      } catch (err) {
+        results.push({
+          fileName: file.name,
+          status: 'Invalid',
+          errorCount: -1,
+          data: null,
+        });
+      }
+    }
+
+    set({ batchResults: results, isLoading: false });
   },
 
   activeSection: 'overview',
@@ -356,7 +397,6 @@ const useAppStore = create<AppState>((set, get) => ({
   aiPromptContext: null,
   setAiPromptContext: (ctx) => set({ aiPromptContext: ctx }),
 
-  // ── Reconciliation State ────────────────────────────────────────────────
   auditParsed837: null,
   setAuditParsed837: (data) => set({ auditParsed837: data }),
   auditParsed835: null,
@@ -389,26 +429,24 @@ const useAppStore = create<AppState>((set, get) => ({
     })
   },
 
-  // ── 834 Change Report ──────────────────────────────────────────────
   changeReport834Result: null,
   setChangeReport834Result: (data) => set({ changeReport834Result: data }),
   isChangeReport834Loading: false,
   setIsChangeReport834Loading: (v) => set({ isChangeReport834Loading: v }),
 
-  // ── Fix Assistant ───────────────────────────────────────────────────
   fixSuggestions: [],
   setFixSuggestions: (suggestions) => set({ fixSuggestions: suggestions }),
   pendingFix: null,
   setPendingFix: (fix) => set({ pendingFix: fix }),
   fixHistory: [],
   pushFixHistory: (entry) => set((s) => ({ fixHistory: [...s.fixHistory, entry] })),
-  
+
   fetchFixSuggestions: async () => {
     const state = get()
     if (!state.parseResult) return
-    
+
     const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:8000'
-    
+
     try {
       const res = await fetch(`${apiUrl}/api/v1/suggest-fixes`, {
         method: 'POST',
@@ -418,9 +456,9 @@ const useAppStore = create<AppState>((set, get) => ({
         },
         body: JSON.stringify({ parse_result: state.parseResult }),
       })
-      
+
       const json = await res.json()
-      
+
       if (json.status === 'success' && json.suggestions) {
         set({ fixSuggestions: json.suggestions })
       }
@@ -428,16 +466,15 @@ const useAppStore = create<AppState>((set, get) => ({
       console.error('Failed to fetch fix suggestions:', err)
     }
   },
-  
+
   applyFix: async (suggestion: Record<string, any>) => {
     const state = get()
     if (!state.parseResult) return
-    
+
     const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:8000'
-    
-    // Store original state for undo
+
     const before = structuredClone(state.parseResult)
-    
+
     try {
       const res = await fetch(`${apiUrl}/api/v1/apply-fix`, {
         method: 'POST',
@@ -450,52 +487,47 @@ const useAppStore = create<AppState>((set, get) => ({
           suggestion: suggestion,
         }),
       })
-      
+
       const json = await res.json()
-      
+
       if (json.status === 'success' && json.updated_parse_result) {
         const after = json.updated_parse_result
-        
-        // Update parse result
+
         set({ parseResult: after, pendingFix: suggestion })
-        
-        // Store in history
         state.pushFixHistory({ before, after, suggestion })
-        
-        // Post message to AI chat
+
         const aiMsg = `✓ **Fix Applied: ${suggestion.fix_type}**\n\n` +
-                      `**Field**: ${suggestion.loop_key} · ${suggestion.segment_key} · ${suggestion.element_key}\n` +
-                      `**Before**: \`${suggestion.current_value}\`\n` +
-                      `**After**: \`${suggestion.suggested_value}\`\n\n` +
-                      `**Reason**: ${suggestion.reason}\n\n` +
-                      `*Use the buttons below to accept or reject this fix.*`
-        
+          `**Field**: ${suggestion.loop_key} · ${suggestion.segment_key} · ${suggestion.element_key}\n` +
+          `**Before**: \`${suggestion.current_value}\`\n` +
+          `**After**: \`${suggestion.suggested_value}\`\n\n` +
+          `**Reason**: ${suggestion.reason}\n\n` +
+          `*Use the buttons below to accept or reject this fix.*`
+
         set({ aiPromptContext: aiMsg, isAIPanelOpen: true })
       }
     } catch (err) {
       console.error('Failed to apply fix:', err)
-      set({ 
+      set({
         aiPromptContext: `❌ **Fix Failed**\n\nCould not apply the fix. Error: ${(err as Error).message}`,
-        isAIPanelOpen: true 
+        isAIPanelOpen: true
       })
     }
   },
-  
+
   acceptFix: () => {
     const state = get()
     if (!state.pendingFix) return
-    
+
     set({
       pendingFix: null,
       aiPromptContext: `✅ **Fix Accepted**\n\nThe correction has been saved. Run validation again to see updated error count.`,
     })
   },
-  
+
   rejectFix: () => {
     const state = get()
     if (!state.pendingFix || state.fixHistory.length === 0) return
-    
-    // Restore previous state
+
     const lastEntry = state.fixHistory[state.fixHistory.length - 1]
     set({
       parseResult: lastEntry.before,

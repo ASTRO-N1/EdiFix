@@ -36,6 +36,16 @@ function ExplorerIcon({ active }: { active: boolean }) {
   )
 }
 
+function BatchIcon({ active }: { active: boolean }) {
+  return (
+    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke={active ? ACTIVE : INACTIVE} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z" />
+      <polyline points="3.27 6.96 12 12.01 20.73 6.96" />
+      <line x1="12" y1="22.08" x2="12" y2="12" />
+    </svg>
+  )
+}
+
 function HistoryIcon({ active }: { active: boolean }) {
   return (
     <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke={active ? ACTIVE : INACTIVE} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -93,15 +103,13 @@ function EligibilityIcon({ active }: { active: boolean }) {
 }
 
 interface ActivityItem {
-  id: ActivePanelView | 'search' | 'dashboard' | 'welcome' | 'export'
+  id: ActivePanelView | 'search' | 'dashboard' | 'welcome' | 'export' | 'batch'
   label: string
   icon: (active: boolean) => JSX.Element
   isMainViewToggle?: boolean
-  collapsesBar?: boolean   // clicking this item toggles the sidebar
+  collapsesBar?: boolean
   accentColor?: string
 }
-
-// ── Nav row ───────────────────────────────────────────────────────────────────
 
 function NavItem({
   id, label, icon, isActive, showLabel, accentColor = ACTIVE, onClick,
@@ -113,7 +121,7 @@ function NavItem({
     <button
       id={`sidebar-${id}`}
       onClick={onClick}
-      title={showLabel ? undefined : label}   // tooltip only when collapsed
+      title={showLabel ? undefined : label}
       style={{
         position: 'relative',
         width: '100%',
@@ -132,7 +140,6 @@ function NavItem({
       onMouseEnter={(e) => { if (!isActive) e.currentTarget.style.background = 'rgba(255,255,255,0.05)' }}
       onMouseLeave={(e) => { if (!isActive) e.currentTarget.style.background = 'transparent' }}
     >
-      {/* Active left-edge indicator */}
       {isActive && (
         <div style={{
           position: 'absolute', left: 0, top: 6, bottom: 6,
@@ -143,7 +150,6 @@ function NavItem({
 
       <span style={{ flexShrink: 0, display: 'flex', alignItems: 'center' }}>{icon}</span>
 
-      {/* Label — hidden (width 0, opacity 0) when collapsed */}
       <span style={{
         fontFamily: 'Nunito, sans-serif',
         fontWeight: isActive ? 700 : 500,
@@ -161,8 +167,6 @@ function NavItem({
     </button>
   )
 }
-
-// ── Other Services sub-item ───────────────────────────────────────────────────
 
 function SubNavItem({
   id, label, icon, isActive, showLabel, accentColor = ACTIVE, onClick,
@@ -219,8 +223,6 @@ function SubNavItem({
   )
 }
 
-// ── Main ActivityBar ──────────────────────────────────────────────────────────
-
 export default function ActivityBar() {
   const activeMainView = useAppStore((s) => s.activeMainView)
   const setActiveMainView = useAppStore((s) => s.setActiveMainView)
@@ -230,13 +232,10 @@ export default function ActivityBar() {
   const setIsLeftSidebarOpen = useAppStore((s) => s.setIsLeftSidebarOpen)
   const session = useAppStore((s) => s.session)
 
-  // ── Hover & Dropdown state ──────────────────────────────────────────────
   const [hovered, setHovered] = useState(false)
   const [otherOpen, setOtherOpen] = useState(false)
 
-  // ── Permanent Visibility Logic ──────────────────────────────────────────
-  // Enforce expanded view if we are on the Welcome or Export pages
-  const isAlwaysExpanded = activeMainView === 'welcome' || activeMainView === 'export'
+  const isAlwaysExpanded = activeMainView === 'welcome' || activeMainView === 'export' || activeMainView === 'batch'
   const showLabel = isAlwaysExpanded || hovered
   const currentWidth = showLabel ? 200 : 64
 
@@ -244,7 +243,8 @@ export default function ActivityBar() {
     { id: 'welcome', label: 'Home', icon: (a) => <WelcomeIcon active={a} />, isMainViewToggle: true },
     { id: 'dashboard', label: 'Dashboard', icon: (a) => <DashboardIcon active={a} />, isMainViewToggle: true },
     { id: 'explorer', label: 'Explorer', icon: (a) => <ExplorerIcon active={a} />, collapsesBar: true },
-    { id: 'history', label: 'History', icon: (a) => <HistoryIcon active={a} /> },
+    { id: 'batch', label: 'Batch Zip', icon: (a) => <BatchIcon active={a} />, isMainViewToggle: true },
+    { id: 'history', label: 'History', icon: (a) => <HistoryIcon active={a} />, collapsesBar: true },
     { id: 'export', label: 'Export', icon: (a) => <ExportIcon active={a} />, isMainViewToggle: true },
   ]
 
@@ -253,8 +253,6 @@ export default function ActivityBar() {
   const isReconcileActive = activeMainView === 'reconcile'
   const isChangeReportActive = activeMainView === 'change-report'
   const isEligibilityActive = activeMainView === 'eligibility-scrubber'
-
-  // Whether any "Other Services" item is active (used to highlight the group header)
   const isAnyOtherActive = isReconcileActive || isChangeReportActive || isEligibilityActive
 
   return (
@@ -276,9 +274,7 @@ export default function ActivityBar() {
       onMouseEnter={() => setHovered(true)}
       onMouseLeave={() => {
         setHovered(false)
-        if (!isAlwaysExpanded) {
-          setOtherOpen(false) // Close the "Other Services" dropdown automatically
-        }
+        if (!isAlwaysExpanded) setOtherOpen(false)
       }}
     >
       {ITEMS.map((item) => {
@@ -295,8 +291,8 @@ export default function ActivityBar() {
             isActive={isActive}
             showLabel={showLabel}
             onClick={() => {
-              if (item.id === 'welcome') {
-                setActiveMainView('welcome')
+              if (item.isMainViewToggle) {
+                setActiveMainView(item.id as 'welcome' | 'dashboard' | 'export' | 'batch')
               } else if (item.collapsesBar) {
                 setActiveMainView('editor')
                 if (isActive) {
@@ -305,8 +301,6 @@ export default function ActivityBar() {
                   setActivePanelView(item.id as ActivePanelView)
                   setIsLeftSidebarOpen(true)
                 }
-              } else if (item.isMainViewToggle) {
-                setActiveMainView(item.id as 'welcome' | 'dashboard' | 'export')
               } else {
                 setActiveMainView('editor')
                 if (isActive) {
@@ -321,10 +315,8 @@ export default function ActivityBar() {
         )
       })}
 
-      {/* ── Divider ── */}
       <div style={{ height: 1, background: 'rgba(255,255,255,0.09)', margin: '6px 16px' }} />
 
-      {/* ── Other Services dropdown header ── */}
       <button
         id="sidebar-other-services"
         title={showLabel ? undefined : 'Other Services'}
@@ -347,7 +339,6 @@ export default function ActivityBar() {
         onMouseEnter={(e) => { e.currentTarget.style.background = 'rgba(255,255,255,0.05)' }}
         onMouseLeave={(e) => { e.currentTarget.style.background = isAnyOtherActive ? 'rgba(255,255,255,0.06)' : 'transparent' }}
       >
-        {/* Grid / services icon */}
         <span style={{ flexShrink: 0, display: 'flex', alignItems: 'center' }}>
           <svg width="24" height="24" viewBox="0 0 24 24" fill="none"
             stroke={isAnyOtherActive ? '#4ECDC4' : 'rgba(255,255,255,0.5)'}
@@ -358,8 +349,6 @@ export default function ActivityBar() {
             <circle cx="15" cy="15" r="3" />
           </svg>
         </span>
-
-        {/* Label */}
         <span style={{
           fontFamily: 'Nunito, sans-serif',
           fontWeight: 600,
@@ -376,8 +365,6 @@ export default function ActivityBar() {
         }}>
           Other Services
         </span>
-
-        {/* Chevron */}
         <span style={{
           maxWidth: showLabel ? 16 : 0,
           opacity: showLabel ? 1 : 0,
@@ -396,13 +383,11 @@ export default function ActivityBar() {
         </span>
       </button>
 
-      {/* ── Other Services sub-items (animated slide) ── */}
       <div style={{
         overflow: 'hidden',
         maxHeight: otherOpen ? 200 : 0,
         transition: 'max-height 0.28s ease',
       }}>
-        {/* Reconcile 835 */}
         <SubNavItem
           id="reconcile-835"
           label="Reconcile 835"
@@ -412,8 +397,6 @@ export default function ActivityBar() {
           accentColor="#FFE66D"
           onClick={() => setActiveMainView('reconcile')}
         />
-
-        {/* Change Report */}
         <SubNavItem
           id="change-report-834"
           label="Change Report"
@@ -423,8 +406,6 @@ export default function ActivityBar() {
           accentColor="#95E1D3"
           onClick={() => setActiveMainView('change-report')}
         />
-
-        {/* Eligibility Check */}
         <SubNavItem
           id="eligibility-scrubber"
           label="Eligibility Check"

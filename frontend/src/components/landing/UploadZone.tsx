@@ -2,6 +2,7 @@ import { useCallback, useState } from 'react'
 import { useDropzone } from 'react-dropzone'
 import { useNavigate } from 'react-router-dom'
 import { UploadCloud } from 'lucide-react'
+import JSZip from 'jszip'
 import useAppStore from '../../store/useAppStore'
 import { SittingStickFigure } from './StickFigure'
 
@@ -29,7 +30,6 @@ function extensionValidator(file: File) {
 export default function UploadZone() {
   const navigate = useNavigate()
 
-  // App Store actions and state
   const session = useAppStore((s) => s.session)
   const setEdiFile = useAppStore((s) => s.setEdiFile)
   const setFile = useAppStore((s) => s.setFile)
@@ -37,6 +37,7 @@ export default function UploadZone() {
   const setTransactionType = useAppStore((s) => s.setTransactionType)
   const setError = useAppStore((s) => s.setError)
   const setActiveMainView = useAppStore((s) => s.setActiveMainView)
+  const processBatchZip = useAppStore((s) => s.processBatchZip)
 
   const [loading, setLoading] = useState(false)
 
@@ -44,11 +45,41 @@ export default function UploadZone() {
     async (file: File) => {
       setLoading(true)
 
+      // ── Handle Zip Files (Batch Processing) ──
+      if (file.name.toLowerCase().endsWith('.zip')) {
+        try {
+          const zip = new JSZip()
+          const contents = await zip.loadAsync(file)
+          const unzippedFiles: File[] = []
+
+          // Extract files, skipping directories and Mac metadata
+          for (const [filename, zipEntry] of Object.entries(contents.files)) {
+            if (!zipEntry.dir && !filename.startsWith('__MACOSX/')) {
+              const blob = await zipEntry.async('blob')
+              unzippedFiles.push(new File([blob], filename, { type: blob.type }))
+            }
+          }
+
+          if (unzippedFiles.length === 0) {
+            throw new Error("No usable files found in the ZIP archive.")
+          }
+
+          await processBatchZip(file, unzippedFiles)
+          navigate('/workspace')
+
+        } catch (err: any) {
+          setError(err.message || 'An error occurred extracting the ZIP.')
+        } finally {
+          setLoading(false)
+        }
+        return
+      }
+
+      // ── Handle Single Files ──
       setEdiFile(file)
       setFile(file)
 
       if (session) {
-        // ── Logged In User Flow ──
         try {
           const formData = new FormData()
           formData.append('file', file)
@@ -66,17 +97,16 @@ export default function UploadZone() {
 
           const data = await response.json()
 
-          // Populate store with API results
-          setParseResult(data)
+          // Unpack the data wrapper securely
+          const innerTree = data.parsed_data || data.data || data
+          setParseResult(innerTree)
 
-          // Extract and set transaction type for the dashboard UI
-          const type = data.transaction_type ||
-            data.metadata?.transaction_type ||
+          const type = innerTree.transaction_type ||
+            innerTree.metadata?.transaction_type ||
             data.file_info?.transaction_type ||
             "EDI File";
           setTransactionType(type);
 
-          // Force view to dashboard
           setActiveMainView('dashboard')
           navigate('/workspace')
         } catch (err: any) {
@@ -87,13 +117,12 @@ export default function UploadZone() {
           setLoading(false)
         }
       } else {
-        // ── Guest User Flow ──
         setTimeout(() => {
           navigate('/processing')
         }, 300)
       }
     },
-    [session, setEdiFile, setFile, setParseResult, setTransactionType, setActiveMainView, setError, navigate]
+    [session, setEdiFile, setFile, setParseResult, setTransactionType, setActiveMainView, setError, navigate, processBatchZip]
   )
 
   const { getRootProps, getInputProps, isDragActive, fileRejections } = useDropzone({

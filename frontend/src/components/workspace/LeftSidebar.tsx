@@ -18,90 +18,86 @@ interface EdiTreeNode {
 // ── EDI Schema — maps JSON keys → human-readable EDI labels ──────────────────
 
 const EDI_LOOP_SCHEMA: Record<string, { label: string; icon: string; section: string }> = {
-  loop_1000A:  { label: 'Loop 1000A — Submitter',          icon: '📤', section: 'submitter'  },
-  loop_1000B:  { label: 'Loop 1000B — Receiver',           icon: '📥', section: 'submitter'  },
-  loop_2000A:  { label: 'Loop 2000A — Billing HL',         icon: '📂', section: 'billing'    },
-  loop_2010AA: { label: 'Loop 2010AA — Billing Provider',  icon: '🏥', section: 'billing'    },
-  loop_2000B:  { label: 'Loop 2000B — Subscriber HL',      icon: '📂', section: 'subscriber' },
-  loop_2010BA: { label: 'Loop 2010BA — Subscriber',        icon: '👤', section: 'subscriber' },
-  loop_2300:   { label: 'Loop 2300 — Claim',               icon: '📋', section: 'claim'      },
-  '2300':      { label: 'Loop 2300 — Claim',               icon: '📋', section: 'claim'      },
-  loop_2400:   { label: 'Loop 2400 — Service Line',        icon: '💊', section: 'service'    },
-  '2400':      { label: 'Loop 2400 — Service Line',        icon: '💊', section: 'service'    },
-  submitter:        { label: 'Loop 1000A — Submitter',         icon: '📤', section: 'submitter'  },
-  receiver:         { label: 'Loop 1000B — Receiver',          icon: '📥', section: 'submitter'  },
-  billing_provider: { label: 'Loop 2010AA — Billing Provider', icon: '🏥', section: 'billing'    },
-  billingProvider:  { label: 'Loop 2010AA — Billing Provider', icon: '🏥', section: 'billing'    },
-  subscriber:       { label: 'Loop 2010BA — Subscriber',       icon: '👤', section: 'subscriber' },
-  claims:           { label: 'Loop 2300 — Claims',             icon: '📋', section: 'claim'      },
-  claim_info:       { label: 'Loop 2300 — Claim',              icon: '📋', section: 'claim'      },
-  service_lines:    { label: 'Loop 2400 — Service Lines',      icon: '💊', section: 'service'    },
-  serviceLines:     { label: 'Loop 2400 — Service Lines',      icon: '💊', section: 'service'    },
-  '835_HEADER':     { label: '835 Header — Payment Info',      icon: '💳', section: ''           },
-  '835_1000A':      { label: 'Loop 1000A — Payer',             icon: '🏦', section: ''           },
-  '835_1000B':      { label: 'Loop 1000B — Payee',             icon: '🏥', section: ''           },
-  '835_2100':       { label: 'Loop 2100 — Claim Payment',      icon: '📋', section: ''           },
-  '835_2110':       { label: 'Loop 2110 — Service Payment',    icon: '💊', section: ''           },
-  '834_HEADER':     { label: '834 Header — Enrollment',        icon: '📨', section: ''           },
-  '834_1000A':      { label: 'Loop 1000A — Sponsor',           icon: '🏢', section: ''           },
-  '834_1000B':      { label: 'Loop 1000B — Payer',             icon: '🏦', section: ''           },
-  '834_1000C':      { label: 'Loop 1000C — TPA',               icon: '🤝', section: ''           },
-  '834_2000':       { label: 'Loop 2000 — Member',             icon: '👤', section: ''           },
-  '834_2100A':      { label: 'Loop 2100A — Member Info',       icon: '🪪', section: ''           },
-  '834_2300':       { label: 'Loop 2300 — Coverage',           icon: '🛡️', section: ''           },
-  '834_2320':       { label: 'Loop 2320 — COB',                icon: '🔄', section: ''           },
+  loop_1000A: { label: 'Loop 1000A — Submitter', icon: '📤', section: 'submitter' },
+  loop_1000B: { label: 'Loop 1000B — Receiver', icon: '📥', section: 'submitter' },
+  loop_2000A: { label: 'Loop 2000A — Billing HL', icon: '📂', section: 'billing' },
+  loop_2010AA: { label: 'Loop 2010AA — Billing Provider', icon: '🏥', section: 'billing' },
+  loop_2000B: { label: 'Loop 2000B — Subscriber HL', icon: '📂', section: 'subscriber' },
+  loop_2010BA: { label: 'Loop 2010BA — Subscriber', icon: '👤', section: 'subscriber' },
+  loop_2300: { label: 'Loop 2300 — Claim', icon: '📋', section: 'claim' },
+  '2300': { label: 'Loop 2300 — Claim', icon: '📋', section: 'claim' },
+  loop_2400: { label: 'Loop 2400 — Service Line', icon: '💊', section: 'service' },
+  '2400': { label: 'Loop 2400 — Service Line', icon: '💊', section: 'service' },
+  submitter: { label: 'Loop 1000A — Submitter', icon: '📤', section: 'submitter' },
+  receiver: { label: 'Loop 1000B — Receiver', icon: '📥', section: 'submitter' },
+  billing_provider: { label: 'Loop 2010AA — Billing Provider', icon: '🏥', section: 'billing' },
+  billingProvider: { label: 'Loop 2010AA — Billing Provider', icon: '🏥', section: 'billing' },
+  subscriber: { label: 'Loop 2010BA — Subscriber', icon: '👤', section: 'subscriber' },
+  claims: { label: 'Loop 2300 — Claims', icon: '📋', section: 'claim' },
+  claim_info: { label: 'Loop 2300 — Claim', icon: '📋', section: 'claim' },
+  service_lines: { label: 'Loop 2400 — Service Lines', icon: '💊', section: 'service' },
+  serviceLines: { label: 'Loop 2400 — Service Lines', icon: '💊', section: 'service' },
+  '835_HEADER': { label: '835 Header — Payment Info', icon: '💳', section: '' },
+  '835_1000A': { label: 'Loop 1000A — Payer', icon: '🏦', section: '' },
+  '835_1000B': { label: 'Loop 1000B — Payee', icon: '🏥', section: '' },
+  '835_2100': { label: 'Loop 2100 — Claim Payment', icon: '📋', section: '' },
+  '835_2110': { label: 'Loop 2110 — Service Payment', icon: '💊', section: '' },
+  '834_HEADER': { label: '834 Header — Enrollment', icon: '📨', section: '' },
+  '834_1000A': { label: 'Loop 1000A — Sponsor', icon: '🏢', section: '' },
+  '834_1000B': { label: 'Loop 1000B — Payer', icon: '🏦', section: '' },
+  '834_1000C': { label: 'Loop 1000C — TPA', icon: '🤝', section: '' },
+  '834_2000': { label: 'Loop 2000 — Member', icon: '👤', section: '' },
+  '834_2100A': { label: 'Loop 2100A — Member Info', icon: '🪪', section: '' },
+  '834_2300': { label: 'Loop 2300 — Coverage', icon: '🛡️', section: '' },
+  '834_2320': { label: 'Loop 2320 — COB', icon: '🔄', section: '' },
 }
 
 const EDI_SEGMENT_SCHEMA: Record<string, { label: string; section: string }> = {
-  NM1: { label: 'NM1 · Entity Name',        section: ''            },
-  N1:  { label: 'N1  · Entity Name',        section: ''            },
-  N3:  { label: 'N3  · Address',            section: ''            },
-  N4:  { label: 'N4  · City / State / ZIP', section: ''            },
-  CLM: { label: 'CLM · Claim Info',         section: 'claim'       },
-  HI:  { label: 'HI  · Diagnosis Codes',    section: 'claim'       },
-  DTP: { label: 'DTP · Date/Time',          section: ''            },
-  SV1: { label: 'SV1 · Procedure / Charge', section: 'service'     },
-  DMG: { label: 'DMG · Demographics',       section: 'subscriber'  },
-  REF: { label: 'REF · Reference ID',       section: 'billing'     },
-  PER: { label: 'PER · Contact Info',       section: 'submitter'   },
-  BPR: { label: 'BPR · Payment Info',       section: ''            },
-  TRN: { label: 'TRN · Trace Number',       section: ''            },
-  CLP: { label: 'CLP · Claim Payment',      section: ''            },
-  SVC: { label: 'SVC · Service Payment',    section: ''            },
-  CAS: { label: 'CAS · Adjustment',         section: ''            },
-  GS:  { label: 'GS  · Functional Group',   section: ''            },
-  ST:  { label: 'ST  · Transaction Set',    section: ''            },
-  SE:  { label: 'SE  · Tran. Set Trailer',  section: ''            },
-  GE:  { label: 'GE  · Group Trailer',      section: ''            },
-  IEA: { label: 'IEA · Interchange Trailer',section: ''            },
-  ISA: { label: 'ISA · Interchange Ctrl',   section: ''            },
-  SBR: { label: 'SBR · Subscriber Info',    section: 'subscriber'  },
-  PAT: { label: 'PAT · Patient Info',       section: 'subscriber'  },
-  HL:  { label: 'HL  · Hierarchical Level', section: ''            },
-  PRV: { label: 'PRV · Provider Info',      section: 'billing'     },
-  LX:  { label: 'LX  · Line Counter',       section: 'service'     },
-  INS: { label: 'INS · Member Level Detail',section: ''            },
-  BGN: { label: 'BGN · Beginning Segment',  section: ''            },
-  HD:  { label: 'HD  · Health Coverage',    section: ''            },
-  COB: { label: 'COB · Coordination of Benefits', section: ''      },
+  NM1: { label: 'NM1 · Entity Name', section: '' },
+  N1: { label: 'N1  · Entity Name', section: '' },
+  N3: { label: 'N3  · Address', section: '' },
+  N4: { label: 'N4  · City / State / ZIP', section: '' },
+  CLM: { label: 'CLM · Claim Info', section: 'claim' },
+  HI: { label: 'HI  · Diagnosis Codes', section: 'claim' },
+  DTP: { label: 'DTP · Date/Time', section: '' },
+  SV1: { label: 'SV1 · Procedure / Charge', section: 'service' },
+  DMG: { label: 'DMG · Demographics', section: 'subscriber' },
+  REF: { label: 'REF · Reference ID', section: 'billing' },
+  PER: { label: 'PER · Contact Info', section: 'submitter' },
+  BPR: { label: 'BPR · Payment Info', section: '' },
+  TRN: { label: 'TRN · Trace Number', section: '' },
+  CLP: { label: 'CLP · Claim Payment', section: '' },
+  SVC: { label: 'SVC · Service Payment', section: '' },
+  CAS: { label: 'CAS · Adjustment', section: '' },
+  GS: { label: 'GS  · Functional Group', section: '' },
+  ST: { label: 'ST  · Transaction Set', section: '' },
+  SE: { label: 'SE  · Tran. Set Trailer', section: '' },
+  GE: { label: 'GE  · Group Trailer', section: '' },
+  IEA: { label: 'IEA · Interchange Trailer', section: '' },
+  ISA: { label: 'ISA · Interchange Ctrl', section: '' },
+  SBR: { label: 'SBR · Subscriber Info', section: 'subscriber' },
+  PAT: { label: 'PAT · Patient Info', section: 'subscriber' },
+  HL: { label: 'HL  · Hierarchical Level', section: '' },
+  PRV: { label: 'PRV · Provider Info', section: 'billing' },
+  LX: { label: 'LX  · Line Counter', section: 'service' },
+  INS: { label: 'INS · Member Level Detail', section: '' },
+  BGN: { label: 'BGN · Beginning Segment', section: '' },
+  HD: { label: 'HD  · Health Coverage', section: '' },
+  COB: { label: 'COB · Coordination of Benefits', section: '' },
 }
 
-// Keys to skip entirely (metadata, not EDI structure)
+// Keys to skip entirely
 const SKIP_KEYS = new Set([
   'transaction_type', 'file_type', 'raw', 'raw_content',
   'metadata', 'file_info', 'validation_errors', 'errors',
   'status', 'filename', 'called_by', 'metrics', 'reference_versions', 'warnings'
 ])
 
-// Segment key pattern: 2-3 uppercase letters + optional digits
 const SEGMENT_KEY_RE = /^[A-Z]{2,3}\d*$/
 
-// Check if a key maps to a known segment
 function isSegment(key: string): boolean {
   return key in EDI_SEGMENT_SCHEMA || SEGMENT_KEY_RE.test(key)
 }
-
-// ── EDI-Aware Tree Builder ────────────────────────────────────────────────────
 
 function buildEdiTree(
   data: Record<string, unknown>,
@@ -117,7 +113,7 @@ function buildEdiTree(
     if (value === null || typeof value !== 'object') continue
 
     const path = parentPath ? `${parentPath}.${key}` : key
-    
+
     let label = formatKey(key)
     let icon: string | undefined
     let section: string | undefined
@@ -133,21 +129,20 @@ function buildEdiTree(
 
     const isSeg = isSegment(key)
     const nodeType = isSeg ? 'segment' : 'loop'
-    
-    // Check if this loop has errors - FIXED: use 'key' instead of undefined 'loop'
-    const hasError = errorLoops.has(key.toUpperCase()) || 
-                     errorLoops.has(key.replace('LOOP_', '').replace(/_/g, '').toUpperCase()) ||
-                     errorLoops.has(key.replace('LOOP_', '').toUpperCase())
+
+    const hasError = errorLoops.has(key.toUpperCase()) ||
+      errorLoops.has(key.replace('LOOP_', '').replace(/_/g, '').toUpperCase()) ||
+      errorLoops.has(key.replace('LOOP_', '').toUpperCase())
 
     if (Array.isArray(value)) {
       const children: EdiTreeNode[] = []
-      
+
       value.forEach((item, i) => {
         if (item && typeof item === 'object') {
           const itemPath = `${path}[${i}]`
           const itemLabel = `${label} [${i + 1}]`
           const itemChildren = buildEdiTree(item as Record<string, unknown>, errorLoops, itemPath, depth + 1)
-          
+
           children.push({
             id: itemPath,
             label: itemLabel,
@@ -175,7 +170,7 @@ function buildEdiTree(
       }
     } else {
       const children = buildEdiTree(value as Record<string, unknown>, errorLoops, path, depth + 1)
-      
+
       nodes.push({
         id: path,
         label,
@@ -184,7 +179,7 @@ function buildEdiTree(
         icon,
         section,
         hasError,
-        children: children.length > 0 ? children : undefined 
+        children: children.length > 0 ? children : undefined
       })
     }
   }
@@ -199,11 +194,9 @@ function formatKey(key: string): string {
     .replace(/\b\w/g, (c) => c.toUpperCase())
 }
 
-// ── Tree connector constants ────────────────────────────────────────────────────
 const INDENT_PX = 16
 const ROW_HEIGHT = 26
 
-// Badge styles
 const BADGE_BASE: React.CSSProperties = {
   flexShrink: 0,
   fontFamily: 'JetBrains Mono, monospace',
@@ -214,8 +207,6 @@ const BADGE_BASE: React.CSSProperties = {
   border: '1px solid rgba(26,26,46,0.18)',
   lineHeight: '14px',
 }
-
-// ── EdiNode (recursive tree item) ─────────────────────────────────────────────
 
 function EdiNode({
   node,
@@ -231,14 +222,14 @@ function EdiNode({
   scrollContainer?: React.RefObject<HTMLDivElement>
 }) {
   const [open, setOpen] = useState(defaultOpen)
-  const nodeRef          = useRef<HTMLDivElement>(null)
-  const setSelectedPath  = useAppStore((s) => s.setSelectedPath)
-  const setActiveTabId   = useAppStore((s) => s.setActiveTabId)
-  const selectedPath     = useAppStore((s) => s.selectedPath)
-  const hasChildren      = node.children && node.children.length > 0
-  const isSelected       = selectedPath === node.path
+  const nodeRef = useRef<HTMLDivElement>(null)
+  const setSelectedPath = useAppStore((s) => s.setSelectedPath)
+  const setActiveTabId = useAppStore((s) => s.setActiveTabId)
+  const selectedPath = useAppStore((s) => s.selectedPath)
+  const hasChildren = node.children && node.children.length > 0
+  const isSelected = selectedPath === node.path
 
-  const isLoop    = node.type === 'loop'
+  const isLoop = node.type === 'loop'
   const isSegment = node.type === 'segment'
 
   useEffect(() => {
@@ -262,7 +253,7 @@ function EdiNode({
       el?.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'nearest' })
     }, 240)
     return () => clearTimeout(timer)
-  }, [open]) // eslint-disable-line react-hooks/exhaustive-deps
+  }, [open])
 
   const handleClick = () => {
     setSelectedPath(node.path)
@@ -270,19 +261,19 @@ function EdiNode({
     if (hasChildren) setOpen((v) => !v)
   }
 
-  const badgeBg    = isLoop ? '#4ECDC4' : isSegment ? '#FFE66D' : 'rgba(26,26,46,0.12)'
+  const badgeBg = isLoop ? '#4ECDC4' : isSegment ? '#FFE66D' : 'rgba(26,26,46,0.12)'
   const badgeLabel = isLoop ? 'L' : isSegment ? 'S' : node.type[0].toUpperCase()
 
   const labelColor = isSelected
     ? '#0D0D1A'
     : isLoop
-    ? '#1A1A2E'
-    : isSegment
-    ? 'rgba(26,26,46,0.8)'
-    : 'rgba(26,26,46,0.55)'
+      ? '#1A1A2E'
+      : isSegment
+        ? 'rgba(26,26,46,0.8)'
+        : 'rgba(26,26,46,0.55)'
 
-  const GUIDE_X  = depth * INDENT_PX
-  const ELBOW_W  = 10
+  const GUIDE_X = depth * INDENT_PX
+  const ELBOW_W = 10
 
   return (
     <div ref={nodeRef} style={{ position: 'relative' }}>
@@ -432,9 +423,7 @@ function EdiNode({
   )
 }
 
-// ── Empty state ────────────────────────────────────────────────────────────────
-
-function ExplorerEmptyState() {
+function ExplorerEmptyState({ customMsg }: { customMsg?: string }) {
   return (
     <div
       style={{
@@ -475,21 +464,23 @@ function ExplorerEmptyState() {
           maxWidth: 160,
         }}
       >
-        No EDI data loaded.{' '}
-        <span style={{ fontWeight: 700 }}>Upload a file</span> to explore the structure.
+        {customMsg || (
+          <>
+            No EDI data loaded.{' '}
+            <span style={{ fontWeight: 700 }}>Upload a file</span> to explore the structure.
+          </>
+        )}
       </p>
     </div>
   )
 }
 
-// ── ExplorerView ───────────────────────────────────────────────────────────────
-
 function ExplorerView({ onMinimize }: { onMinimize?: () => void }) {
-  const parseResult   = useAppStore((s) => s.parseResult)
-  const ediFile       = useAppStore((s) => s.ediFile)
-  const selectedPath  = useAppStore((s) => s.selectedPath)
+  const parseResult = useAppStore((s) => s.parseResult)
+  const ediFile = useAppStore((s) => s.ediFile)
+  const selectedPath = useAppStore((s) => s.selectedPath)
   const transactionType = useAppStore((s) => s.transactionType)
-  const scrollRef     = useRef<HTMLDivElement>(null)
+  const scrollRef = useRef<HTMLDivElement>(null)
 
   const hasFile = !!(parseResult || ediFile.fileName)
 
@@ -593,108 +584,106 @@ function ExplorerView({ onMinimize }: { onMinimize?: () => void }) {
         className="custom-scrollbar"
       >
         <div style={{ minWidth: 'max-content', width: '100%' }}>
-        {!hasFile || tree.length === 0 ? (
-          <ExplorerEmptyState />
-        ) : (
-          <>
-            <div
-              style={{
-                padding: '4px 12px 8px',
-                fontFamily: 'JetBrains Mono, monospace',
-                fontSize: 10,
-                fontWeight: 700,
-                color: '#4ECDC4',
-                display: 'flex',
-                alignItems: 'center',
-                gap: 6,
-                borderBottom: '1px dashed rgba(78,205,196,0.2)',
-                marginBottom: 4,
-                whiteSpace: 'nowrap',
-              }}
-            >
-              <svg width="11" height="11" viewBox="0 0 14 14" fill="none">
-                <rect x="1" y="1" width="12" height="12" rx="2" stroke="#4ECDC4" strokeWidth="1.5" />
-                <line x1="4" y1="5" x2="10" y2="5" stroke="#4ECDC4" strokeWidth="1.2" strokeLinecap="round" />
-                <line x1="4" y1="8" x2="8" y2="8" stroke="#4ECDC4" strokeWidth="1.2" strokeLinecap="round" />
-              </svg>
-              {ediFile.fileName || 'EDI File'}{txLabel}
-            </div>
+          {!hasFile || tree.length === 0 ? (
+            <ExplorerEmptyState />
+          ) : (
+            <>
+              <div
+                style={{
+                  padding: '4px 12px 8px',
+                  fontFamily: 'JetBrains Mono, monospace',
+                  fontSize: 10,
+                  fontWeight: 700,
+                  color: '#4ECDC4',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 6,
+                  borderBottom: '1px dashed rgba(78,205,196,0.2)',
+                  marginBottom: 4,
+                  whiteSpace: 'nowrap',
+                }}
+              >
+                <svg width="11" height="11" viewBox="0 0 14 14" fill="none">
+                  <rect x="1" y="1" width="12" height="12" rx="2" stroke="#4ECDC4" strokeWidth="1.5" />
+                  <line x1="4" y1="5" x2="10" y2="5" stroke="#4ECDC4" strokeWidth="1.2" strokeLinecap="round" />
+                  <line x1="4" y1="8" x2="8" y2="8" stroke="#4ECDC4" strokeWidth="1.2" strokeLinecap="round" />
+                </svg>
+                {ediFile.fileName || 'EDI File'}{txLabel}
+              </div>
 
-            <div
-              style={{
-                padding: '4px 12px 6px',
-                display: 'flex',
-                gap: 10,
-                flexWrap: 'wrap',
-                borderBottom: '1px solid rgba(26,26,46,0.05)',
-                marginBottom: 2,
-              }}
-            >
-              {[
-                { bg: '#4ECDC4', label: 'Loop' },
-                { bg: '#FFE66D', label: 'Segment' },
-              ].map((b) => (
+              <div
+                style={{
+                  padding: '4px 12px 6px',
+                  display: 'flex',
+                  gap: 10,
+                  flexWrap: 'wrap',
+                  borderBottom: '1px solid rgba(26,26,46,0.05)',
+                  marginBottom: 2,
+                }}
+              >
+                {[
+                  { bg: '#4ECDC4', label: 'Loop' },
+                  { bg: '#FFE66D', label: 'Segment' },
+                ].map((b) => (
+                  <span
+                    key={b.label}
+                    style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: 4,
+                      fontFamily: 'Nunito, sans-serif',
+                      fontSize: 9,
+                      color: 'rgba(26,26,46,0.45)',
+                    }}
+                  >
+                    <span
+                      style={{
+                        background: b.bg,
+                        borderRadius: 2,
+                        padding: '0 3px',
+                        fontFamily: 'JetBrains Mono, monospace',
+                        fontSize: 7,
+                        fontWeight: 700,
+                        color: '#1A1A2E',
+                        border: '1px solid rgba(26,26,46,0.15)',
+                      }}
+                    >
+                      {b.label[0]}
+                    </span>
+                    {b.label}
+                  </span>
+                ))}
                 <span
-                  key={b.label}
                   style={{
                     display: 'flex',
                     alignItems: 'center',
-                    gap: 4,
+                    gap: 3,
                     fontFamily: 'Nunito, sans-serif',
                     fontSize: 9,
-                    color: 'rgba(26,26,46,0.45)',
+                    color: '#FF6B6B',
                   }}
                 >
-                  <span
-                    style={{
-                      background: b.bg,
-                      borderRadius: 2,
-                      padding: '0 3px',
-                      fontFamily: 'JetBrains Mono, monospace',
-                      fontSize: 7,
-                      fontWeight: 700,
-                      color: '#1A1A2E',
-                      border: '1px solid rgba(26,26,46,0.15)',
-                    }}
-                  >
-                    {b.label[0]}
-                  </span>
-                  {b.label}
+                  ⚠ Error
                 </span>
-              ))}
-              <span
-                style={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: 3,
-                  fontFamily: 'Nunito, sans-serif',
-                  fontSize: 9,
-                  color: '#FF6B6B',
-                }}
-              >
-                ⚠ Error
-              </span>
-            </div>
+              </div>
 
-            {tree.map((node, i, arr) => (
-              <EdiNode
-                key={node.id}
-                node={node}
-                depth={0}
-                defaultOpen={i < 2}
-                isLast={i === arr.length - 1}
-                scrollContainer={scrollRef as React.RefObject<HTMLDivElement>}
-              />
-            ))}
-          </>
-        )}
+              {tree.map((node, i, arr) => (
+                <EdiNode
+                  key={node.id}
+                  node={node}
+                  depth={0}
+                  defaultOpen={i < 2}
+                  isLast={i === arr.length - 1}
+                  scrollContainer={scrollRef as React.RefObject<HTMLDivElement>}
+                />
+              ))}
+            </>
+          )}
         </div>
       </div>
     </div>
   )
 }
-
-// ── HistoryView ────────────────────────────────────────────────────────────────
 
 function HistoryView({ onMinimize }: { onMinimize?: () => void }) {
   const { historyItems, isHistoryLoading, fetchHistory, loadWorkspace, deleteWorkspace, session } = useAppStore()
@@ -708,7 +697,7 @@ function HistoryView({ onMinimize }: { onMinimize?: () => void }) {
 
   const formatDate = (dateString: string) => {
     const d = new Date(dateString)
-    return d.toLocaleDateString() + ' ' + d.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})
+    return d.toLocaleDateString() + ' ' + d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
   }
 
   return (
@@ -746,14 +735,14 @@ function HistoryView({ onMinimize }: { onMinimize?: () => void }) {
           </button>
         )}
       </div>
-      
+
       <div style={{ flex: 1, overflowY: 'auto', padding: '8px 0' }} className="custom-scrollbar">
         {!session && (
           <div style={{ padding: '20px', textAlign: 'center', fontFamily: 'Nunito', fontSize: 12, color: 'rgba(26,26,46,0.5)' }}>
             Log in to view and save your history.
           </div>
         )}
-        
+
         {session && isHistoryLoading && historyItems.length === 0 && (
           <div style={{ padding: '20px', textAlign: 'center', fontFamily: 'Nunito', fontSize: 12, color: 'rgba(26,26,46,0.5)' }}>
             Loading history...
@@ -853,8 +842,6 @@ function HistoryView({ onMinimize }: { onMinimize?: () => void }) {
   )
 }
 
-// ── Main LeftSidebar ───────────────────────────────────────────────────────────
-
 export default function LeftSidebar({ onMinimize }: { onMinimize?: () => void }) {
   const activePanelView = useAppStore((s) => s.activePanelView)
 
@@ -869,11 +856,8 @@ export default function LeftSidebar({ onMinimize }: { onMinimize?: () => void })
         flexDirection: 'column',
       }}
     >
-      {activePanelView === 'explorer' ? (
-        <ExplorerView onMinimize={onMinimize} />
-      ) : (
-        <HistoryView onMinimize={onMinimize} />
-      )}
+      {activePanelView === 'explorer' && <ExplorerView onMinimize={onMinimize} />}
+      {activePanelView === 'history' && <HistoryView onMinimize={onMinimize} />}
     </div>
   )
 }

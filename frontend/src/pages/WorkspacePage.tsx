@@ -16,6 +16,7 @@ import ReconcileView from '../components/workspace/ReconcileView'
 import ExportPage from '../components/workspace/ExportPage'
 import ChangeReport834View from '../components/workspace/ChangeReport834View'
 import EligibilityScrubberView from '../components/workspace/EligibilityScrubberView'
+import BatchReportView from '../components/workspace/BatchReportView'
 
 const FlexPanelGroup = PanelGroup as any
 
@@ -29,12 +30,11 @@ export default function WorkspacePage() {
 
   const hasInitialized = useRef(false)
 
-  // ── One-Time Routing Logic ─────────────────────────────────────────────────
   useEffect(() => {
     if (authLoading) return
     if (!hasInitialized.current) {
       hasInitialized.current = true
-      if (session && !ediFile.file) {
+      if (session && !ediFile.file && !useAppStore.getState().batchResults) {
         setActiveMainView('welcome')
       } else if (!session && activeMainView === 'welcome') {
         setActiveMainView('dashboard')
@@ -42,7 +42,6 @@ export default function WorkspacePage() {
     }
   }, [authLoading, session, ediFile.file, activeMainView, setActiveMainView])
 
-  // ── While auth is initializing ─────────────────────────────────────────────
   if (authLoading) {
     return (
       <div style={{ height: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', background: '#FDFAF4', flexDirection: 'column', gap: 16 }}>
@@ -52,13 +51,11 @@ export default function WorkspacePage() {
     )
   }
 
-  // ── Determine what the center area renders ─────────────────────────────────
-  const isFullPageView = activeMainView === 'welcome' || activeMainView === 'dashboard' || activeMainView === 'reconcile' || activeMainView === 'change-report'
+  const isFullPageView = activeMainView === 'welcome' || activeMainView === 'dashboard' || activeMainView === 'reconcile' || activeMainView === 'change-report' || activeMainView === 'eligibility-scrubber' || activeMainView === 'batch'
 
   return (
     <div style={{ position: 'relative', display: 'flex', flexDirection: 'column', height: '100vh', overflow: 'hidden', background: '#FDFAF4' }}>
 
-      {/* Global parse-loading overlay */}
       {isLoading && (
         <div style={{
           position: 'absolute', top: 0, left: 0, right: 0, bottom: 0,
@@ -68,21 +65,19 @@ export default function WorkspacePage() {
         }}>
           <div className="doodle-spinner" style={{ width: 48, height: 48 }} />
           <p style={{ fontFamily: 'Nunito, sans-serif', fontWeight: 700, fontSize: 16, color: '#1A1A2E', marginTop: 16 }}>
-            Parsing your file…
+            Processing your request…
           </p>
         </div>
       )}
 
-      {/* Top Navbar */}
       <WorkspaceTopNav />
 
       <div style={{ display: 'flex', flex: 1, overflow: 'hidden' }}>
         <ActivityBar />
 
-        {/* Loop Explorer pull-tab — sits right after ActivityBar, visible when sidebar is closed */}
         {activeMainView === 'editor' && !isLeftSidebarOpen && (
           <button
-            id="loop-explorer-pull-tab"
+            id="sidebar-pull-tab"
             onClick={() => setIsLeftSidebarOpen(true)}
             style={{
               alignSelf: 'center',
@@ -120,7 +115,6 @@ export default function WorkspacePage() {
           </button>
         )}
 
-        {/* ── Full-page views (no left sidebar, no tabs) ── */}
         {activeMainView === 'welcome' && (
           <div style={{ flex: 1, overflowY: 'auto' }}>
             <WorkspaceWelcome />
@@ -133,28 +127,30 @@ export default function WorkspacePage() {
           </div>
         )}
 
-        {/* ── Reconcile page — full area, no left sidebar, no tabs ── */}
+        {activeMainView === 'batch' && (
+          <div style={{ flex: 1, overflowY: 'auto' }} className="custom-scrollbar">
+            <BatchReportView />
+          </div>
+        )}
+
         {activeMainView === 'reconcile' && (
           <div style={{ flex: 1, overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
             <ReconcileView />
           </div>
         )}
 
-        {/* ── 834 Change Report page — full area ── */}
         {activeMainView === 'change-report' && (
           <div style={{ flex: 1, overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
             <ChangeReport834View />
           </div>
         )}
 
-        {/* ── Eligibility Scrubber page — full area ── */}
         {activeMainView === 'eligibility-scrubber' && (
           <div style={{ flex: 1, overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
             <EligibilityScrubberView />
           </div>
         )}
 
-        {/* ── Editor / Export views (left sidebar + tabs + validation drawer) ── */}
         {activeMainView === 'export' ? (
           <div style={{ flex: 1, overflowY: 'auto' }} className="custom-scrollbar">
             <ExportPage />
@@ -190,9 +186,7 @@ export default function WorkspacePage() {
         ) : null}
       </div>
 
-      {/* AI Co-Pilot pull tab — hidden on welcome view */}
-      {!isFullPageView || activeMainView === 'reconcile' ? null : null}
-      {activeMainView !== 'welcome' && !isAIPanelOpen && (
+      {!isFullPageView && !isAIPanelOpen && (
         <button
           onClick={() => setIsAIPanelOpen(true)}
           style={{

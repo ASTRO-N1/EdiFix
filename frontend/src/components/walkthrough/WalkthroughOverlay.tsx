@@ -1,4 +1,4 @@
-﻿import { useEffect, useState, useCallback } from 'react'
+import { useEffect, useState, useCallback, useRef, type CSSProperties } from 'react'
 import { createPortal } from 'react-dom'
 import useAppStore, { type WalkthroughStep } from '../../store/useAppStore'
 
@@ -16,24 +16,62 @@ interface StepConfig {
 function getStepConfig(step: WalkthroughStep, txnType: string | null): StepConfig | null {
   switch (step) {
     case 'welcome-greeting':
-      return { targets: ['welcome-heading'], tooltip: "Let's give you a tour of our site.", blur: false, beacon: true, showNext: true, placement: 'bottom' }
+      return {
+        targets: ['welcome-heading'],
+        tooltip: "Let's give you a tour of our site.",
+        blur: false, beacon: true, showNext: true, placement: 'bottom',
+      }
     case 'upload-file':
-      return { targets: ['upload-dropzone'], tooltip: 'Upload your files here.', blur: true, beacon: true, showNext: false, placement: 'top' }
+      return {
+        targets: ['upload-dropzone'],
+        tooltip: 'Upload your files here. You can drop an EDI file or click to browse. Click Next to skip.',
+        blur: true, beacon: true,
+        showNext: true,   // ← allow manual advance if user doesn't want to upload now
+        placement: 'top',
+      }
     case 'overview-proceed':
-      return { targets: ['proceed-workspace-btn'], tooltip: 'Click here to proceed to your workspace.', blur: false, beacon: true, showNext: false, placement: 'top' }
+      return {
+        targets: ['proceed-workspace-btn'],
+        tooltip: 'Click here to proceed to your workspace.',
+        blur: false, beacon: true, showNext: false, placement: 'top',
+      }
     case 'workspace-explorer':
-      return { targets: ['left-sidebar'], tooltip: 'This is your loop explorer. Here you will see each loop and corresponding segment of your EDI file. Try clicking on one loop.', blur: true, beacon: false, showNext: true, placement: 'right' }
+      return {
+        targets: ['left-sidebar'],
+        tooltip: 'This is your loop explorer. Here you will see each loop and corresponding segment of your EDI file. Try clicking on one loop.',
+        blur: true, beacon: false, showNext: true, placement: 'right',
+      }
     case 'workspace-validation':
-      return { targets: ['validation-drawer'], tooltip: 'Here are the errors from your EDI file.', blur: true, beacon: false, showNext: true, placement: 'top' }
+      return {
+        targets: ['validation-drawer'],
+        tooltip: 'Here are the errors from your EDI file.',
+        blur: true, beacon: false, showNext: true, placement: 'top',
+      }
     case 'workspace-form':
-      return { targets: ['form-editor-view'], tooltip: 'This is the BEST part. You can view your EDI files in a simplified form view.', blur: true, beacon: false, showNext: true, placement: 'left' }
+      return {
+        targets: ['form-editor-view'],
+        tooltip: 'This is the BEST part. You can view your EDI files in a simplified form view.',
+        blur: true, beacon: false, showNext: true, placement: 'left',
+      }
     case 'workspace-form-val':
-      return { targets: ['form-editor-view', 'validation-drawer'], tooltip: 'Try clicking on an error. It will guide you to the exact part of the form where the error occurs.', blur: true, beacon: true, showNext: true, placement: 'top' }
+      return {
+        targets: ['form-editor-view', 'validation-drawer'],
+        tooltip: 'Try clicking on an error. It will guide you to the exact part of the form where the error occurs.',
+        blur: true, beacon: true, showNext: true, placement: 'top',
+      }
     case 'workspace-ai':
-      return { targets: ['ai-panel'], tooltip: 'This is your AI buddy. It will explain anything about your EDI file you ask.', blur: true, beacon: false, showNext: true, placement: 'left' }
+      return {
+        targets: ['ai-panel'],
+        tooltip: 'This is your AI buddy. It will explain anything about your EDI file you ask.',
+        blur: true, beacon: false, showNext: true, placement: 'left',
+      }
     case 'workspace-summary': {
       const typeNum = txnType?.includes('834') ? '834' : '835'
-      return { targets: ['tab-summary'], tooltip: `Click here to view the summary of your ${typeNum} file.`, blur: true, beacon: true, showNext: true, placement: 'bottom' }
+      return {
+        targets: ['tab-summary'],
+        tooltip: `Click here to view the summary of your ${typeNum} file.`,
+        blur: true, beacon: true, showNext: true, placement: 'bottom',
+      }
     }
     default:
       return null
@@ -63,77 +101,88 @@ function getBoundingRect(rects: Rect[]): Rect | null {
   return { top, left, width: right - left, height: bottom - top }
 }
 
-// ── Overlay SVG mask — cuts holes for target elements ─────────────────────────
+// ── Blur Overlay — four curtains around the highlighted rect(s) ───────────────
+//
+//  This approach avoids the SVG-mask + backdropFilter bug (Chrome ignores
+//  `backdrop-filter` on elements inside an SVG, so the target element was
+//  inadvertently blurred along with the rest of the page).
+//
+//  Instead we render four solid/blur rectangles that precisely fill the
+//  screen area OUTSIDE the bounding highlight rect.  The gap in the middle
+//  exposes the real DOM elements without any filter applied.
+//
+//  ┌──────────────────────────────────┐
+//  │          TOP  curtain            │
+//  ├──────────┬─────────┬─────────────┤
+//  │  LEFT    │  CLEAR  │   RIGHT     │
+//  ├──────────┴─────────┴─────────────┤
+//  │         BOTTOM curtain           │
+//  └──────────────────────────────────┘
 
-function OverlayMask({ rects, blur }: { rects: Rect[]; blur: boolean }) {
-  if (!blur) return null
-  const PAD = 8
+const CURTAIN_BG = 'rgba(26, 26, 46, 0.55)'
+const CURTAIN_BLUR = 'blur(4px)'
+const PAD = 10  // padding around targets (px)
+
+function BlurCurtains({ boundingRect }: { boundingRect: Rect | null }) {
+  const W = window.innerWidth
+  const H = window.innerHeight
+
+  // If we have no rect yet, black-out everything
+  const cut = boundingRect
+    ? {
+        top: Math.max(0, boundingRect.top - PAD),
+        left: Math.max(0, boundingRect.left - PAD),
+        bottom: Math.min(H, boundingRect.top + boundingRect.height + PAD),
+        right: Math.min(W, boundingRect.left + boundingRect.width + PAD),
+      }
+    : { top: 0, left: 0, bottom: 0, right: 0 }
+
+  const curtain = (style: CSSProperties) => (
+    <div
+      style={{
+        position: 'fixed',
+        background: CURTAIN_BG,
+        backdropFilter: CURTAIN_BLUR,
+        WebkitBackdropFilter: CURTAIN_BLUR,
+        zIndex: 99998,
+        pointerEvents: 'none',
+        ...style,
+      }}
+    />
+  )
+
   return (
-    <div style={{
-      position: 'fixed', inset: 0, zIndex: 99998, pointerEvents: 'none',
-    }}>
-      <svg width="100%" height="100%" style={{ position: 'absolute', inset: 0 }}>
-        <defs>
-          <mask id="tour-mask">
-            <rect width="100%" height="100%" fill="white" />
-            {rects.map((r, i) => (
-              <rect
-                key={i}
-                x={r.left - PAD}
-                y={r.top - PAD}
-                width={r.width + PAD * 2}
-                height={r.height + PAD * 2}
-                rx={12}
-                fill="black"
-              />
-            ))}
-          </mask>
-        </defs>
-        <rect
-          width="100%" height="100%"
-          fill="rgba(253,250,244,0.75)"
-          mask="url(#tour-mask)"
-          style={{ backdropFilter: 'blur(4px)', WebkitBackdropFilter: 'blur(4px)' }}
-        />
-      </svg>
-      {/* Backdrop-blur fallback — SVG mask + filter doesn't propagate well in all browsers */}
-      <div style={{
-        position: 'absolute', inset: 0,
-        background: 'rgba(253,250,244,0.6)',
-        backdropFilter: 'blur(4px)',
-        WebkitBackdropFilter: 'blur(4px)',
-        mask: `url("data:image/svg+xml,${encodeURIComponent(
-          `<svg xmlns='http://www.w3.org/2000/svg' width='${window.innerWidth}' height='${window.innerHeight}'><defs><mask id='m'><rect width='100%' height='100%' fill='white'/>${rects.map(r => `<rect x='${r.left - PAD}' y='${r.top - PAD}' width='${r.width + PAD * 2}' height='${r.height + PAD * 2}' rx='12' fill='black'/>`).join('')}</mask></defs><rect width='100%' height='100%' mask='url(%23m)' fill='white'/></svg>`
-        )}")`,
-        WebkitMask: `url("data:image/svg+xml,${encodeURIComponent(
-          `<svg xmlns='http://www.w3.org/2000/svg' width='${window.innerWidth}' height='${window.innerHeight}'><defs><mask id='m'><rect width='100%' height='100%' fill='white'/>${rects.map(r => `<rect x='${r.left - PAD}' y='${r.top - PAD}' width='${r.width + PAD * 2}' height='${r.height + PAD * 2}' rx='12' fill='black'/>`).join('')}</mask></defs><rect width='100%' height='100%' mask='url(%23m)' fill='white'/></svg>`
-        )}")`,
-      }} />
-    </div>
+    <>
+      {/* Top */}
+      {curtain({ top: 0, left: 0, width: W, height: cut.top })}
+      {/* Bottom */}
+      {curtain({ top: cut.bottom, left: 0, width: W, height: Math.max(0, H - cut.bottom) })}
+      {/* Left */}
+      {curtain({ top: cut.top, left: 0, width: cut.left, height: cut.bottom - cut.top })}
+      {/* Right */}
+      {curtain({ top: cut.top, left: cut.right, width: Math.max(0, W - cut.right), height: cut.bottom - cut.top })}
+    </>
   )
 }
 
-// ── Click-through zone — allows interacting with highlighted targets ───────────
+// ── Backdrop blocker for non-blur steps (blocks clicks outside callout) ───────
 
-function ClickThroughZones({ rects }: { rects: Rect[] }) {
-  const PAD = 8
+function FullscreenBlocker({ rects }: { rects: Rect[] }) {
   return (
     <>
-      {/* Block clicks on masked areas */}
+      {/* Transparent full-screen catch that blocks accidental clicks */}
       <div style={{
         position: 'fixed', inset: 0, zIndex: 99999,
         pointerEvents: 'auto', background: 'transparent',
       }} />
-      {/* Cut out click-through holes */}
+      {/* Punch-through zones for each highlighted element */}
       {rects.map((r, i) => (
         <div
           key={i}
           style={{
             position: 'fixed',
-            top: r.top - PAD,
-            left: r.left - PAD,
-            width: r.width + PAD * 2,
-            height: r.height + PAD * 2,
+            top: r.top - PAD, left: r.left - PAD,
+            width: r.width + PAD * 2, height: r.height + PAD * 2,
             zIndex: 100000,
             pointerEvents: 'auto',
             background: 'transparent',
@@ -158,11 +207,31 @@ function Beacon({ rect }: { rect: Rect }) {
     }}>
       <div style={{
         width: 20, height: 20, borderRadius: '50%',
-        background: '#FF6B6B', border: '2.5px solid #1A1A2E',
+        background: '#FF6B6B', border: '2.5px solid #FDFAF4',
         boxShadow: '0 0 0 0 rgba(255,107,107,0.7)',
         animation: 'tour-beacon-pulse 1.5s ease-in-out infinite',
       }} />
     </div>
+  )
+}
+
+// ── Highlight ring drawn directly around each target ─────────────────────────
+
+function HighlightRing({ rect }: { rect: Rect }) {
+  return (
+    <div style={{
+      position: 'fixed',
+      top: rect.top - PAD - 2,
+      left: rect.left - PAD - 2,
+      width: rect.width + (PAD + 2) * 2,
+      height: rect.height + (PAD + 2) * 2,
+      border: '2.5px solid rgba(78, 205, 196, 0.9)',
+      borderRadius: 14,
+      boxShadow: '0 0 0 4px rgba(78, 205, 196, 0.25)',
+      zIndex: 99999,
+      pointerEvents: 'none',
+      animation: 'tour-ring-appear 0.3s ease-out',
+    }} />
   )
 }
 
@@ -186,43 +255,43 @@ function Tooltip({
   onSkip: () => void
 }) {
   const [pos, setPos] = useState({ top: 0, left: 0 })
+  const TIP_W = 340
+  const TIP_H = 160 // estimated height for clamping
 
   useEffect(() => {
     if (!anchorRect) {
-      // Center of screen
-      setPos({ top: window.innerHeight / 2 - 60, left: window.innerWidth / 2 - 160 })
+      setPos({ top: window.innerHeight / 2 - TIP_H / 2, left: window.innerWidth / 2 - TIP_W / 2 })
       return
     }
-    const TIP_W = 320
-    const GAP = 16
+    const GAP = 20
     let top = 0
     let left = 0
 
     switch (placement) {
       case 'bottom':
-        top = anchorRect.top + anchorRect.height + GAP
+        top = anchorRect.top + anchorRect.height + GAP + PAD
         left = anchorRect.left + anchorRect.width / 2 - TIP_W / 2
         break
       case 'top':
-        top = anchorRect.top - GAP - 140
+        top = anchorRect.top - GAP - PAD - TIP_H
         left = anchorRect.left + anchorRect.width / 2 - TIP_W / 2
         break
       case 'right':
-        top = anchorRect.top + anchorRect.height / 2 - 60
-        left = anchorRect.left + anchorRect.width + GAP
+        top = anchorRect.top + anchorRect.height / 2 - TIP_H / 2
+        left = anchorRect.left + anchorRect.width + GAP + PAD
         break
       case 'left':
-        top = anchorRect.top + anchorRect.height / 2 - 60
-        left = anchorRect.left - TIP_W - GAP
+        top = anchorRect.top + anchorRect.height / 2 - TIP_H / 2
+        left = anchorRect.left - TIP_W - GAP - PAD
         break
       default:
-        top = window.innerHeight / 2 - 60
+        top = window.innerHeight / 2 - TIP_H / 2
         left = window.innerWidth / 2 - TIP_W / 2
     }
 
     // Clamp to viewport
-    left = Math.max(12, Math.min(window.innerWidth - TIP_W - 12, left))
-    top = Math.max(12, Math.min(window.innerHeight - 180, top))
+    left = Math.max(16, Math.min(window.innerWidth - TIP_W - 16, left))
+    top = Math.max(16, Math.min(window.innerHeight - TIP_H - 16, top))
     setPos({ top, left })
   }, [anchorRect, placement])
 
@@ -232,7 +301,7 @@ function Tooltip({
       top: pos.top,
       left: pos.left,
       zIndex: 100003,
-      width: 320,
+      width: TIP_W,
       pointerEvents: 'auto',
       animation: 'tour-tooltip-enter 0.3s ease-out',
     }}>
@@ -244,6 +313,7 @@ function Tooltip({
         padding: '18px 20px',
         fontFamily: 'Nunito, sans-serif',
       }}>
+        {/* Header */}
         <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 10 }}>
           <span style={{ fontSize: 20 }}>✨</span>
           <span style={{
@@ -253,21 +323,25 @@ function Tooltip({
             EdiFix Tour
           </span>
         </div>
+
+        {/* Body */}
         <p style={{
           fontSize: 14, fontWeight: 600, color: '#1A1A2E',
           lineHeight: 1.6, margin: '0 0 16px',
         }}>
           {text}
         </p>
+
+        {/* Actions */}
         <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
           {showNext && (
             <button
               onClick={onNext}
               style={{
                 background: '#4ECDC4', color: '#1A1A2E',
-                fontFamily: 'Nunito, sans-serif', fontWeight: 800, fontSize: 12,
+                fontFamily: 'Nunito, sans-serif', fontWeight: 800, fontSize: 13,
                 border: '2px solid #1A1A2E', borderRadius: 8,
-                padding: '8px 20px', cursor: 'pointer',
+                padding: '9px 22px', cursor: 'pointer',
                 boxShadow: '3px 3px 0px #1A1A2E',
                 transition: 'all 0.15s',
               }}
@@ -282,7 +356,7 @@ function Tooltip({
             style={{
               background: 'transparent', color: 'rgba(26,26,46,0.45)',
               fontFamily: 'Nunito, sans-serif', fontWeight: 700, fontSize: 11,
-              border: 'none', cursor: 'pointer', padding: '8px 12px',
+              border: 'none', cursor: 'pointer', padding: '9px 12px',
             }}
           >
             Skip tour
@@ -302,22 +376,31 @@ export default function WalkthroughOverlay() {
   const transactionType = useAppStore(s => s.transactionType)
 
   const [rects, setRects] = useState<Rect[]>([])
+  const rafRef = useRef<number | null>(null)
 
   const config = walkthroughStep ? getStepConfig(walkthroughStep, transactionType) : null
 
-  // Recalculate positions on step change and on resize/scroll
+  // Recalculate positions via rAF to stay in sync with layout
   const recalc = useCallback(() => {
-    if (!config) { setRects([]); return }
-    setRects(getTargetRects(config.targets))
+    if (rafRef.current) cancelAnimationFrame(rafRef.current)
+    rafRef.current = requestAnimationFrame(() => {
+      if (!config) { setRects([]); return }
+      const newRects = getTargetRects(config.targets)
+      setRects(newRects)
+    })
   }, [config])
 
   useEffect(() => {
     recalc()
-    const timer = setTimeout(recalc, 300) // re-measure after layout settles
+    // Re-measure after a short delay (allows element to animate into view)
+    const t1 = setTimeout(recalc, 150)
+    const t2 = setTimeout(recalc, 500)
     window.addEventListener('resize', recalc)
     window.addEventListener('scroll', recalc, true)
     return () => {
-      clearTimeout(timer)
+      clearTimeout(t1)
+      clearTimeout(t2)
+      if (rafRef.current) cancelAnimationFrame(rafRef.current)
       window.removeEventListener('resize', recalc)
       window.removeEventListener('scroll', recalc, true)
     }
@@ -326,31 +409,43 @@ export default function WalkthroughOverlay() {
   if (!walkthroughStep || !config) return null
 
   const boundingRect = getBoundingRect(rects)
-  const isLastStep = walkthroughStep === 'workspace-ai' && !(transactionType?.includes('834') || transactionType?.includes('835'))
+  const isLastStep =
+    (walkthroughStep === 'workspace-ai' && !(transactionType?.includes('834') || transactionType?.includes('835')))
     || walkthroughStep === 'workspace-summary'
 
   const overlay = (
     <>
       <style>{`
         @keyframes tour-beacon-pulse {
-          0% { box-shadow: 0 0 0 0 rgba(255,107,107,0.7); }
-          70% { box-shadow: 0 0 0 14px rgba(255,107,107,0); }
-          100% { box-shadow: 0 0 0 0 rgba(255,107,107,0); }
+          0%   { box-shadow: 0 0 0 0   rgba(255,107,107,0.7); }
+          70%  { box-shadow: 0 0 0 14px rgba(255,107,107,0); }
+          100% { box-shadow: 0 0 0 0   rgba(255,107,107,0); }
         }
         @keyframes tour-tooltip-enter {
           from { opacity: 0; transform: translateY(8px); }
-          to { opacity: 1; transform: translateY(0); }
+          to   { opacity: 1; transform: translateY(0); }
+        }
+        @keyframes tour-ring-appear {
+          from { opacity: 0; transform: scale(0.97); }
+          to   { opacity: 1; transform: scale(1); }
         }
       `}</style>
 
-      <OverlayMask rects={rects} blur={config.blur} />
+      {/* ── Blur curtains (only for blur steps) */}
+      {config.blur && <BlurCurtains boundingRect={boundingRect} />}
 
-      {config.blur && <ClickThroughZones rects={rects} />}
+      {/* ── Highlight rings around each target */}
+      {config.blur && rects.map((r, i) => <HighlightRing key={i} rect={r} />)}
 
+      {/* ── Click-through blocker (only for blur steps so user can interact with targets) */}
+      {config.blur && <FullscreenBlocker rects={rects} />}
+
+      {/* ── Pulsing beacon on the last target */}
       {config.beacon && rects.length > 0 && (
         <Beacon rect={rects[rects.length - 1]} />
       )}
 
+      {/* ── Tooltip card */}
       <Tooltip
         text={config.tooltip}
         placement={config.placement}

@@ -110,12 +110,13 @@ export default function AIPanel() {
   const errors: any[] = (parseResult as any)?.errors ?? (parseResult as any)?.data?.errors ?? []
   const errorCount = errors.length
 
-  // Auto-add fix messages from Fix Assistant (ValidationDrawer)
+  // Auto-add fix messages from Fix Assistant (ValidationDrawer) and clear so re-fires next time
   useEffect(() => {
     if (aiPromptContext) {
       setMessages(m => [...m, { id: Date.now().toString(), role: 'system', text: aiPromptContext }])
+      setAiPromptContext(null)  // clear so the next fix triggers again
     }
-  }, [aiPromptContext])
+  }, [aiPromptContext, setAiPromptContext])
 
   const handleAcceptFix = () => {
     if (!pendingFix) return
@@ -208,14 +209,6 @@ export default function AIPanel() {
       setIsFixing(false)
     }
   }
-
-  useEffect(() => {
-    if (aiPromptContext) {
-      setInput(aiPromptContext)
-      setAiPromptContext(null)
-      setTimeout(() => inputRef.current?.focus(), 100)
-    }
-  }, [aiPromptContext, setAiPromptContext])
 
   useEffect(() => {
     msgsEndRef.current?.scrollIntoView({ behavior: 'smooth' })

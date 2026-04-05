@@ -167,24 +167,24 @@ function UploadView({ onResult }: { onResult: (r: EligibilityReport) => void }) 
   const loading834 = queue834.filter(f => f.status === 'loading')
   const canRun = ready834.length > 0 && file837?.status === 'ok' && loading834.length === 0 && !isRunning
 
-  const parseFile = useCallback(async (entry: QueuedFile, raw: File, queue: QueuedFile[], setQueue: React.Dispatch<React.SetStateAction<QueuedFile[]>>) => {
-    setQueue(q => q.map(f => f.id === entry.id ? { ...f, status: 'loading' } : f))
+  const parseFile834 = useCallback(async (entry: QueuedFile, raw: File) => {
+    setQueue834(q => q.map(f => f.id === entry.id ? { ...f, status: 'loading' } : f))
     const r = await parseEdiFile(raw)
     if (r.ok) {
-      setQueue(q => q.map(f => f.id === entry.id ? { ...f, status: 'ok', parsed: r.data } : f))
+      setQueue834(q => q.map(f => f.id === entry.id ? { ...f, status: 'ok', parsed: r.data } : f))
     } else {
-      setQueue(q => q.map(f => f.id === entry.id ? { ...f, status: 'error', error: r.error } : f))
+      setQueue834(q => q.map(f => f.id === entry.id ? { ...f, status: 'error', error: r.error } : f))
     }
   }, [])
 
   const onDrop834 = useCallback((accepted: File[]) => {
     const newEntries: QueuedFile[] = accepted.map(raw => {
       const entry: QueuedFile = { id: uid(), name: raw.name, size: raw.size, status: 'idle' }
-      setTimeout(() => parseFile(entry, raw, queue834, setQueue834), 0)
+      setTimeout(() => parseFile834(entry, raw), 0)
       return entry
     })
     setQueue834(q => [...q, ...newEntries])
-  }, [parseFile, queue834])
+  }, [parseFile834])
 
   const parseFile837 = useCallback(async (entry: QueuedFile, raw: File) => {
     setFile837({ ...entry, status: 'loading' })
@@ -434,7 +434,7 @@ function ResultView({ report, onReset }: { report: EligibilityReport; onReset: (
     const av = a[sortCol], bv = b[sortCol]
     const dir = sortDir === 'asc' ? 1 : -1
     if (typeof av === 'number' && typeof bv === 'number') return (av - bv) * dir
-    return String(av).localeCompare(String(bv)) * dir
+    return String(av || '').localeCompare(String(bv || '')) * dir
   })
 
   const onSort = (col: keyof ClaimResult) => {
@@ -551,8 +551,7 @@ function ResultView({ report, onReset }: { report: EligibilityReport; onReset: (
                 No claims match the selected filter.
               </p>
             </div>
-          )}
-          {sorted.length > 0 && (
+          ) : (
             <div style={{ overflowX: 'auto', borderRadius: 12, border: '2.5px solid #1A1A2E', boxShadow: '5px 5px 0 rgba(26,26,46,0.1)' }} className="custom-scrollbar">
               <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: 900 }}>
                 <thead>

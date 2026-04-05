@@ -31,7 +31,7 @@ function SketchMenuIcon({ open }: { open: boolean }) {
       ) : (
         // Three slightly uneven lines
         <>
-          <line x1="2" y1="4"  x2="26" y2="3.5" stroke="#1A1A2E" strokeWidth="2.5" strokeLinecap="round" />
+          <line x1="2" y1="4" x2="26" y2="3.5" stroke="#1A1A2E" strokeWidth="2.5" strokeLinecap="round" />
           <line x1="3" y1="11" x2="24" y2="11.5" stroke="#1A1A2E" strokeWidth="2.5" strokeLinecap="round" />
           <line x1="4" y1="18" x2="25" y2="17.5" stroke="#1A1A2E" strokeWidth="2.5" strokeLinecap="round" />
         </>
@@ -128,7 +128,7 @@ export default function Navbar() {
             </button>
 
             <a
-              href="https://github.com/ASTRO-N1/EDI-PARSER"
+              href="https://github.com/ASTRO-N1/EdiFix.git"
               target="_blank" rel="noopener noreferrer"
               className="btn-sticker"
               style={{ padding: '8px 18px', borderRadius: 8, fontSize: 18, color: '#1A1A2E', background: '#ffffff', textDecoration: 'none' }}

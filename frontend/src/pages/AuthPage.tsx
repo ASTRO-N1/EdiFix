@@ -550,12 +550,12 @@ export default function AuthPage() {
           style={{
             position: 'fixed',
             bottom: 0,
-            right: 1050,
+            left: 0,
             width: 300,
             pointerEvents: 'none',
             zIndex: 10,
-            transform: 'rotate(2deg)',
-            transformOrigin: 'bottom right',
+            transform: 'rotate(0deg)',
+            transformOrigin: 'bottom left',
           }}
         />
       )}

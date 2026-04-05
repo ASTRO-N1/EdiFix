@@ -146,8 +146,8 @@ export default function ProcessingPage() {
       </div>
 
       {/* Claimed illustration — fixed bottom-right corner */}
-      
-      
+
+
     </div>
   );
 }

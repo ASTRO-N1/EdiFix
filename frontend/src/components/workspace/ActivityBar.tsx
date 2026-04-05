@@ -4,7 +4,7 @@ import useAppStore from '../../store/useAppStore'
 import type { ActivePanelView } from '../../store/useAppStore'
 
 const INACTIVE = 'rgba(255,255,255,0.5)'
-const ACTIVE   = '#4ECDC4'
+const ACTIVE = '#4ECDC4'
 
 function WelcomeIcon({ active }: { active: boolean }) {
   return (
@@ -97,7 +97,7 @@ interface ActivityItem {
   label: string
   icon: (active: boolean) => JSX.Element
   isMainViewToggle?: boolean
-  collapsesBar?: boolean   // clicking this item collapses the sidebar
+  collapsesBar?: boolean   // clicking this item toggles the sidebar
   accentColor?: string
 }
 
@@ -222,36 +222,37 @@ function SubNavItem({
 // ── Main ActivityBar ──────────────────────────────────────────────────────────
 
 export default function ActivityBar() {
-  const activeMainView       = useAppStore((s) => s.activeMainView)
-  const setActiveMainView    = useAppStore((s) => s.setActiveMainView)
-  const activePanelView      = useAppStore((s) => s.activePanelView)
-  const setActivePanelView   = useAppStore((s) => s.setActivePanelView)
-  const isLeftSidebarOpen    = useAppStore((s) => s.isLeftSidebarOpen)
+  const activeMainView = useAppStore((s) => s.activeMainView)
+  const setActiveMainView = useAppStore((s) => s.setActiveMainView)
+  const activePanelView = useAppStore((s) => s.activePanelView)
+  const setActivePanelView = useAppStore((s) => s.setActivePanelView)
+  const isLeftSidebarOpen = useAppStore((s) => s.isLeftSidebarOpen)
   const setIsLeftSidebarOpen = useAppStore((s) => s.setIsLeftSidebarOpen)
-  const session              = useAppStore((s) => s.session)
+  const session = useAppStore((s) => s.session)
 
-  // ── Collapse state ────────────────────────────────────────────────────────
-  const [collapsed, setCollapsed] = useState(false)
-  const [hovered,   setHovered]   = useState(false)
+  // ── Hover & Dropdown state ──────────────────────────────────────────────
+  const [hovered, setHovered] = useState(false)
   const [otherOpen, setOtherOpen] = useState(false)
 
-  const showLabel = !collapsed || hovered
-
+  // ── Permanent Visibility Logic ──────────────────────────────────────────
+  // Enforce expanded view if we are on the Welcome or Export pages
+  const isAlwaysExpanded = activeMainView === 'welcome' || activeMainView === 'export'
+  const showLabel = isAlwaysExpanded || hovered
   const currentWidth = showLabel ? 200 : 64
 
   const BASE_ITEMS: ActivityItem[] = [
-    { id: 'welcome',   label: 'Home',      icon: (a) => <WelcomeIcon active={a} />,   isMainViewToggle: true },
+    { id: 'welcome', label: 'Home', icon: (a) => <WelcomeIcon active={a} />, isMainViewToggle: true },
     { id: 'dashboard', label: 'Dashboard', icon: (a) => <DashboardIcon active={a} />, isMainViewToggle: true },
-    { id: 'explorer',  label: 'Explorer',  icon: (a) => <ExplorerIcon active={a} />,  collapsesBar: true },
-    { id: 'history',   label: 'History',   icon: (a) => <HistoryIcon active={a} /> },
-    { id: 'export',    label: 'Export',    icon: (a) => <ExportIcon active={a} />,    isMainViewToggle: true },
+    { id: 'explorer', label: 'Explorer', icon: (a) => <ExplorerIcon active={a} />, collapsesBar: true },
+    { id: 'history', label: 'History', icon: (a) => <HistoryIcon active={a} /> },
+    { id: 'export', label: 'Export', icon: (a) => <ExportIcon active={a} />, isMainViewToggle: true },
   ]
 
   const ITEMS = session ? BASE_ITEMS : BASE_ITEMS.filter((item) => item.id !== 'welcome')
 
-  const isReconcileActive    = activeMainView === 'reconcile'
+  const isReconcileActive = activeMainView === 'reconcile'
   const isChangeReportActive = activeMainView === 'change-report'
-  const isEligibilityActive  = activeMainView === 'eligibility-scrubber'
+  const isEligibilityActive = activeMainView === 'eligibility-scrubber'
 
   // Whether any "Other Services" item is active (used to highlight the group header)
   const isAnyOtherActive = isReconcileActive || isChangeReportActive || isEligibilityActive
@@ -272,8 +273,13 @@ export default function ActivityBar() {
         overflowY: 'auto',
         transition: 'width 0.22s ease',
       }}
-      onMouseEnter={() => { if (collapsed) setHovered(true) }}
-      onMouseLeave={() => { if (collapsed) setHovered(false) }}
+      onMouseEnter={() => setHovered(true)}
+      onMouseLeave={() => {
+        setHovered(false)
+        if (!isAlwaysExpanded) {
+          setOtherOpen(false) // Close the "Other Services" dropdown automatically
+        }
+      }}
     >
       {ITEMS.map((item) => {
         const isActive = item.isMainViewToggle
@@ -290,14 +296,8 @@ export default function ActivityBar() {
             showLabel={showLabel}
             onClick={() => {
               if (item.id === 'welcome') {
-                // Home: expand bar and navigate
-                setCollapsed(false)
-                setHovered(false)
                 setActiveMainView('welcome')
               } else if (item.collapsesBar) {
-                // Explorer: collapse bar AND open editor panel
-                setCollapsed(true)
-                setHovered(false)
                 setActiveMainView('editor')
                 if (isActive) {
                   setIsLeftSidebarOpen(!isLeftSidebarOpen)
@@ -306,14 +306,8 @@ export default function ActivityBar() {
                   setIsLeftSidebarOpen(true)
                 }
               } else if (item.isMainViewToggle) {
-                // Dashboard / Export: collapse bar and navigate
-                setCollapsed(true)
-                setHovered(false)
                 setActiveMainView(item.id as 'welcome' | 'dashboard' | 'export')
               } else {
-                // History and other panel items: collapse bar
-                setCollapsed(true)
-                setHovered(false)
                 setActiveMainView('editor')
                 if (isActive) {
                   setIsLeftSidebarOpen(!isLeftSidebarOpen)
@@ -334,9 +328,7 @@ export default function ActivityBar() {
       <button
         id="sidebar-other-services"
         title={showLabel ? undefined : 'Other Services'}
-        onClick={() => {
-          setOtherOpen((prev) => !prev)
-        }}
+        onClick={() => setOtherOpen((prev) => !prev)}
         style={{
           position: 'relative',
           width: '100%',
@@ -418,7 +410,7 @@ export default function ActivityBar() {
           isActive={isReconcileActive}
           showLabel={showLabel}
           accentColor="#FFE66D"
-          onClick={() => { setCollapsed(true); setHovered(false); setActiveMainView('reconcile') }}
+          onClick={() => setActiveMainView('reconcile')}
         />
 
         {/* Change Report */}
@@ -429,7 +421,7 @@ export default function ActivityBar() {
           isActive={isChangeReportActive}
           showLabel={showLabel}
           accentColor="#95E1D3"
-          onClick={() => { setCollapsed(true); setHovered(false); setActiveMainView('change-report') }}
+          onClick={() => setActiveMainView('change-report')}
         />
 
         {/* Eligibility Check */}
@@ -440,9 +432,9 @@ export default function ActivityBar() {
           isActive={isEligibilityActive}
           showLabel={showLabel}
           accentColor="#FFE66D"
-          onClick={() => { setCollapsed(true); setHovered(false); setActiveMainView('eligibility-scrubber') }}
+          onClick={() => setActiveMainView('eligibility-scrubber')}
         />
       </div>
     </div>
   )
-}
+}

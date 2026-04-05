@@ -130,8 +130,9 @@ function resolveFormField(err: NormalisedError): string {
 }
 
 function normaliseErrors(errs: unknown[], warns: unknown[]): NormalisedError[] {
+  // Use "error-{i}" scheme to match the backend's fix_assistant.py (error_id = f"error-{idx}")
   const normE = errs.map((e: any, i) => ({
-    id: `e-${e.id ?? i}`,
+    id: `error-${i}`,
     type: 'error' as const,
     code: e.code ?? e.error_code ?? e.type ?? 'ValidationError',
     element: e.element ?? e.field ?? e.segment ?? '',
@@ -139,7 +140,7 @@ function normaliseErrors(errs: unknown[], warns: unknown[]): NormalisedError[] {
     msg: e.message ?? e.msg ?? e.description ?? 'Validation error.',
   }))
   const normW = warns.map((e: any, i) => ({
-    id: `w-${e.id ?? i}`,
+    id: `warning-${i}`,
     type: 'warning' as const,
     code: e.code ?? e.error_code ?? e.type ?? 'Warning',
     element: e.element ?? e.field ?? e.segment ?? '',
@@ -234,8 +235,15 @@ export default function ValidationDrawer() {
     setApplyingFix(null)
   }
 
-  // Map fix suggestions to errors by error_id
-  const fixMap = new Map(fixSuggestions.map(s => [s.error_id, s]))
+  // Map fix suggestions by error_id (backend uses "error-0", "error-1", etc.)
+  const fixMap = new Map<string, Record<string, any>>()
+  fixSuggestions.forEach(s => {
+    // Primary key: exact error_id from backend
+    fixMap.set(String(s.error_id), s)
+    // Fallback: if backend said "error-2", also store under index "2" for positional lookup
+    const match = String(s.error_id).match(/^(?:error|warning)-(\d+)$/)
+    if (match) fixMap.set(match[1], s)
+  })
 
   return (
     <div

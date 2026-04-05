@@ -1,4 +1,4 @@
-import { useCallback, useState } from 'react'
+import { useCallback, useState, useEffect } from 'react'
 import { useDropzone } from 'react-dropzone'
 import { motion } from 'framer-motion'
 import useAppStore from '../../store/useAppStore'
@@ -20,8 +20,19 @@ export default function WorkspaceWelcome() {
     const setTransactionType = useAppStore((s) => s.setTransactionType)
     const setError = useAppStore((s) => s.setError)
     const setActiveMainView = useAppStore((s) => s.setActiveMainView)
+    const hasSeenWalkthrough = useAppStore((s) => s.hasSeenWalkthrough)
+    const walkthroughStep = useAppStore((s) => s.walkthroughStep)
+    const setWalkthroughStep = useAppStore((s) => s.setWalkthroughStep)
 
     const [isProcessing, setIsProcessing] = useState(false)
+
+    // Auto-start walkthrough for first-time visitors
+    useEffect(() => {
+        if (!hasSeenWalkthrough && !walkthroughStep) {
+            const timer = setTimeout(() => setWalkthroughStep('welcome-greeting'), 800)
+            return () => clearTimeout(timer)
+        }
+    }, [hasSeenWalkthrough, walkthroughStep, setWalkthroughStep])
 
     const handleFile = useCallback(async (file: File) => {
         setIsProcessing(true)
@@ -55,6 +66,12 @@ export default function WorkspaceWelcome() {
 
             setParseResult(innerTree)
             setTransactionType(type)
+
+            // Advance walkthrough to overview step if active
+            if (walkthroughStep === 'upload-file') {
+                setWalkthroughStep('overview-proceed')
+            }
+
             // Redirect to dashboard instead of editor
             setActiveMainView('dashboard')
 
@@ -64,7 +81,7 @@ export default function WorkspaceWelcome() {
             setIsProcessing(false)
             setLoading(false)
         }
-    }, [setEdiFile, setFile, setActiveMainView, setLoading, setParseResult, setTransactionType, setError])
+    }, [setEdiFile, setFile, setActiveMainView, setLoading, setParseResult, setTransactionType, setError, walkthroughStep, setWalkthroughStep])
 
     const { getRootProps, getInputProps, isDragActive, fileRejections } = useDropzone({
         onDrop: (accepted) => accepted[0] && handleFile(accepted[0]),
@@ -83,7 +100,7 @@ export default function WorkspaceWelcome() {
                 initial={{ opacity: 0, y: 30 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.5, ease: 'easeOut' }}
                 style={{ maxWidth: '600px', width: '100%', textAlign: 'center' }}
             >
-                <h1 style={{ fontFamily: 'Nunito, sans-serif', fontWeight: 900, fontSize: 'clamp(32px, 5vw, 48px)', color: '#1A1A2E', marginBottom: '24px', lineHeight: 1.2 }}>
+                <h1 data-tour="welcome-heading" style={{ fontFamily: 'Nunito, sans-serif', fontWeight: 900, fontSize: 'clamp(32px, 5vw, 48px)', color: '#1A1A2E', marginBottom: '24px', lineHeight: 1.2 }}>
                     Welcome to your{' '}
                     <span style={{ position: 'relative', display: 'inline-block' }}>
                         <span style={{ color: '#FF6B6B' }}>Workspace</span>
@@ -99,6 +116,7 @@ export default function WorkspaceWelcome() {
                 </p>
 
                 <div
+                    data-tour="upload-dropzone"
                     {...getRootProps()}
                     style={{
                         display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',

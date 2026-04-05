@@ -3,23 +3,13 @@ fix_assistant.py
 ═══════════════════════════════════════════════════════════════════════════════
 Deterministic Fix Engine for Common EDI Validation Errors
 ═══════════════════════════════════════════════════════════════════════════════
-
-Supports:
-  1. NPI Luhn Checksum Correction
-  2. Date Format Conversion (YYMMDD → CCYYMMDD)
-  3. Amount Recalculation (CLM02 = sum of SV102)
-  4. Missing Required Fields (inject common defaults)
 """
 
-from typing import List, Optional, Dict, Any
+from typing import List, Optional
 from datetime import datetime
 import re
 import copy
 
-
-# ═══════════════════════════════════════════════════════════════════════════
-# FIX SUGGESTION DATA MODEL
-# ═══════════════════════════════════════════════════════════════════════════
 
 class FixSuggestion:
     """Represents a single deterministic fix suggestion."""
@@ -63,10 +53,6 @@ class FixSuggestion:
         }
 
 
-# ═══════════════════════════════════════════════════════════════════════════
-# FIX ENGINES
-# ═══════════════════════════════════════════════════════════════════════════
-
 def calculate_npi_checksum(npi: str) -> str:
     """
     Calculate the correct Luhn check digit for a 9-digit NPI prefix.
@@ -75,20 +61,17 @@ def calculate_npi_checksum(npi: str) -> str:
     if not npi:
         return npi
     
-    # Clean input
     npi = str(npi).strip()
     
     if len(npi) == 10:
-        npi = npi[:9]  # Strip existing check digit
+        npi = npi[:9]
     
     if len(npi) != 9 or not npi.isdigit():
-        return str(npi)  # Invalid format, can't fix
+        return str(npi)
     
-    # Luhn algorithm with constant prefix "80840"
     full_prefix = "80840" + npi
     digits = [int(d) for d in full_prefix]
     
-    # Double every other digit from right
     for i in range(len(digits) - 2, -1, -2):
         digits[i] *= 2
         if digits[i] > 9:
@@ -110,26 +93,23 @@ def convert_date_format(date_str: str) -> Optional[str]:
     date_str = str(date_str).strip()
     
     if len(date_str) == 8:
-        return None  # Already CCYYMMDD
+        return None
     
     if len(date_str) != 6:
-        return None  # Invalid format
+        return None
     
     try:
         yy = int(date_str[:2])
         mm = int(date_str[2:4])
         dd = int(date_str[4:6])
         
-        # Validate month/day ranges
         if mm < 1 or mm > 12 or dd < 1 or dd > 31:
             return None
         
-        # Smart century: 00-30 → 2000s, 31-99 → 1900s
         century = "20" if yy <= 30 else "19"
         ccyy = century + date_str[:2]
         result = ccyy + date_str[2:]
         
-        # Validate complete date
         datetime.strptime(result, "%Y%m%d")
         
         return result
@@ -170,10 +150,6 @@ def calculate_total_claim_charge(parse_result: dict) -> Optional[float]:
     return total if count > 0 else None
 
 
-# ═══════════════════════════════════════════════════════════════════════════
-# MAIN FIX ASSISTANT CLASS
-# ═══════════════════════════════════════════════════════════════════════════
-
 class FixAssistant:
     """Analyzes validation errors and suggests deterministic fixes."""
     
@@ -183,35 +159,53 @@ class FixAssistant:
         """
         suggestions: List[FixSuggestion] = []
         
+        # Handle both direct and nested error arrays
         tree = parse_result.get("data", parse_result)
-        errors = tree.get("errors", [])
+        errors = parse_result.get("errors", [])
+        if not errors:
+            errors = tree.get("errors", [])
+        
+        print(f"[FixAssistant] Analyzing {len(errors)} errors")
         
         for idx, error in enumerate(errors):
             error_code = str(error.get("code", "")).upper()
             element = str(error.get("element", ""))
             loop = str(error.get("loop", ""))
-            message = str(error.get("message", ""))
+            message = str(error.get("message", "")).upper()
             
             error_id = f"error-{idx}"
             
-            # NPI Checksum Errors
-            if "NPI" in error_code or "NPI" in message.upper() or "LUHN" in message.upper():
+            print(f"[FixAssistant] Error {idx}: code='{error_code}', element='{element}', loop='{loop}'")
+            
+            # NPI Checksum Errors - MORE AGGRESSIVE MATCHING
+            if ("NPI" in error_code or 
+                "NPI" in message or 
+                "LUHN" in message or 
+                "CHECKSUM" in message or
+                element == "NM109" or
+                "NM109" in element):
+                
+                print(f"[FixAssistant] Detected NPI error, attempting fix...")
                 fix = self._fix_npi_checksum(parse_result, error, error_id, loop, element)
                 if fix:
                     suggestions.append(fix)
+                    print(f"[FixAssistant] ✓ NPI fix created: {fix.current_value} → {fix.suggested_value}")
+                else:
+                    print(f"[FixAssistant] ✗ Could not create NPI fix")
             
             # Date Format Errors
-            elif "DATE" in error_code or "CCYYMMDD" in message or "6-DIGIT" in message.upper():
+            elif "DATE" in error_code or "CCYYMMDD" in message or "6-DIGIT" in message:
                 fix = self._fix_date_format(parse_result, error, error_id, loop, element)
                 if fix:
                     suggestions.append(fix)
             
             # Amount Mismatch Errors
-            elif "AMOUNT" in error_code.upper() or "CLM02" in element or "MISMATCH" in message.upper():
+            elif "AMOUNT" in error_code or "CLM02" in element or "MISMATCH" in message:
                 fix = self._fix_amount_mismatch(parse_result, error, error_id)
                 if fix:
                     suggestions.append(fix)
         
+        print(f"[FixAssistant] Generated {len(suggestions)} fix suggestions")
         return suggestions
     
     def _fix_npi_checksum(
@@ -227,39 +221,70 @@ class FixAssistant:
         loops = tree.get("loops", {})
         
         if not loop_key:
-            loop_key = "2010AA"  # Default to billing provider
+            loop_key = "2310A"  # Try rendering provider first
         
-        # Navigate to the NPI field
-        loop_instances = loops.get(loop_key, [])
+        # Try multiple loop key variants
+        loop_candidates = [
+            loop_key,
+            f"loop_{loop_key}",
+            loop_key.replace("loop_", ""),
+        ]
+        
+        loop_instances = None
+        actual_loop_key = None
+        
+        for candidate in loop_candidates:
+            if candidate in loops:
+                loop_instances = loops[candidate]
+                actual_loop_key = candidate
+                break
+        
+        if not loop_instances:
+            print(f"[NPI Fix] Could not find loop '{loop_key}' in loops: {list(loops.keys())}")
+            return None
+        
         if not isinstance(loop_instances, list):
             loop_instances = [loop_instances] if loop_instances else []
         
         if not loop_instances:
             return None
         
-        nm1_seg = loop_instances[0].get("NM1", {})
+        # Find NM1 segment
+        first_instance = loop_instances[0]
+        nm1_seg = first_instance.get("NM1", {})
+        
         if not nm1_seg:
+            print(f"[NPI Fix] No NM1 segment in loop '{actual_loop_key}'")
             return None
+        
+        # Handle array vs object
+        if isinstance(nm1_seg, list):
+            nm1_seg = nm1_seg[0] if nm1_seg else {}
         
         raw_data = nm1_seg.get("raw_data", [])
         
         if len(raw_data) <= 9:
+            print(f"[NPI Fix] raw_data too short: {len(raw_data)} elements")
             return None
         
         current_npi = str(raw_data[9]).strip()
         
         if not current_npi or len(current_npi) != 10 or not current_npi.isdigit():
+            print(f"[NPI Fix] Invalid NPI format: '{current_npi}'")
             return None
         
         corrected_npi = calculate_npi_checksum(current_npi[:9])
         
         if corrected_npi == current_npi:
-            return None  # Already correct
+            print(f"[NPI Fix] NPI already correct: {current_npi}")
+            return None
+        
+        print(f"[NPI Fix] SUCCESS: {current_npi} → {corrected_npi}")
         
         return FixSuggestion(
             error_id=error_id,
-            field_path=f"loops.{loop_key}.0.NM1.raw_data.9",
-            loop_key=loop_key,
+            field_path=f"loops.{actual_loop_key}.0.NM1.raw_data.9",
+            loop_key=actual_loop_key,
             segment_key="NM1",
             element_key="NM1_09",
             current_value=current_npi,
@@ -278,7 +303,6 @@ class FixAssistant:
         element: str
     ) -> Optional[FixSuggestion]:
         """Generate date format fix suggestion."""
-        # Extract segment and position from element (e.g., "DTP03")
         match = re.match(r"([A-Z]+)(\d+)", element)
         if not match:
             return None
@@ -360,7 +384,6 @@ class FixAssistant:
         current_amount = str(raw_data[2]).strip()
         suggested_amount = f"{calculated:.2f}"
         
-        # Check if they're already equal (within rounding)
         try:
             if abs(float(current_amount) - calculated) < 0.01:
                 return None
@@ -387,43 +410,37 @@ class FixAssistant:
         """
         updated = copy.deepcopy(parse_result)
         
-        # Parse the field path: "loops.2010AA.0.NM1.raw_data.9"
         parts = suggestion.field_path.split(".")
         
         current = updated
         for i, part in enumerate(parts[:-1]):
             if part.isdigit():
-                # Array index
                 idx = int(part)
                 if isinstance(current, list) and len(current) > idx:
                     current = current[idx]
                 else:
-                    print(f"Warning: Could not navigate to index {idx}")
+                    print(f"[Apply Fix] Could not navigate to index {idx}")
                     return parse_result
             else:
-                # Dictionary key
                 if isinstance(current, dict) and part in current:
                     current = current[part]
                 else:
-                    print(f"Warning: Could not navigate to key '{part}'")
+                    print(f"[Apply Fix] Could not navigate to key '{part}'")
                     return parse_result
         
-        # Set the final value
         final_key = parts[-1]
         if final_key.isdigit():
             idx = int(final_key)
             if isinstance(current, list) and len(current) > idx:
                 current[idx] = suggestion.suggested_value
+                print(f"[Apply Fix] Set array[{idx}] = '{suggestion.suggested_value}'")
         else:
             if isinstance(current, dict):
                 current[final_key] = suggestion.suggested_value
+                print(f"[Apply Fix] Set dict['{final_key}'] = '{suggestion.suggested_value}'")
         
         return updated
 
-
-# ═══════════════════════════════════════════════════════════════════════════
-# PUBLIC API
-# ═══════════════════════════════════════════════════════════════════════════
 
 def analyze_and_suggest_fixes(parse_result: dict) -> List[dict]:
     """

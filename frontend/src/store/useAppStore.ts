@@ -34,6 +34,19 @@ export interface WorkspaceTab {
 
 export type ActivePanelView = 'explorer' | 'history'
 
+// ── Walkthrough Step IDs ──────────────────────────────────────────────────────
+export type WalkthroughStep =
+  | 'welcome-greeting'     // Phase 0
+  | 'upload-file'          // Phase 1
+  | 'overview-proceed'     // Phase 2
+  | 'workspace-explorer'   // Phase 3.1
+  | 'workspace-validation' // Phase 3.2
+  | 'workspace-form'       // Phase 3.3
+  | 'workspace-form-val'   // Phase 3.4
+  | 'workspace-ai'         // Phase 3.5
+  | 'workspace-summary'    // Phase 4 (834/835 only)
+  | null
+
 interface AppState {
   session: Session | null
   setSession: (session: Session | null) => void
@@ -138,6 +151,14 @@ interface AppState {
   applyFix: (suggestion: Record<string, any>) => Promise<void>
   acceptFix: () => void
   rejectFix: () => void
+
+  // ── Walkthrough State ───────────────────────────────────────────────────
+  hasSeenWalkthrough: boolean
+  setHasSeenWalkthrough: (v: boolean) => void
+  walkthroughStep: WalkthroughStep
+  setWalkthroughStep: (step: WalkthroughStep) => void
+  advanceWalkthrough: () => void
+  endWalkthrough: () => void
 }
 
 const DEFAULT_TABS: WorkspaceTab[] = [
@@ -153,6 +174,19 @@ function detectFileType(fileName: string): string {
   if (lower.includes('834')) return '834'
   return 'unknown'
 }
+
+// ── Walkthrough step sequence ─────────────────────────────────────────────────
+const WALKTHROUGH_SEQUENCE: WalkthroughStep[] = [
+  'welcome-greeting',
+  'upload-file',
+  'overview-proceed',
+  'workspace-explorer',
+  'workspace-validation',
+  'workspace-form',
+  'workspace-form-val',
+  'workspace-ai',
+  // 'workspace-summary' is conditionally appended at runtime
+]
 
 const useAppStore = create<AppState>((set, get) => ({
   session: null,
@@ -535,6 +569,42 @@ const useAppStore = create<AppState>((set, get) => ({
       fixHistory: state.fixHistory.slice(0, -1),
       aiPromptContext: `❌ **Fix Rejected**\n\nReverted to original value. The change has been undone.`,
     })
+  },
+
+  // ── Walkthrough ─────────────────────────────────────────────────────────
+  hasSeenWalkthrough: (() => {
+    try { return sessionStorage.getItem('edifix-walkthrough-seen') === 'true' } catch { return false }
+  })(),
+  setHasSeenWalkthrough: (v) => {
+    try { sessionStorage.setItem('edifix-walkthrough-seen', String(v)) } catch { /* noop */ }
+    set({ hasSeenWalkthrough: v })
+  },
+  walkthroughStep: null,
+  setWalkthroughStep: (step) => set({ walkthroughStep: step }),
+  advanceWalkthrough: () => {
+    const state = get()
+    const current = state.walkthroughStep
+    if (!current) return
+
+    const idx = WALKTHROUGH_SEQUENCE.indexOf(current)
+    if (idx === -1) { state.endWalkthrough(); return }
+
+    const nextIdx = idx + 1
+    if (nextIdx >= WALKTHROUGH_SEQUENCE.length) {
+      // Check if we need a summary step for 834/835
+      const txn = state.transactionType ?? ''
+      if (current === 'workspace-ai' && (txn.includes('834') || txn.includes('835'))) {
+        set({ walkthroughStep: 'workspace-summary' })
+        return
+      }
+      state.endWalkthrough()
+      return
+    }
+    set({ walkthroughStep: WALKTHROUGH_SEQUENCE[nextIdx] })
+  },
+  endWalkthrough: () => {
+    try { sessionStorage.setItem('edifix-walkthrough-seen', 'true') } catch { /* noop */ }
+    set({ hasSeenWalkthrough: true, walkthroughStep: null })
   },
 }))
 

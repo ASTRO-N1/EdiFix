@@ -34,10 +34,26 @@ interface FieldProps {
 
 function FormField({ id, label, value, onCommit, errors = [], isActive, mono, hint, techRef }: FieldProps) {
   const [localVal, setLocalVal] = useState(value)
+  const focusFieldId = useAppStore((s) => s.focusFieldId)
+  const inputRef = useRef<HTMLInputElement>(null)
+  
   useEffect(() => { setLocalVal(value) }, [value])
+  
+  // Auto-scroll and focus when this field is targeted
+  useEffect(() => {
+    if (focusFieldId === id && inputRef.current) {
+      const timer = setTimeout(() => {
+        inputRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' })
+        inputRef.current?.focus()
+      }, 300)
+      return () => clearTimeout(timer)
+    }
+  }, [focusFieldId, id])
+  
   const hasError = errors.length > 0
   const errorMsg = errors[0]?.message ?? errors[0]?.msg ?? ''
   const isDirty = localVal !== value
+  const isFocused = focusFieldId === id
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 5 }}>
@@ -53,6 +69,7 @@ function FormField({ id, label, value, onCommit, errors = [], isActive, mono, hi
         )}
       </div>
       <input
+        ref={inputRef}
         id={id} type="text" value={localVal}
         onChange={(e) => setLocalVal(e.target.value)}
         onKeyDown={(e) => { if (e.key === 'Escape') setLocalVal(value); if (e.key === 'Enter' && isDirty) onCommit(localVal) }}
@@ -62,9 +79,9 @@ function FormField({ id, label, value, onCommit, errors = [], isActive, mono, hi
           fontFamily: mono ? 'JetBrains Mono, monospace' : 'Nunito, sans-serif',
           fontSize: mono ? 12 : 13, color: '#1A1A2E',
           background: hasError && !isDirty ? 'rgba(255,107,107,0.04)' : '#FFFFFF',
-          border: isDirty ? '2px solid #FFE66D' : hasError ? '2px dashed #FF6B6B' : isActive ? '2px solid #4ECDC4' : '2px solid rgba(26,26,46,0.18)',
+          border: isDirty ? '2px solid #FFE66D' : hasError ? '2px dashed #FF6B6B' : (isActive || isFocused) ? '2px solid #4ECDC4' : '2px solid rgba(26,26,46,0.18)',
           borderRadius: '255px 15px 225px 15px / 15px 225px 15px 255px',
-          boxShadow: isDirty ? '0 0 0 3px rgba(255,230,109,0.2), 2px 2px 0px #FFE66D' : hasError ? '3px 3px 0px rgba(255,107,107,0.3)' : isActive ? '0 0 0 3px rgba(78,205,196,0.2), 3px 3px 0px #4ECDC4' : '2px 2px 0px rgba(26,26,46,0.08)',
+          boxShadow: isDirty ? '0 0 0 3px rgba(255,230,109,0.2), 2px 2px 0px #FFE66D' : hasError ? '3px 3px 0px rgba(255,107,107,0.3)' : (isActive || isFocused) ? '0 0 0 3px rgba(78,205,196,0.2), 3px 3px 0px #4ECDC4' : '2px 2px 0px rgba(26,26,46,0.08)',
           outline: 'none', transition: 'all 0.2s', boxSizing: 'border-box',
         }}
       />
@@ -321,7 +338,6 @@ function humanLabel(segId: string, fieldKey: string): string {
 }
 
 // ── Qualifier-driven context labels ───────────────────────────────────────────
-// MUST be defined before extractSegmentFields / renderField use them.
 
 const DTP_QUALIFIER_LABELS: Record<string, string> = {
   '007': 'Coverage Effective',
@@ -467,11 +483,6 @@ const AMT_QUALIFIER_LABELS: Record<string, string> = {
   'ZK':  'Federal Medicare Medicaid Amount',
 }
 
-/**
- * For qualifier-driven segments (DTP, REF, AMT), read element[1] from raw_data
- * and return a human-readable context string to prefix element labels with.
- * Returns null for segments that don't need contextual labelling.
- */
 function getSegmentContext(segObj: Record<string, unknown>, segId: string): string | null {
   const rawArr = segObj.raw_data as unknown[] | undefined
   if (!rawArr || rawArr.length < 2) return null
@@ -690,6 +701,30 @@ function renderField(
 
 const ROTATIONS = [-0.3, 0.3, -0.4, 0.4, 0, -0.2, 0.2]
 
+// ── Auto-scroll to focused field ──────────────────────────────────────────────
+
+function useFocusFieldScroll() {
+  const focusFieldId = useAppStore((s) => s.focusFieldId)
+  const setFocusFieldId = useAppStore((s) => s.setFocusFieldId)
+
+  useEffect(() => {
+    if (!focusFieldId) return
+    
+    const timer = setTimeout(() => {
+      const el = document.getElementById(focusFieldId)
+      if (el) {
+        el.scrollIntoView({ behavior: 'smooth', block: 'center' })
+        el.focus()
+        
+        // Clear focus after animation
+        setTimeout(() => setFocusFieldId(null), 2000)
+      }
+    }, 300)
+    
+    return () => clearTimeout(timer)
+  }, [focusFieldId, setFocusFieldId])
+}
+
 // ── Main FormEditorView ───────────────────────────────────────────────────────
 
 export default function FormEditorView() {
@@ -698,6 +733,9 @@ export default function FormEditorView() {
   const selectedPath   = useAppStore((s) => s.selectedPath)
   const isLoading      = useAppStore((s) => s.isLoading)
   const transactionType = useAppStore((s) => s.transactionType)
+
+  // Call the focus field scroll hook
+  useFocusFieldScroll()
 
   const sectionRefs = useRef<Record<string, React.RefObject<HTMLDivElement | null>>>({})
   const [highlightedLoop, setHighlightedLoop] = useState<string | null>(null)

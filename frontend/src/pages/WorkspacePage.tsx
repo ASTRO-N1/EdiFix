@@ -25,6 +25,7 @@ export default function WorkspacePage() {
   const setIsLeftSidebarOpen = useAppStore(s => s.setIsLeftSidebarOpen)
   const isAIPanelOpen = useAppStore(s => s.isAIPanelOpen)
   const setIsAIPanelOpen = useAppStore(s => s.setIsAIPanelOpen)
+  const activePanelView = useAppStore(s => s.activePanelView)
 
   const hasInitialized = useRef(false)
 
@@ -77,6 +78,47 @@ export default function WorkspacePage() {
 
       <div style={{ display: 'flex', flex: 1, overflow: 'hidden' }}>
         <ActivityBar />
+
+        {/* Loop Explorer pull-tab — sits right after ActivityBar, visible when sidebar is closed */}
+        {activeMainView === 'editor' && !isLeftSidebarOpen && (
+          <button
+            id="loop-explorer-pull-tab"
+            onClick={() => setIsLeftSidebarOpen(true)}
+            style={{
+              alignSelf: 'center',
+              marginTop: '-30px',
+              width: '40px',
+              flexShrink: 0,
+              background: '#FFE66D',
+              border: '2.5px solid #1A1A2E',
+              borderRadius: '0 8px 8px 0',
+              padding: '16px 6px',
+              boxShadow: '3px 3px 0px #1A1A2E',
+              cursor: 'pointer',
+              display: 'flex',
+              flexDirection: 'column',
+              alignItems: 'center',
+              gap: 12,
+              zIndex: 10,
+              transition: 'box-shadow 0.2s ease',
+            }}
+            onMouseEnter={(e) => { e.currentTarget.style.boxShadow = '5px 5px 0px #1A1A2E' }}
+            onMouseLeave={(e) => { e.currentTarget.style.boxShadow = '3px 3px 0px #1A1A2E' }}
+          >
+            <div style={{
+              writingMode: 'vertical-rl',
+              textOrientation: 'mixed',
+              transform: 'rotate(180deg)',
+              fontFamily: 'Nunito, sans-serif',
+              fontWeight: 800,
+              fontSize: 14,
+              color: '#1A1A2E',
+              letterSpacing: '0.05em',
+            }}>
+              {activePanelView === 'history' ? 'File History 📂' : 'Loop Explorer 🔍'}
+            </div>
+          </button>
+        )}
 
         {/* ── Full-page views (no left sidebar, no tabs) ── */}
         {activeMainView === 'welcome' && (
@@ -168,6 +210,7 @@ export default function WorkspacePage() {
           </div>
         </button>
       )}
+
     </div>
   )
 }

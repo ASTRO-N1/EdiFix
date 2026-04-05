@@ -68,8 +68,8 @@ interface AppState {
 
   // ── Workspace IDE State ────────────────────────────────
 
-  activeMainView: 'welcome' | 'dashboard' | 'editor' | 'export' | 'reconcile' | 'change-report'
-  setActiveMainView: (view: 'welcome' | 'dashboard' | 'editor' | 'export' | 'reconcile' | 'change-report') => void
+  activeMainView: 'welcome' | 'dashboard' | 'editor' | 'export' | 'reconcile' | 'change-report' | 'eligibility-scrubber'
+  setActiveMainView: (view: 'welcome' | 'dashboard' | 'editor' | 'export' | 'reconcile' | 'change-report' | 'eligibility-scrubber') => void
 
   activePanelView: ActivePanelView
   setActivePanelView: (view: ActivePanelView) => void
@@ -105,6 +105,10 @@ interface AppState {
   setIsReconciling: (v: boolean) => void
   isReconcileModalOpen: boolean
   setIsReconcileModalOpen: (v: boolean) => void
+
+  // ── Eligibility Scrubber State ──────────────────────────────────────────
+  eligibilityScrubberResult: Record<string, unknown> | null
+  setEligibilityScrubberResult: (data: Record<string, unknown> | null) => void
 
   openTabs: WorkspaceTab[]
   activeTabId: string
@@ -349,6 +353,9 @@ const useAppStore = create<AppState>((set, get) => ({
   setIsReconciling: (v) => set({ isReconciling: v }),
   isReconcileModalOpen: false,
   setIsReconcileModalOpen: (v) => set({ isReconcileModalOpen: v }),
+
+  eligibilityScrubberResult: null,
+  setEligibilityScrubberResult: (data) => set({ eligibilityScrubberResult: data }),
 
   openTabs: DEFAULT_TABS,
   activeTabId: 'form',

@@ -10,7 +10,7 @@ interface EdiTreeNode {
   path: string
   type: 'loop' | 'segment' | 'value'
   icon?: string
-  section?: string        // maps to form section id
+  section?: string
   hasError?: boolean
   children?: EdiTreeNode[]
 }
@@ -28,7 +28,6 @@ const EDI_LOOP_SCHEMA: Record<string, { label: string; icon: string; section: st
   '2300':      { label: 'Loop 2300 — Claim',               icon: '📋', section: 'claim'      },
   loop_2400:   { label: 'Loop 2400 — Service Line',        icon: '💊', section: 'service'    },
   '2400':      { label: 'Loop 2400 — Service Line',        icon: '💊', section: 'service'    },
-  // flat aliases that some parsers emit
   submitter:        { label: 'Loop 1000A — Submitter',         icon: '📤', section: 'submitter'  },
   receiver:         { label: 'Loop 1000B — Receiver',          icon: '📥', section: 'submitter'  },
   billing_provider: { label: 'Loop 2010AA — Billing Provider', icon: '🏥', section: 'billing'    },
@@ -38,22 +37,39 @@ const EDI_LOOP_SCHEMA: Record<string, { label: string; icon: string; section: st
   claim_info:       { label: 'Loop 2300 — Claim',              icon: '📋', section: 'claim'      },
   service_lines:    { label: 'Loop 2400 — Service Lines',      icon: '💊', section: 'service'    },
   serviceLines:     { label: 'Loop 2400 — Service Lines',      icon: '💊', section: 'service'    },
+  '835_HEADER':     { label: '835 Header — Payment Info',      icon: '💳', section: ''           },
+  '835_1000A':      { label: 'Loop 1000A — Payer',             icon: '🏦', section: ''           },
+  '835_1000B':      { label: 'Loop 1000B — Payee',             icon: '🏥', section: ''           },
+  '835_2100':       { label: 'Loop 2100 — Claim Payment',      icon: '📋', section: ''           },
+  '835_2110':       { label: 'Loop 2110 — Service Payment',    icon: '💊', section: ''           },
+  '834_HEADER':     { label: '834 Header — Enrollment',        icon: '📨', section: ''           },
+  '834_1000A':      { label: 'Loop 1000A — Sponsor',           icon: '🏢', section: ''           },
+  '834_1000B':      { label: 'Loop 1000B — Payer',             icon: '🏦', section: ''           },
+  '834_1000C':      { label: 'Loop 1000C — TPA',               icon: '🤝', section: ''           },
+  '834_2000':       { label: 'Loop 2000 — Member',             icon: '👤', section: ''           },
+  '834_2100A':      { label: 'Loop 2100A — Member Info',       icon: '🪪', section: ''           },
+  '834_2300':       { label: 'Loop 2300 — Coverage',           icon: '🛡️', section: ''           },
+  '834_2320':       { label: 'Loop 2320 — COB',                icon: '🔄', section: ''           },
 }
 
 const EDI_SEGMENT_SCHEMA: Record<string, { label: string; section: string }> = {
   NM1: { label: 'NM1 · Entity Name',        section: ''            },
+  N1:  { label: 'N1  · Entity Name',        section: ''            },
   N3:  { label: 'N3  · Address',            section: ''            },
   N4:  { label: 'N4  · City / State / ZIP', section: ''            },
   CLM: { label: 'CLM · Claim Info',         section: 'claim'       },
-  HI:  { label: 'HI  · Diagnosis Codes',   section: 'claim'       },
-  DTP: { label: 'DTP · Service Date',       section: ''            },
+  HI:  { label: 'HI  · Diagnosis Codes',    section: 'claim'       },
+  DTP: { label: 'DTP · Date/Time',          section: ''            },
   SV1: { label: 'SV1 · Procedure / Charge', section: 'service'     },
   DMG: { label: 'DMG · Demographics',       section: 'subscriber'  },
   REF: { label: 'REF · Reference ID',       section: 'billing'     },
   PER: { label: 'PER · Contact Info',       section: 'submitter'   },
   BPR: { label: 'BPR · Payment Info',       section: ''            },
   TRN: { label: 'TRN · Trace Number',       section: ''            },
-  GS:  { label: 'GS  · Functional Group',  section: ''            },
+  CLP: { label: 'CLP · Claim Payment',      section: ''            },
+  SVC: { label: 'SVC · Service Payment',    section: ''            },
+  CAS: { label: 'CAS · Adjustment',         section: ''            },
+  GS:  { label: 'GS  · Functional Group',   section: ''            },
   ST:  { label: 'ST  · Transaction Set',    section: ''            },
   SE:  { label: 'SE  · Tran. Set Trailer',  section: ''            },
   GE:  { label: 'GE  · Group Trailer',      section: ''            },
@@ -64,6 +80,10 @@ const EDI_SEGMENT_SCHEMA: Record<string, { label: string; section: string }> = {
   HL:  { label: 'HL  · Hierarchical Level', section: ''            },
   PRV: { label: 'PRV · Provider Info',      section: 'billing'     },
   LX:  { label: 'LX  · Line Counter',       section: 'service'     },
+  INS: { label: 'INS · Member Level Detail',section: ''            },
+  BGN: { label: 'BGN · Beginning Segment',  section: ''            },
+  HD:  { label: 'HD  · Health Coverage',    section: ''            },
+  COB: { label: 'COB · Coordination of Benefits', section: ''      },
 }
 
 // Keys to skip entirely (metadata, not EDI structure)
@@ -114,9 +134,10 @@ function buildEdiTree(
     const isSeg = isSegment(key)
     const nodeType = isSeg ? 'segment' : 'loop'
     
-    // Check if this loop or any parent loop has errors
+    // Check if this loop has errors - FIXED: use 'key' instead of undefined 'loop'
     const hasError = errorLoops.has(key.toUpperCase()) || 
-                     errorLoops.has(loop.replace('LOOP_', '').replace('_', ''))
+                     errorLoops.has(key.replace('LOOP_', '').replace(/_/g, '').toUpperCase()) ||
+                     errorLoops.has(key.replace('LOOP_', '').toUpperCase())
 
     if (Array.isArray(value)) {
       const children: EdiTreeNode[] = []
@@ -179,11 +200,8 @@ function formatKey(key: string): string {
 }
 
 // ── Tree connector constants ────────────────────────────────────────────────────
-// Each depth level indents by INDENT_PX. The connector lines are drawn as
-// absolutely-positioned pseudo-columns so we can handle both horizontal
-// scroll (content wider than sidebar) and vertical scroll correctly.
-const INDENT_PX = 16          // horizontal indent per depth level
-const ROW_HEIGHT = 26         // approximate px per tree row (used for scroll)
+const INDENT_PX = 16
+const ROW_HEIGHT = 26
 
 // Badge styles
 const BADGE_BASE: React.CSSProperties = {
@@ -223,7 +241,6 @@ function EdiNode({
   const isLoop    = node.type === 'loop'
   const isSegment = node.type === 'segment'
 
-  // ── Scroll this node into view when it becomes selected ──
   useEffect(() => {
     if (!isSelected || !nodeRef.current || !scrollContainer?.current) return
     const timer = setTimeout(() => {
@@ -235,10 +252,8 @@ function EdiNode({
     return () => clearTimeout(timer)
   }, [isSelected, node.path, scrollContainer])
 
-  // ── Scroll last child into view after expansion ──
   useEffect(() => {
     if (!open || !hasChildren || !scrollContainer?.current) return
-    // Wait for the animation (180 ms) to finish, then scroll
     const timer = setTimeout(() => {
       const lastChild = node.children![node.children!.length - 1]
       const el = scrollContainer.current?.querySelector(
@@ -255,11 +270,9 @@ function EdiNode({
     if (hasChildren) setOpen((v) => !v)
   }
 
-  // ── Badge colors per type ──
   const badgeBg    = isLoop ? '#4ECDC4' : isSegment ? '#FFE66D' : 'rgba(26,26,46,0.12)'
   const badgeLabel = isLoop ? 'L' : isSegment ? 'S' : node.type[0].toUpperCase()
 
-  // ── Row label color ──
   const labelColor = isSelected
     ? '#0D0D1A'
     : isLoop
@@ -268,19 +281,13 @@ function EdiNode({
     ? 'rgba(26,26,46,0.8)'
     : 'rgba(26,26,46,0.55)'
 
-  // ── Connector geometry ──
-  // The vertical guide line runs from the top of the row down to where the
-  // last child ends. The horizontal connector is a short elbow from the
-  // vertical guide to the node button.
-  const GUIDE_X  = depth * INDENT_PX          // x where the vertical bar sits
-  const ELBOW_W  = 10                          // horizontal elbow length
+  const GUIDE_X  = depth * INDENT_PX
+  const ELBOW_W  = 10
 
   return (
     <div ref={nodeRef} style={{ position: 'relative' }}>
-      {/* ── Tree connectors ── */}
       {depth > 0 && (
         <>
-          {/* Vertical connector — full height unless last child */}
           {!isLast && (
             <span
               aria-hidden
@@ -295,7 +302,6 @@ function EdiNode({
               }}
             />
           )}
-          {/* Elbow connector — half-height vertical + short horizontal */}
           <span
             aria-hidden
             style={{
@@ -313,7 +319,6 @@ function EdiNode({
         </>
       )}
 
-      {/* ── Node row button ── */}
       <button
         data-node-path={node.path}
         onClick={handleClick}
@@ -348,7 +353,6 @@ function EdiNode({
           if (!isSelected) e.currentTarget.style.background = 'transparent'
         }}
       >
-        {/* Expand chevron or leaf dot */}
         {hasChildren ? (
           <span
             style={{
@@ -379,22 +383,18 @@ function EdiNode({
           </span>
         )}
 
-        {/* Type badge: L / S / etc. */}
         <span style={{ ...BADGE_BASE, background: badgeBg, color: '#1A1A2E' }}>
           {badgeLabel}
         </span>
 
-        {/* Loop emoji icon (only when schema provides one) */}
         {node.icon && (
           <span style={{ flexShrink: 0, fontSize: 11, lineHeight: 1 }}>
             {node.icon}
           </span>
         )}
 
-        {/* Node label */}
         <span style={{ flex: 1 }}>{node.label}</span>
 
-        {/* Error badge */}
         {node.hasError && (
           <span
             style={{ flexShrink: 0, fontSize: 9, color: '#FF6B6B', fontWeight: 800, marginLeft: 4 }}
@@ -405,7 +405,6 @@ function EdiNode({
         )}
       </button>
 
-      {/* ── Children (animated) ── */}
       <AnimatePresence initial={false}>
         {open && hasChildren && (
           <motion.div
@@ -494,7 +493,6 @@ function ExplorerView({ onMinimize }: { onMinimize?: () => void }) {
 
   const hasFile = !!(parseResult || ediFile.fileName)
 
-  // Collect all loops that have validation errors
   const errorLoops = useMemo<Set<string>>(() => {
     if (!parseResult) return new Set()
     const data = parseResult as Record<string, unknown>
@@ -503,7 +501,6 @@ function ExplorerView({ onMinimize }: { onMinimize?: () => void }) {
     errs.forEach((e) => {
       const loopKey = e.loop ?? ''
       if (loopKey) {
-        // Add both the full loop key and normalized versions
         loops.add(loopKey.toUpperCase())
         loops.add(loopKey.replace('LOOP_', '').replace(/_/g, '').toUpperCase())
         loops.add(loopKey.replace('LOOP_', '').toUpperCase())
@@ -512,14 +509,11 @@ function ExplorerView({ onMinimize }: { onMinimize?: () => void }) {
     return loops
   }, [parseResult])
 
-  // Build EDI-aware tree
   const tree = useMemo<EdiTreeNode[]>(() => {
     if (!parseResult) return []
     return buildEdiTree(parseResult as Record<string, unknown>, errorLoops)
   }, [parseResult, errorLoops])
 
-  // Scroll is now handled inside each EdiNode via the scrollContainer ref prop.
-  // This outer effect is a fallback for the very first render.
   useEffect(() => {
     if (!selectedPath || !scrollRef.current) return
     const timer = setTimeout(() => {
@@ -535,7 +529,6 @@ function ExplorerView({ onMinimize }: { onMinimize?: () => void }) {
 
   return (
     <div style={{ height: '100%', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
-      {/* Header */}
       <div
         style={{
           padding: '8px 12px 6px',
@@ -588,7 +581,6 @@ function ExplorerView({ onMinimize }: { onMinimize?: () => void }) {
         )}
       </div>
 
-      {/* Body — scrollable in both axes */}
       <div
         ref={scrollRef}
         style={{
@@ -596,18 +588,15 @@ function ExplorerView({ onMinimize }: { onMinimize?: () => void }) {
           overflowX: 'auto',
           overflowY: 'auto',
           padding: '6px 0',
-          // Give the inner content room to be wider than the sidebar
           minWidth: 0,
         }}
         className="custom-scrollbar"
       >
-        {/* Inner wrapper: min-width ensures horizontal scroll when content is wide */}
         <div style={{ minWidth: 'max-content', width: '100%' }}>
         {!hasFile || tree.length === 0 ? (
           <ExplorerEmptyState />
         ) : (
           <>
-            {/* File label */}
             <div
               style={{
                 padding: '4px 12px 8px',
@@ -631,7 +620,6 @@ function ExplorerView({ onMinimize }: { onMinimize?: () => void }) {
               {ediFile.fileName || 'EDI File'}{txLabel}
             </div>
 
-            {/* EDI tree legend */}
             <div
               style={{
                 padding: '4px 12px 6px',
@@ -709,18 +697,15 @@ function ExplorerView({ onMinimize }: { onMinimize?: () => void }) {
 // ── HistoryView ────────────────────────────────────────────────────────────────
 
 function HistoryView({ onMinimize }: { onMinimize?: () => void }) {
-  // Added deleteWorkspace here
   const { historyItems, isHistoryLoading, fetchHistory, loadWorkspace, deleteWorkspace, session } = useAppStore()
   const typeColors: Record<string, string> = { '837P': '#4ECDC4', '835': '#FFE66D', '834': '#FF6B6B' }
 
-  // Fetch history when the view mounts
   useEffect(() => {
     if (session) {
       fetchHistory()
     }
   }, [session, fetchHistory])
 
-  // Simple date formatter
   const formatDate = (dateString: string) => {
     const d = new Date(dateString)
     return d.toLocaleDateString() + ' ' + d.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})
@@ -829,10 +814,9 @@ function HistoryView({ onMinimize }: { onMinimize?: () => void }) {
                 >
                   {file.file_type}
                 </span>
-                {/* Delete Button */}
                 <button
                   onClick={(e) => {
-                    e.stopPropagation() // Stops the row click (loadWorkspace) from firing
+                    e.stopPropagation()
                     if (window.confirm('Are you sure you want to delete this saved file?')) {
                       deleteWorkspace(file.id)
                     }

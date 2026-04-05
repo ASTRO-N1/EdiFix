@@ -36,9 +36,11 @@ function applyPatch(tree: any, fix: FixPatch): any {
   ].filter(Boolean) as string[]
 
   let loopArr: any = null
-  let foundKey = ''
   for (const c of candidates) {
-    if (loops[c]) { loopArr = loops[c]; foundKey = c; break }
+    if (loops[c]) { 
+      loopArr = loops[c]
+      break 
+    }
   }
 
   if (!loopArr) return cloned

@@ -1,7 +1,6 @@
 import { useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { motion } from 'framer-motion'
-import rough from 'roughjs'
 import KPICard from './KPICard'
 import ClaimCard from './ClaimCard'
 

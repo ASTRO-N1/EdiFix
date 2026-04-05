@@ -35,6 +35,7 @@ interface FieldProps {
 function FormField({ id, label, value, onCommit, errors = [], isActive, mono, hint, techRef }: FieldProps) {
   const [localVal, setLocalVal] = useState(value)
   const focusFieldId = useAppStore((s) => s.focusFieldId)
+  const pendingFix = useAppStore((s) => s.pendingFix)
   const inputRef = useRef<HTMLInputElement>(null)
   
   useEffect(() => { setLocalVal(value) }, [value])
@@ -54,18 +55,57 @@ function FormField({ id, label, value, onCommit, errors = [], isActive, mono, hi
   const errorMsg = errors[0]?.message ?? errors[0]?.msg ?? ''
   const isDirty = localVal !== value
   const isFocused = focusFieldId === id
+  
+  // Check if this field was just fixed
+  const wasJustFixed = pendingFix && id.includes(pendingFix.element_key)
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 5 }}>
       <div style={{ display: 'flex', alignItems: 'center', gap: 6, minWidth: 0, flexWrap: 'wrap' }}>
-        <label htmlFor={id} style={{ fontFamily: 'Nunito, sans-serif', fontWeight: 700, fontSize: 11, color: hasError ? '#FF6B6B' : 'rgba(26,26,46,0.6)', letterSpacing: '0.04em', textTransform: 'uppercase', cursor: 'pointer', lineHeight: 1.3 }}>
+        <label htmlFor={id} style={{ 
+          fontFamily: 'Nunito, sans-serif', 
+          fontWeight: 700, 
+          fontSize: 11, 
+          color: wasJustFixed ? '#27AE60' : hasError ? '#FF6B6B' : 'rgba(26,26,46,0.6)', 
+          letterSpacing: '0.04em', 
+          textTransform: 'uppercase', 
+          cursor: 'pointer', 
+          lineHeight: 1.3 
+        }}>
           {label}
         </label>
         {techRef && (
           <span style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: 9, color: 'rgba(26,26,46,0.28)', flexShrink: 0 }}>{techRef}</span>
         )}
-        {hasError && !isDirty && (
-          <span style={{ fontFamily: 'Nunito, sans-serif', fontSize: 9, fontWeight: 800, color: '#FF6B6B', background: 'rgba(255,107,107,0.1)', border: '1.5px solid #FF6B6B', borderRadius: 4, padding: '1px 6px', flexShrink: 0 }}>⚠ ERROR</span>
+        {wasJustFixed && (
+          <span style={{ 
+            fontFamily: 'Nunito, sans-serif', 
+            fontSize: 9, 
+            fontWeight: 800, 
+            color: '#27AE60', 
+            background: 'rgba(39,174,96,0.1)', 
+            border: '1.5px solid #27AE60', 
+            borderRadius: 4, 
+            padding: '1px 6px', 
+            flexShrink: 0 
+          }}>
+            ✓ FIXED
+          </span>
+        )}
+        {hasError && !isDirty && !wasJustFixed && (
+          <span style={{ 
+            fontFamily: 'Nunito, sans-serif', 
+            fontSize: 9, 
+            fontWeight: 800, 
+            color: '#FF6B6B', 
+            background: 'rgba(255,107,107,0.1)', 
+            border: '1.5px solid #FF6B6B', 
+            borderRadius: 4, 
+            padding: '1px 6px', 
+            flexShrink: 0 
+          }}>
+            ⚠ ERROR
+          </span>
         )}
       </div>
       <input
@@ -78,11 +118,33 @@ function FormField({ id, label, value, onCommit, errors = [], isActive, mono, hi
           width: '100%', padding: '9px 13px',
           fontFamily: mono ? 'JetBrains Mono, monospace' : 'Nunito, sans-serif',
           fontSize: mono ? 12 : 13, color: '#1A1A2E',
-          background: hasError && !isDirty ? 'rgba(255,107,107,0.04)' : '#FFFFFF',
-          border: isDirty ? '2px solid #FFE66D' : hasError ? '2px dashed #FF6B6B' : (isActive || isFocused) ? '2px solid #4ECDC4' : '2px solid rgba(26,26,46,0.18)',
+          background: wasJustFixed 
+            ? 'rgba(39,174,96,0.05)' 
+            : hasError && !isDirty 
+              ? 'rgba(255,107,107,0.04)' 
+              : '#FFFFFF',
+          border: wasJustFixed
+            ? '2px solid #27AE60'
+            : isDirty 
+              ? '2px solid #FFE66D' 
+              : hasError 
+                ? '2px dashed #FF6B6B' 
+                : (isActive || isFocused) 
+                  ? '2px solid #4ECDC4' 
+                  : '2px solid rgba(26,26,46,0.18)',
           borderRadius: '255px 15px 225px 15px / 15px 225px 15px 255px',
-          boxShadow: isDirty ? '0 0 0 3px rgba(255,230,109,0.2), 2px 2px 0px #FFE66D' : hasError ? '3px 3px 0px rgba(255,107,107,0.3)' : (isActive || isFocused) ? '0 0 0 3px rgba(78,205,196,0.2), 3px 3px 0px #4ECDC4' : '2px 2px 0px rgba(26,26,46,0.08)',
-          outline: 'none', transition: 'all 0.2s', boxSizing: 'border-box',
+          boxShadow: wasJustFixed
+            ? '0 0 0 3px rgba(39,174,96,0.15), 3px 3px 0px #27AE60'
+            : isDirty 
+              ? '0 0 0 3px rgba(255,230,109,0.2), 2px 2px 0px #FFE66D' 
+              : hasError 
+                ? '3px 3px 0px rgba(255,107,107,0.3)' 
+                : (isActive || isFocused) 
+                  ? '0 0 0 3px rgba(78,205,196,0.2), 3px 3px 0px #4ECDC4' 
+                  : '2px 2px 0px rgba(26,26,46,0.08)',
+          outline: 'none', 
+          transition: 'all 0.2s', 
+          boxSizing: 'border-box',
         }}
       />
       <AnimatePresence>
@@ -93,7 +155,7 @@ function FormField({ id, label, value, onCommit, errors = [], isActive, mono, hi
           </div>
         )}
       </AnimatePresence>
-      {hasError && !isDirty && errorMsg && (
+      {hasError && !isDirty && !wasJustFixed && errorMsg && (
         <motion.p initial={{ opacity: 0, y: -4 }} animate={{ opacity: 1, y: 0 }} style={{ fontFamily: 'Nunito, sans-serif', fontSize: 11, color: '#FF6B6B', fontWeight: 600, lineHeight: 1.4, paddingLeft: 2, margin: 0 }}>
           {errorMsg}
         </motion.p>

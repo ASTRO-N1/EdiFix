@@ -1,4 +1,4 @@
-import { useCallback, useState, useEffect } from 'react'
+import { useCallback, useState, useEffect, useRef } from 'react'
 import { useDropzone } from 'react-dropzone'
 import { UploadCloud } from 'lucide-react'
 import { motion } from 'framer-motion'
@@ -6,822 +6,1041 @@ import useAppStore from '../../store/useAppStore'
 import CenterTabBar from './CenterTabBar'
 import FormEditorView from './FormEditorView'
 import {
-  build834EnrollmentGroups,
-  type EnrollmentGroup,
-  type EnrollmentMember,
+    build834EnrollmentGroups,
+    type EnrollmentGroup,
+    type EnrollmentMember,
 } from '../../utils/build834EnrollmentGroups'
 
 // ── 834 helpers (module-scope so React never recreates them) ─────────────────
 
 const MAINT_STYLE: Record<string, { bg: string; color: string }> = {
-  'Addition':                     { bg: 'rgba(78,205,196,0.18)',  color: '#1A7A74' },
-  'Termination':                  { bg: 'rgba(255,107,107,0.18)', color: '#C0392B' },
-  'Change':                       { bg: 'rgba(255,230,109,0.25)', color: '#8A6F00' },
-  'Audit / Active':               { bg: 'rgba(26,26,46,0.07)',    color: '#444466' },
-  'Cancellation / Disenrollment': { bg: 'rgba(255,107,107,0.12)', color: '#C0392B' },
-  'Employee Status Change':       { bg: 'rgba(255,230,109,0.18)', color: '#8A6F00' },
+    'Addition': { bg: 'rgba(78,205,196,0.18)', color: '#1A7A74' },
+    'Termination': { bg: 'rgba(255,107,107,0.18)', color: '#C0392B' },
+    'Change': { bg: 'rgba(255,230,109,0.25)', color: '#8A6F00' },
+    'Audit / Active': { bg: 'rgba(26,26,46,0.07)', color: '#444466' },
+    'Cancellation / Disenrollment': { bg: 'rgba(255,107,107,0.12)', color: '#C0392B' },
+    'Employee Status Change': { bg: 'rgba(255,230,109,0.18)', color: '#8A6F00' },
 }
 
 function formatDob(raw: string): string {
-  if (!raw || raw.length !== 8) return raw || '—'
-  return `${raw.slice(4, 6)}/${raw.slice(6, 8)}/${raw.slice(0, 4)}`
+    if (!raw || raw.length !== 8) return raw || '—'
+    return `${raw.slice(4, 6)}/${raw.slice(6, 8)}/${raw.slice(0, 4)}`
 }
 
 function MemberRow({
-  member,
-  isSubscriber,
+    member,
+    isSubscriber,
 }: {
-  member: EnrollmentMember
-  isSubscriber: boolean
+    member: EnrollmentMember
+    isSubscriber: boolean
 }) {
-  const maintStyle =
-    MAINT_STYLE[member.maintenanceTypeLabel] ?? { bg: 'rgba(26,26,46,0.06)', color: '#1A1A2E' }
+    const maintStyle =
+        MAINT_STYLE[member.maintenanceTypeLabel] ?? { bg: 'rgba(26,26,46,0.06)', color: '#1A1A2E' }
 
-  return (
-    <div style={{
-      borderLeft: `3px solid ${isSubscriber ? '#4ECDC4' : 'rgba(26,26,46,0.15)'}`,
-      paddingLeft: isSubscriber ? 14 : 22,
-      marginBottom: 14,
-      marginLeft: isSubscriber ? 0 : 12,
-    }}>
-      {/* Name + badges */}
-      <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6, flexWrap: 'wrap' }}>
-        <span style={{ fontFamily: 'Nunito, sans-serif', fontWeight: 900, fontSize: 14, color: '#1A1A2E' }}>
-          {member.name}
-        </span>
-        <span style={{
-          fontFamily: 'JetBrains Mono, monospace', fontSize: 10, fontWeight: 700,
-          padding: '2px 8px', borderRadius: 5,
-          background: isSubscriber ? 'rgba(78,205,196,0.15)' : 'rgba(26,26,46,0.06)',
-          color: isSubscriber ? '#1A7A74' : '#555577',
-          border: `1px solid ${isSubscriber ? 'rgba(78,205,196,0.4)' : 'rgba(26,26,46,0.12)'}`,
+    return (
+        <div style={{
+            borderLeft: `3px solid ${isSubscriber ? '#4ECDC4' : 'rgba(26,26,46,0.15)'}`,
+            paddingLeft: isSubscriber ? 14 : 22,
+            marginBottom: 14,
+            marginLeft: isSubscriber ? 0 : 12,
         }}>
-          {isSubscriber ? '★ Subscriber' : member.relationshipLabel}
-        </span>
-        <span style={{
-          fontFamily: 'JetBrains Mono, monospace', fontSize: 10, fontWeight: 700,
-          padding: '2px 8px', borderRadius: 5,
-          background: maintStyle.bg, color: maintStyle.color,
-        }}>
-          {member.maintenanceTypeLabel}
-        </span>
-        {member.hasSecondaryCoverage && (
-          <span style={{
-            fontFamily: 'Nunito, sans-serif', fontSize: 10, fontWeight: 800,
-            padding: '2px 8px', borderRadius: 5,
-            background: 'rgba(255,107,107,0.12)', color: '#C0392B',
-            border: '1.5px solid rgba(255,107,107,0.4)',
-          }}>
-            ⚠ Secondary Coverage Detected
-          </span>
-        )}
-      </div>
+            {/* Name + badges */}
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6, flexWrap: 'wrap' }}>
+                <span style={{ fontFamily: 'Nunito, sans-serif', fontWeight: 900, fontSize: 14, color: '#1A1A2E' }}>
+                    {member.name}
+                </span>
+                <span style={{
+                    fontFamily: 'JetBrains Mono, monospace', fontSize: 10, fontWeight: 700,
+                    padding: '2px 8px', borderRadius: 5,
+                    background: isSubscriber ? 'rgba(78,205,196,0.15)' : 'rgba(26,26,46,0.06)',
+                    color: isSubscriber ? '#1A7A74' : '#555577',
+                    border: `1px solid ${isSubscriber ? 'rgba(78,205,196,0.4)' : 'rgba(26,26,46,0.12)'}`,
+                }}>
+                    {isSubscriber ? '★ Subscriber' : member.relationshipLabel}
+                </span>
+                <span style={{
+                    fontFamily: 'JetBrains Mono, monospace', fontSize: 10, fontWeight: 700,
+                    padding: '2px 8px', borderRadius: 5,
+                    background: maintStyle.bg, color: maintStyle.color,
+                }}>
+                    {member.maintenanceTypeLabel}
+                </span>
+                {member.hasSecondaryCoverage && (
+                    <span style={{
+                        fontFamily: 'Nunito, sans-serif', fontSize: 10, fontWeight: 800,
+                        padding: '2px 8px', borderRadius: 5,
+                        background: 'rgba(255,107,107,0.12)', color: '#C0392B',
+                        border: '1.5px solid rgba(255,107,107,0.4)',
+                    }}>
+                        ⚠ Secondary Coverage Detected
+                    </span>
+                )}
+            </div>
 
-      {/* Detail pills */}
-      <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', fontSize: 11, color: 'rgba(26,26,46,0.55)', marginBottom: 4 }}>
-        <span style={{ fontFamily: 'JetBrains Mono, monospace' }}>ID: {member.memberId}</span>
-        {member.dob   && <span>DOB: {formatDob(member.dob)}</span>}
-        {member.gender !== '—' && <span>Gender: {member.gender}</span>}
-        {member.benefitStatusLabel !== '—' && (
-          <span style={{
-            padding: '1px 7px', borderRadius: 4, fontWeight: 700,
-            background: member.benefitStatusCode === 'A' ? 'rgba(46,204,113,0.12)' : 'rgba(255,230,109,0.2)',
-            color:      member.benefitStatusCode === 'A' ? '#1A7A3A'               : '#8A6F00',
-          }}>
-            {member.benefitStatusLabel}
-          </span>
-        )}
-        {member.effectiveDate && <span>Effective: {formatDob(member.effectiveDate)}</span>}
-        {member.address !== '—' && <span>{member.address}</span>}
-      </div>
+            {/* Detail pills */}
+            <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', fontSize: 11, color: 'rgba(26,26,46,0.55)', marginBottom: 4 }}>
+                <span style={{ fontFamily: 'JetBrains Mono, monospace' }}>ID: {member.memberId}</span>
+                {member.dob && <span>DOB: {formatDob(member.dob)}</span>}
+                {member.gender !== '—' && <span>Gender: {member.gender}</span>}
+                {member.benefitStatusLabel !== '—' && (
+                    <span style={{
+                        padding: '1px 7px', borderRadius: 4, fontWeight: 700,
+                        background: member.benefitStatusCode === 'A' ? 'rgba(46,204,113,0.12)' : 'rgba(255,230,109,0.2)',
+                        color: member.benefitStatusCode === 'A' ? '#1A7A3A' : '#8A6F00',
+                    }}>
+                        {member.benefitStatusLabel}
+                    </span>
+                )}
+                {member.effectiveDate && <span>Effective: {formatDob(member.effectiveDate)}</span>}
+                {member.address !== '—' && <span>{member.address}</span>}
+            </div>
 
-      {/* Coverage pills */}
-      {member.coverage.length > 0 && (
-        <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginTop: 4, marginBottom: 4 }}>
-          {member.coverage.map((cov, ci) => (
-            <span key={ci} style={{
-              fontFamily: 'JetBrains Mono, monospace', fontSize: 10, fontWeight: 600,
-              padding: '2px 8px', borderRadius: 5,
-              background: 'rgba(78,205,196,0.08)', color: '#1A7A74',
-              border: '1px solid rgba(78,205,196,0.25)',
-            }}>
-              {[
-                cov.insuranceLineLabel,
-                cov.planDescription || cov.coverageLevelLabel,
-                cov.effectiveDate ? `eff. ${formatDob(cov.effectiveDate)}` : '',
-                cov.expirationDate ? `exp. ${formatDob(cov.expirationDate)}` : '',
-              ].filter(Boolean).join(' · ')}
-            </span>
-          ))}
-        </div>
-      )}
-
-      {/* COB blocks */}
-      {member.cobDetails.map((cob, ci) => (
-        <div key={ci} style={{
-          marginTop: 8, padding: '10px 14px', borderRadius: 8,
-          background: 'rgba(255,107,107,0.05)', border: '1.5px solid rgba(255,107,107,0.25)',
-        }}>
-          <div style={{ fontFamily: 'Nunito, sans-serif', fontWeight: 800, fontSize: 11, color: '#C0392B', marginBottom: 6 }}>
-            🔄 Coordination of Benefits
-          </div>
-          <div style={{ display: 'flex', gap: 16, flexWrap: 'wrap', fontSize: 11, fontFamily: 'JetBrains Mono, monospace', color: 'rgba(26,26,46,0.65)' }}>
-            <span>This Plan: <strong style={{ color: '#1A1A2E' }}>{cob.payerResponsibilityLabel}</strong></span>
-            <span>COB Code: <strong style={{ color: '#1A1A2E' }}>{cob.cobCode || '—'}</strong></span>
-            <span>Other Coverage ID: <strong style={{ color: '#1A1A2E' }}>{cob.otherCoverageId || '—'}</strong></span>
-            {cob.otherPayerName !== '—' && (
-              <span>Other Payer: <strong style={{ color: '#1A1A2E' }}>{cob.otherPayerName}</strong></span>
+            {/* Coverage pills */}
+            {member.coverage.length > 0 && (
+                <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginTop: 4, marginBottom: 4 }}>
+                    {member.coverage.map((cov, ci) => (
+                        <span key={ci} style={{
+                            fontFamily: 'JetBrains Mono, monospace', fontSize: 10, fontWeight: 600,
+                            padding: '2px 8px', borderRadius: 5,
+                            background: 'rgba(78,205,196,0.08)', color: '#1A7A74',
+                            border: '1px solid rgba(78,205,196,0.25)',
+                        }}>
+                            {[
+                                cov.insuranceLineLabel,
+                                cov.planDescription || cov.coverageLevelLabel,
+                                cov.effectiveDate ? `eff. ${formatDob(cov.effectiveDate)}` : '',
+                                cov.expirationDate ? `exp. ${formatDob(cov.expirationDate)}` : '',
+                            ].filter(Boolean).join(' · ')}
+                        </span>
+                    ))}
+                </div>
             )}
-          </div>
+
+            {/* COB blocks */}
+            {member.cobDetails.map((cob, ci) => (
+                <div key={ci} style={{
+                    marginTop: 8, padding: '10px 14px', borderRadius: 8,
+                    background: 'rgba(255,107,107,0.05)', border: '1.5px solid rgba(255,107,107,0.25)',
+                }}>
+                    <div style={{ fontFamily: 'Nunito, sans-serif', fontWeight: 800, fontSize: 11, color: '#C0392B', marginBottom: 6 }}>
+                        🔄 Coordination of Benefits
+                    </div>
+                    <div style={{ display: 'flex', gap: 16, flexWrap: 'wrap', fontSize: 11, fontFamily: 'JetBrains Mono, monospace', color: 'rgba(26,26,46,0.65)' }}>
+                        <span>This Plan: <strong style={{ color: '#1A1A2E' }}>{cob.payerResponsibilityLabel}</strong></span>
+                        <span>COB Code: <strong style={{ color: '#1A1A2E' }}>{cob.cobCode || '—'}</strong></span>
+                        <span>Other Coverage ID: <strong style={{ color: '#1A1A2E' }}>{cob.otherCoverageId || '—'}</strong></span>
+                        {cob.otherPayerName !== '—' && (
+                            <span>Other Payer: <strong style={{ color: '#1A1A2E' }}>{cob.otherPayerName}</strong></span>
+                        )}
+                    </div>
+                </div>
+            ))}
         </div>
-      ))}
-    </div>
-  )
+    )
 }
 
 function EnrollmentGroupCard({ group }: { group: EnrollmentGroup }) {
-  return (
-    <div style={{
-      background: '#FFFFFF', border: '2px solid #1A1A2E', borderRadius: 12,
-      boxShadow: '4px 4px 0px rgba(26,26,46,0.08)', overflow: 'hidden',
-    }}>
-      {/* Header bar */}
-      <div style={{
-        background: '#1A1A2E', padding: '12px 20px',
-        display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 8,
-      }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-          <span style={{ fontSize: 16 }}>👨‍👩‍👧‍👦</span>
-          <span style={{ fontFamily: 'Nunito, sans-serif', fontWeight: 900, fontSize: 14, color: '#FFFFFF' }}>
-            {group.subscriberName}
-          </span>
-          <span style={{
-            fontFamily: 'JetBrains Mono, monospace', fontSize: 10, fontWeight: 700,
-            padding: '2px 8px', borderRadius: 5,
-            background: 'rgba(255,230,109,0.2)', color: '#FFE66D',
-            border: '1px solid rgba(255,230,109,0.3)',
-          }}>
-            {group.coverageLevelLabel || group.coverageLevel}
-            {group.coverageLevel && group.coverageLevelLabel && group.coverageLevel !== group.coverageLevelLabel
-              ? ` (${group.coverageLevel})`
-              : ''}
-          </span>
-        </div>
-        <span style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: 11, color: 'rgba(255,255,255,0.5)' }}>
-          {group.totalMembers} member{group.totalMembers !== 1 ? 's' : ''} · ID {group.groupId}
-        </span>
-      </div>
+    return (
+        <div style={{
+            background: '#FFFFFF', border: '2px solid #1A1A2E', borderRadius: 12,
+            boxShadow: '4px 4px 0px rgba(26,26,46,0.08)', overflow: 'hidden',
+        }}>
+            {/* Header bar */}
+            <div style={{
+                background: '#1A1A2E', padding: '12px 20px',
+                display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 8,
+            }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                    <span style={{ fontSize: 16 }}>👨‍👩‍👧‍👦</span>
+                    <span style={{ fontFamily: 'Nunito, sans-serif', fontWeight: 900, fontSize: 14, color: '#FFFFFF' }}>
+                        {group.subscriberName}
+                    </span>
+                    <span style={{
+                        fontFamily: 'JetBrains Mono, monospace', fontSize: 10, fontWeight: 700,
+                        padding: '2px 8px', borderRadius: 5,
+                        background: 'rgba(255,230,109,0.2)', color: '#FFE66D',
+                        border: '1px solid rgba(255,230,109,0.3)',
+                    }}>
+                        {group.coverageLevelLabel || group.coverageLevel}
+                        {group.coverageLevel && group.coverageLevelLabel && group.coverageLevel !== group.coverageLevelLabel
+                            ? ` (${group.coverageLevel})`
+                            : ''}
+                    </span>
+                </div>
+                <span style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: 11, color: 'rgba(255,255,255,0.5)' }}>
+                    {group.totalMembers} member{group.totalMembers !== 1 ? 's' : ''} · ID {group.groupId}
+                </span>
+            </div>
 
-      {/* Member rows */}
-      <div style={{ padding: '18px 20px' }}>
-        <MemberRow member={group.subscriber} isSubscriber={true} />
-        {group.dependents.map((dep, di) => (
-          <MemberRow key={`${dep.memberId}-${di}`} member={dep} isSubscriber={false} />
-        ))}
-      </div>
-    </div>
-  )
+            {/* Member rows */}
+            <div style={{ padding: '18px 20px' }}>
+                <MemberRow member={group.subscriber} isSubscriber={true} />
+                {group.dependents.map((dep, di) => (
+                    <MemberRow key={`${dep.memberId}-${di}`} member={dep} isSubscriber={false} />
+                ))}
+            </div>
+        </div>
+    )
 }
 
 // ── Tab content: Raw EDI ─────────────────────────────────────────────────────
 
 function RawEDIContent() {
-  const parseResult        = useAppStore((s) => s.parseResult)
-  const ediFile            = useAppStore((s) => s.ediFile)
-  const setEdiFile         = useAppStore((s) => s.setEdiFile)
-  const setParseResult     = useAppStore((s) => s.setParseResult)
-  const setTransactionType = useAppStore((s) => s.setTransactionType)
-  const setError           = useAppStore((s) => s.setError)
-  const isSubmitting       = useAppStore((s) => s.isSubmitting)
-  const setIsSubmitting    = useAppStore((s) => s.setIsSubmitting)
-  const setActiveTabId     = useAppStore((s) => s.setActiveTabId)
-  const session            = useAppStore((s) => s.session)
+    const parseResult = useAppStore((s) => s.parseResult)
+    const ediFile = useAppStore((s) => s.ediFile)
+    const setEdiFile = useAppStore((s) => s.setEdiFile)
+    const setParseResult = useAppStore((s) => s.setParseResult)
+    const setTransactionType = useAppStore((s) => s.setTransactionType)
+    const setError = useAppStore((s) => s.setError)
+    const isSubmitting = useAppStore((s) => s.isSubmitting)
+    const setIsSubmitting = useAppStore((s) => s.setIsSubmitting)
+    const setActiveTabId = useAppStore((s) => s.setActiveTabId)
+    const session = useAppStore((s) => s.session)
 
-  const [rawText,   setRawText]   = useState('')
-  const [isLoading, setIsLoading] = useState(true)
-  const [genError,  setGenError]  = useState<string | null>(null)
+    const [rawText, setRawText] = useState('')
+    const [isLoading, setIsLoading] = useState(true)
+    const [genError, setGenError] = useState<string | null>(null)
 
-  useEffect(() => {
-    let cancelled = false
+    useEffect(() => {
+        let cancelled = false
 
-    async function regenerate() {
-      setIsLoading(true)
-      setGenError(null)
+        async function regenerate() {
+            setIsLoading(true)
+            setGenError(null)
 
-      if (parseResult) {
+            if (parseResult) {
+                try {
+                    const tree = (parseResult as any).data || parseResult
+                    const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:8000'
+
+                    const response = await fetch(`${apiUrl}/api/v1/generate/test`, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify(tree),
+                    })
+
+                    if (!response.ok) {
+                        const err = await response.json().catch(() => ({}))
+                        throw new Error(err.detail || 'Failed to generate EDI')
+                    }
+
+                    const data = await response.json()
+
+                    if (data.status === 'success' && data.edi_string) {
+                        if (!cancelled) setRawText(data.edi_string.replace(/~/g, '~\n'))
+                    } else {
+                        throw new Error(data.detail || 'Generator returned empty output')
+                    }
+                } catch (err: any) {
+                    if (!cancelled) {
+                        setGenError(err.message)
+                        await fallbackToFile()
+                    }
+                }
+            } else {
+                await fallbackToFile()
+            }
+
+            if (!cancelled) setIsLoading(false)
+        }
+
+        async function fallbackToFile() {
+            if (ediFile?.file && typeof ediFile.file.text === 'function') {
+                try {
+                    const text = await ediFile.file.text()
+                    if (!cancelled) setRawText(text)
+                } catch {
+                    if (!cancelled) setRawText('Error reading file content.')
+                }
+            } else {
+                if (!cancelled) setRawText('No raw EDI content available. Please upload a file.')
+            }
+        }
+
+        regenerate()
+        return () => { cancelled = true }
+    }, [parseResult, ediFile])
+
+    const handleSave = async (e: React.MouseEvent) => {
+        e.preventDefault()
+        if (!rawText.trim() || isSubmitting) return
+
+        setIsSubmitting(true)
+        setError(null)
+
         try {
-          const tree   = (parseResult as any).data || parseResult
-          const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:8000'
+            const cleanedText = rawText.replace(/\n/g, '')
+            const fileName = ediFile?.fileName || 'edited.edi'
+            const newFile = new File([cleanedText], fileName, { type: 'text/plain' })
 
-          const response = await fetch(`${apiUrl}/api/v1/generate/test`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(tree),
-          })
+            const formData = new FormData()
+            formData.append('file', newFile)
 
-          if (!response.ok) {
-            const err = await response.json().catch(() => ({}))
-            throw new Error(err.detail || 'Failed to generate EDI')
-          }
+            const headers: Record<string, string> = { 'X-Internal-Bypass': 'frontend-ui-secret' }
+            if (session?.access_token) headers['Authorization'] = `Bearer ${session.access_token}`
 
-          const data = await response.json()
+            const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000'
+            const response = await fetch(`${API_URL}/api/v1/parse`, {
+                method: 'POST',
+                headers,
+                body: formData,
+            })
 
-          if (data.status === 'success' && data.edi_string) {
-            if (!cancelled) setRawText(data.edi_string.replace(/~/g, '~\n'))
-          } else {
-            throw new Error(data.detail || 'Generator returned empty output')
-          }
+            if (!response.ok) {
+                const errData = await response.json().catch(() => ({}))
+                throw new Error(errData.detail || errData.message || 'Failed to parse the modified EDI file.')
+            }
+
+            const data = await response.json()
+            const innerTree = data.data || data
+            setEdiFile(newFile)
+            setParseResult(innerTree)
+            setTransactionType(innerTree?.metadata?.transaction_type || null)
+            setActiveTabId('form')
         } catch (err: any) {
-          if (!cancelled) {
-            setGenError(err.message)
-            await fallbackToFile()
-          }
+            console.error('Parse Error:', err)
+            setError(err.message || 'An error occurred during parsing.')
+            alert(err.message || 'An error occurred during parsing.')
+        } finally {
+            setIsSubmitting(false)
         }
-      } else {
-        await fallbackToFile()
-      }
-
-      if (!cancelled) setIsLoading(false)
     }
 
-    async function fallbackToFile() {
-      if (ediFile?.file && typeof ediFile.file.text === 'function') {
-        try {
-          const text = await ediFile.file.text()
-          if (!cancelled) setRawText(text)
-        } catch {
-          if (!cancelled) setRawText('Error reading file content.')
-        }
-      } else {
-        if (!cancelled) setRawText('No raw EDI content available. Please upload a file.')
-      }
+    if (isLoading) {
+        return (
+            <div style={{ padding: 24, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 12, height: '100%' }}>
+                <div className="doodle-spinner" style={{ width: 32, height: 32 }} />
+                <p style={{ fontFamily: 'Nunito, sans-serif', fontWeight: 600, fontSize: 13, color: 'rgba(26,26,46,0.5)' }}>
+                    Regenerating EDI from current state…
+                </p>
+            </div>
+        )
     }
 
-    regenerate()
-    return () => { cancelled = true }
-  }, [parseResult, ediFile])
-
-  const handleSave = async (e: React.MouseEvent) => {
-    e.preventDefault()
-    if (!rawText.trim() || isSubmitting) return
-
-    setIsSubmitting(true)
-    setError(null)
-
-    try {
-      const cleanedText = rawText.replace(/\n/g, '')
-      const fileName    = ediFile?.fileName || 'edited.edi'
-      const newFile     = new File([cleanedText], fileName, { type: 'text/plain' })
-
-      const formData = new FormData()
-      formData.append('file', newFile)
-
-      const headers: Record<string, string> = { 'X-Internal-Bypass': 'frontend-ui-secret' }
-      if (session?.access_token) headers['Authorization'] = `Bearer ${session.access_token}`
-
-      const API_URL  = import.meta.env.VITE_API_URL || 'http://localhost:8000'
-      const response = await fetch(`${API_URL}/api/v1/parse`, {
-        method: 'POST',
-        headers,
-        body: formData,
-      })
-
-      if (!response.ok) {
-        const errData = await response.json().catch(() => ({}))
-        throw new Error(errData.detail || errData.message || 'Failed to parse the modified EDI file.')
-      }
-
-      const data      = await response.json()
-      const innerTree = data.data || data
-      setEdiFile(newFile)
-      setParseResult(innerTree)
-      setTransactionType(innerTree?.metadata?.transaction_type || null)
-      setActiveTabId('form')
-    } catch (err: any) {
-      console.error('Parse Error:', err)
-      setError(err.message || 'An error occurred during parsing.')
-      alert(err.message || 'An error occurred during parsing.')
-    } finally {
-      setIsSubmitting(false)
-    }
-  }
-
-  if (isLoading) {
     return (
-      <div style={{ padding: 24, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 12, height: '100%' }}>
-        <div className="doodle-spinner" style={{ width: 32, height: 32 }} />
-        <p style={{ fontFamily: 'Nunito, sans-serif', fontWeight: 600, fontSize: 13, color: 'rgba(26,26,46,0.5)' }}>
-          Regenerating EDI from current state…
-        </p>
-      </div>
-    )
-  }
+        <div style={{ padding: 16, height: '100%', display: 'flex', flexDirection: 'column' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                    <p style={{ fontFamily: 'Nunito, sans-serif', fontSize: 12, color: 'rgba(26,26,46,0.4)', fontStyle: 'italic', margin: 0 }}>
+                        Raw EDI — Edit the raw X12 text and submit to re-validate.
+                    </p>
+                    {genError && (
+                        <span style={{
+                            fontFamily: 'Nunito, sans-serif', fontSize: 10, fontWeight: 700,
+                            color: '#FF6B6B', background: 'rgba(255,107,107,0.08)',
+                            border: '1px solid #FF6B6B', borderRadius: 4, padding: '2px 6px',
+                        }}>
+                            ⚠ Showing fallback — {genError}
+                        </span>
+                    )}
+                </div>
+                <button
+                    type="button"
+                    onClick={handleSave}
+                    disabled={isSubmitting}
+                    style={{
+                        background: isSubmitting ? 'rgba(26,26,46,0.1)' : '#4ECDC4',
+                        color: isSubmitting ? 'rgba(26,26,46,0.4)' : '#1A1A2E',
+                        fontFamily: 'Nunito, sans-serif', fontWeight: 800, fontSize: 13,
+                        border: isSubmitting ? '2px solid rgba(26,26,46,0.1)' : '2px solid #1A1A2E',
+                        borderRadius: 8, padding: '6px 12px',
+                        cursor: isSubmitting ? 'not-allowed' : 'pointer',
+                        boxShadow: isSubmitting ? 'none' : '2px 2px 0px rgba(26,26,46,0.3)',
+                        transition: 'all 0.1s ease',
+                    }}
+                    onMouseDown={(e) => {
+                        if (isSubmitting) return
+                        e.currentTarget.style.boxShadow = '0px 0px 0px rgba(26,26,46,0.3)'
+                        e.currentTarget.style.transform = 'translate(2px, 2px)'
+                    }}
+                    onMouseUp={(e) => {
+                        if (isSubmitting) return
+                        e.currentTarget.style.boxShadow = '2px 2px 0px rgba(26,26,46,0.3)'
+                        e.currentTarget.style.transform = 'translate(0px, 0px)'
+                    }}
+                >
+                    {isSubmitting ? 'Reparsing...' : 'Submit & Reparse'}
+                </button>
+            </div>
 
-  return (
-    <div style={{ padding: 16, height: '100%', display: 'flex', flexDirection: 'column' }}>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-          <p style={{ fontFamily: 'Nunito, sans-serif', fontSize: 12, color: 'rgba(26,26,46,0.4)', fontStyle: 'italic', margin: 0 }}>
-            Raw EDI — Edit the raw X12 text and submit to re-validate.
-          </p>
-          {genError && (
-            <span style={{
-              fontFamily: 'Nunito, sans-serif', fontSize: 10, fontWeight: 700,
-              color: '#FF6B6B', background: 'rgba(255,107,107,0.08)',
-              border: '1px solid #FF6B6B', borderRadius: 4, padding: '2px 6px',
-            }}>
-              ⚠ Showing fallback — {genError}
-            </span>
-          )}
+            <textarea
+                value={rawText}
+                onChange={(e) => setRawText(e.target.value)}
+                spellCheck={false}
+                className="custom-scrollbar"
+                style={{
+                    flex: 1, background: '#1A1A2E', color: '#4ECDC4',
+                    fontFamily: 'JetBrains Mono, monospace', fontSize: 12, lineHeight: 1.6,
+                    padding: '16px 20px', border: '2.5px solid #1A1A2E', borderRadius: 10,
+                    boxShadow: '4px 4px 0px rgba(26,26,46,0.3)', resize: 'none', outline: 'none',
+                    width: '100%', boxSizing: 'border-box',
+                }}
+            />
         </div>
-        <button
-          type="button"
-          onClick={handleSave}
-          disabled={isSubmitting}
-          style={{
-            background:  isSubmitting ? 'rgba(26,26,46,0.1)' : '#4ECDC4',
-            color:       isSubmitting ? 'rgba(26,26,46,0.4)' : '#1A1A2E',
-            fontFamily: 'Nunito, sans-serif', fontWeight: 800, fontSize: 13,
-            border:     isSubmitting ? '2px solid rgba(26,26,46,0.1)' : '2px solid #1A1A2E',
-            borderRadius: 8, padding: '6px 12px',
-            cursor:     isSubmitting ? 'not-allowed' : 'pointer',
-            boxShadow:  isSubmitting ? 'none' : '2px 2px 0px rgba(26,26,46,0.3)',
-            transition: 'all 0.1s ease',
-          }}
-          onMouseDown={(e) => {
-            if (isSubmitting) return
-            e.currentTarget.style.boxShadow = '0px 0px 0px rgba(26,26,46,0.3)'
-            e.currentTarget.style.transform = 'translate(2px, 2px)'
-          }}
-          onMouseUp={(e) => {
-            if (isSubmitting) return
-            e.currentTarget.style.boxShadow = '2px 2px 0px rgba(26,26,46,0.3)'
-            e.currentTarget.style.transform = 'translate(0px, 0px)'
-          }}
-        >
-          {isSubmitting ? 'Reparsing...' : 'Submit & Reparse'}
-        </button>
-      </div>
-
-      <textarea
-        value={rawText}
-        onChange={(e) => setRawText(e.target.value)}
-        spellCheck={false}
-        className="custom-scrollbar"
-        style={{
-          flex: 1, background: '#1A1A2E', color: '#4ECDC4',
-          fontFamily: 'JetBrains Mono, monospace', fontSize: 12, lineHeight: 1.6,
-          padding: '16px 20px', border: '2.5px solid #1A1A2E', borderRadius: 10,
-          boxShadow: '4px 4px 0px rgba(26,26,46,0.3)', resize: 'none', outline: 'none',
-          width: '100%', boxSizing: 'border-box',
-        }}
-      />
-    </div>
-  )
+    )
 }
 
 // ── Tab content: Summary ─────────────────────────────────────────────────────
 
 function SummaryContent() {
-  const parseResult = useAppStore((s) => s.parseResult)
+    const parseResult = useAppStore((s) => s.parseResult)
 
-  if (!parseResult) {
-    return (
-      <div style={{ padding: 32, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-        <p style={{ fontFamily: 'Nunito, sans-serif', fontSize: 13, color: 'rgba(26,26,46,0.4)' }}>
-          No data available. Upload an EDI file.
-        </p>
-      </div>
-    )
-  }
-
-  const data     = (parseResult as any).data || parseResult
-  const metadata = data.metadata || {}
-  const loops    = data.loops    || {}
-  const txnType  = metadata.transaction_type
-
-  // ──────────────────────────────────────────────────────────────────────────
-  // 835 — Remittance Summary
-  // ──────────────────────────────────────────────────────────────────────────
-  if (txnType === '835') {
-    const remit: any[] = (parseResult as any).remittance_summary || data.remittance_summary || []
-
-    const clpInstances: any[] = (() => {
-      const raw = loops['835_2100'] || []
-      return Array.isArray(raw) ? raw : [raw]
-    })()
-
-    type ClaimRow = {
-      claimId: string
-      billed: number
-      paid: number
-      patResp: number
-      checkEft: string
-      adjustments: { group: string; reason: string; amount: number }[]
+    if (!parseResult) {
+        return (
+            <div style={{ padding: 32, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                <p style={{ fontFamily: 'Nunito, sans-serif', fontSize: 13, color: 'rgba(26,26,46,0.4)' }}>
+                    No data available. Upload an EDI file.
+                </p>
+            </div>
+        )
     }
 
-    const rows: ClaimRow[] = remit.length > 0
-      ? remit.map((r: any) => ({
-          claimId:  String(r.claim_id   ?? 'N/A'),
-          billed:   Number(r.billed     ?? 0),
-          paid:     Number(r.paid       ?? 0),
-          patResp:  Number(r.patient_responsibility ?? r.patient_resp ?? 0),
-          checkEft: String(r.check_eft_number ?? r.check_number ?? 'N/A'),
-          adjustments: (r.adjustments ?? []).map((a: any) => ({
-            group:  String(a.group_code  ?? a.group  ?? ''),
-            reason: String(a.reason_code ?? a.reason ?? ''),
-            amount: Number(a.amount ?? 0),
-          })),
-        }))
-      : clpInstances
-          .filter((inst: any) => inst?.CLP)
-          .map((inst: any) => {
-            const clp    = inst.CLP || {}
-            const rdArr: string[] = clp.raw_data || []
-            const casVal  = inst.CAS
-            const casList = Array.isArray(casVal) ? casVal : (casVal ? [casVal] : [])
-            const trnRd: string[] = inst.TRN?.raw_data || []
-            const checkEft = trnRd[2] || 'N/A'
-            const adjustments = casList.flatMap((c: any) => {
-              const crd: string[] = c.raw_data || []
-              const group = crd[1] || ''
-              const adjs = []
-              for (let i = 2; i + 1 < crd.length; i += 2) {
-                if (crd[i]) adjs.push({ group, reason: crd[i], amount: Number(crd[i + 1]) || 0 })
-              }
-              return adjs
-            })
-            return {
-              claimId:  rdArr[1] || 'N/A',
-              billed:   Number(rdArr[3]) || 0,
-              paid:     Number(rdArr[4]) || 0,
-              patResp:  Number(rdArr[5]) || 0,
-              checkEft,
-              adjustments,
-            } as ClaimRow
-          })
+    const data = (parseResult as any).data || parseResult
+    const metadata = data.metadata || {}
+    const loops = data.loops || {}
+    const txnType = metadata.transaction_type
 
-    const totalBilled  = rows.reduce((s, r) => s + r.billed,  0)
-    const totalPaid    = rows.reduce((s, r) => s + r.paid,    0)
-    const totalPatResp = rows.reduce((s, r) => s + r.patResp, 0)
+    // ──────────────────────────────────────────────────────────────────────────
+    // 835 — Remittance Summary
+    // ──────────────────────────────────────────────────────────────────────────
+    if (txnType === '835') {
+        const remit: any[] = (parseResult as any).remittance_summary || data.remittance_summary || []
 
-    const fmt = (n: number) =>
-      n.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+        const clpInstances: any[] = (() => {
+            const raw = loops['835_2100'] || []
+            return Array.isArray(raw) ? raw : [raw]
+        })()
 
-    const kpis = [
-      { label: 'Total Billed', value: `$${fmt(totalBilled)}`,  color: '#1A1A2E' },
-      { label: 'Total Paid',   value: `$${fmt(totalPaid)}`,    color: '#4ECDC4' },
-      { label: 'Pt Resp',      value: `$${fmt(totalPatResp)}`, color: '#FFE66D' },
-      { label: 'Claims',       value: String(rows.length),     color: '#1A1A2E' },
+        type ClaimRow = {
+            claimId: string
+            billed: number
+            paid: number
+            patResp: number
+            checkEft: string
+            adjustments: { group: string; reason: string; amount: number }[]
+        }
+
+        const rows: ClaimRow[] = remit.length > 0
+            ? remit.map((r: any) => ({
+                claimId: String(r.claim_id ?? 'N/A'),
+                billed: Number(r.billed ?? 0),
+                paid: Number(r.paid ?? 0),
+                patResp: Number(r.patient_responsibility ?? r.patient_resp ?? 0),
+                checkEft: String(r.check_eft_number ?? r.check_number ?? 'N/A'),
+                adjustments: (r.adjustments ?? []).map((a: any) => ({
+                    group: String(a.group_code ?? a.group ?? ''),
+                    reason: String(a.reason_code ?? a.reason ?? ''),
+                    amount: Number(a.amount ?? 0),
+                })),
+            }))
+            : clpInstances
+                .filter((inst: any) => inst?.CLP)
+                .map((inst: any) => {
+                    const clp = inst.CLP || {}
+                    const rdArr: string[] = clp.raw_data || []
+                    const casVal = inst.CAS
+                    const casList = Array.isArray(casVal) ? casVal : (casVal ? [casVal] : [])
+                    const trnRd: string[] = inst.TRN?.raw_data || []
+                    const checkEft = trnRd[2] || 'N/A'
+                    const adjustments = casList.flatMap((c: any) => {
+                        const crd: string[] = c.raw_data || []
+                        const group = crd[1] || ''
+                        const adjs = []
+                        for (let i = 2; i + 1 < crd.length; i += 2) {
+                            if (crd[i]) adjs.push({ group, reason: crd[i], amount: Number(crd[i + 1]) || 0 })
+                        }
+                        return adjs
+                    })
+                    return {
+                        claimId: rdArr[1] || 'N/A',
+                        billed: Number(rdArr[3]) || 0,
+                        paid: Number(rdArr[4]) || 0,
+                        patResp: Number(rdArr[5]) || 0,
+                        checkEft,
+                        adjustments,
+                    } as ClaimRow
+                })
+
+        const totalBilled = rows.reduce((s, r) => s + r.billed, 0)
+        const totalPaid = rows.reduce((s, r) => s + r.paid, 0)
+        const totalPatResp = rows.reduce((s, r) => s + r.patResp, 0)
+
+        const fmt = (n: number) =>
+            n.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+
+        const kpis = [
+            { label: 'Total Billed', value: `$${fmt(totalBilled)}`, color: '#1A1A2E' },
+            { label: 'Total Paid', value: `$${fmt(totalPaid)}`, color: '#4ECDC4' },
+            { label: 'Pt Resp', value: `$${fmt(totalPatResp)}`, color: '#FFE66D' },
+            { label: 'Claims', value: String(rows.length), color: '#1A1A2E' },
+        ]
+
+        return (
+            <div style={{ padding: '24px 28px', display: 'flex', flexDirection: 'column', gap: 24, fontFamily: 'Nunito, sans-serif' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                    <div style={{
+                        width: 36, height: 36, borderRadius: 10, background: '#4ECDC4',
+                        border: '2.5px solid #1A1A2E', boxShadow: '3px 3px 0px rgba(26,26,46,0.2)',
+                        display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 18, flexShrink: 0,
+                    }}>💸</div>
+                    <div>
+                        <h2 style={{ margin: 0, fontWeight: 900, fontSize: 16, color: '#1A1A2E' }}>835 Remittance Summary</h2>
+                        <p style={{ margin: 0, fontSize: 11, color: 'rgba(26,26,46,0.45)' }}>
+                            {metadata.sender_id ? `Payer: ${metadata.sender_id}` : 'All CLP claim loops'}
+                            {metadata.control_number ? ` · Control: ${metadata.control_number}` : ''}
+                        </p>
+                    </div>
+                </div>
+
+                <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap' }}>
+                    {kpis.map((k) => (
+                        <div key={k.label} style={{
+                            flex: '1 1 130px', minWidth: 120, padding: '14px 16px',
+                            background: '#FFFFFF', border: '2px solid #1A1A2E', borderRadius: 10,
+                            boxShadow: '3px 3px 0px rgba(26,26,46,0.15)',
+                        }}>
+                            <div style={{ fontSize: 10, fontWeight: 800, color: 'rgba(26,26,46,0.45)', textTransform: 'uppercase', letterSpacing: '0.07em', marginBottom: 4 }}>
+                                {k.label}
+                            </div>
+                            <div style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: 18, fontWeight: 700, color: k.color }}>
+                                {k.value}
+                            </div>
+                        </div>
+                    ))}
+                </div>
+
+                {rows.length === 0 ? (
+                    <div style={{
+                        padding: '32px 24px', background: '#FFFFFF',
+                        border: '2px solid rgba(26,26,46,0.1)', borderRadius: 12,
+                        textAlign: 'center', color: 'rgba(26,26,46,0.4)', fontSize: 13,
+                    }}>
+                        No CLP claim loops found in this 835 file.
+                    </div>
+                ) : (
+                    <div style={{
+                        background: '#FFFFFF', border: '2px solid #1A1A2E', borderRadius: 12,
+                        boxShadow: '4px 4px 0px rgba(26,26,46,0.08)', overflow: 'hidden',
+                    }}>
+                        <div style={{ overflowX: 'auto' }} className="custom-scrollbar">
+                            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
+                                <thead>
+                                    <tr style={{ background: '#1A1A2E' }}>
+                                        {['Claim ID', 'Billed', 'Paid', 'Pt Resp', 'Check / EFT', 'Adjustments'].map((h) => (
+                                            <th key={h} style={{
+                                                padding: '11px 16px', textAlign: 'left', whiteSpace: 'nowrap',
+                                                fontFamily: 'Nunito, sans-serif', fontWeight: 800, fontSize: 11,
+                                                color: '#4ECDC4', letterSpacing: '0.05em', textTransform: 'uppercase',
+                                            }}>{h}</th>
+                                        ))}
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {rows.map((row, i) => {
+                                        const isPaid = row.paid >= row.billed && row.billed > 0
+                                        const isDenied = row.paid === 0 && row.billed > 0
+                                        return (
+                                            <tr key={i} style={{
+                                                borderTop: '1.5px solid rgba(26,26,46,0.07)',
+                                                background: i % 2 === 0 ? '#FFFFFF' : 'rgba(78,205,196,0.03)',
+                                            }}>
+                                                <td style={{ padding: '12px 16px' }}>
+                                                    <span style={{
+                                                        fontFamily: 'JetBrains Mono, monospace', fontSize: 12, fontWeight: 700,
+                                                        background: 'rgba(78,205,196,0.1)', border: '1px solid rgba(78,205,196,0.3)',
+                                                        borderRadius: 5, padding: '2px 8px', color: '#1A1A2E',
+                                                    }}>{row.claimId}</span>
+                                                </td>
+                                                <td style={{ padding: '12px 16px', fontFamily: 'JetBrains Mono, monospace', fontSize: 12, color: 'rgba(26,26,46,0.7)' }}>
+                                                    ${fmt(row.billed)}
+                                                </td>
+                                                <td style={{ padding: '12px 16px' }}>
+                                                    <span style={{
+                                                        fontFamily: 'JetBrains Mono, monospace', fontSize: 13, fontWeight: 800,
+                                                        color: isDenied ? '#FF6B6B' : isPaid ? '#27AE60' : '#4ECDC4',
+                                                    }}>
+                                                        ${fmt(row.paid)}
+                                                    </span>
+                                                </td>
+                                                <td style={{ padding: '12px 16px', fontFamily: 'JetBrains Mono, monospace', fontSize: 12, color: row.patResp > 0 ? '#B89000' : 'rgba(26,26,46,0.4)' }}>
+                                                    ${fmt(row.patResp)}
+                                                </td>
+                                                <td style={{ padding: '12px 16px' }}>
+                                                    <span style={{
+                                                        fontFamily: 'JetBrains Mono, monospace', fontSize: 11,
+                                                        color: 'rgba(26,26,46,0.55)', background: 'rgba(26,26,46,0.05)',
+                                                        padding: '2px 7px', borderRadius: 4,
+                                                    }}>{row.checkEft}</span>
+                                                </td>
+                                                <td style={{ padding: '12px 16px', fontSize: 11, color: 'rgba(26,26,46,0.55)', maxWidth: 280, wordBreak: 'break-word' }}>
+                                                    {row.adjustments.length > 0 ? (
+                                                        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4 }}>
+                                                            {row.adjustments.map((a, ai) => (
+                                                                <span key={ai} style={{
+                                                                    background: a.group === 'CO' ? 'rgba(78,205,196,0.12)' :
+                                                                        a.group === 'PR' ? 'rgba(255,230,109,0.25)' :
+                                                                            a.group === 'OA' ? 'rgba(255,107,107,0.12)' : 'rgba(26,26,46,0.07)',
+                                                                    color: a.group === 'CO' ? '#2B9B93' :
+                                                                        a.group === 'PR' ? '#8A6F00' :
+                                                                            a.group === 'OA' ? '#C0392B' : '#1A1A2E',
+                                                                    fontFamily: 'JetBrains Mono, monospace', fontSize: 10, fontWeight: 700,
+                                                                    padding: '2px 6px', borderRadius: 4, whiteSpace: 'nowrap',
+                                                                }}>
+                                                                    {a.group}-{a.reason} ${fmt(a.amount)}
+                                                                </span>
+                                                            ))}
+                                                        </div>
+                                                    ) : (
+                                                        <span style={{ color: 'rgba(26,26,46,0.3)' }}>—</span>
+                                                    )}
+                                                </td>
+                                            </tr>
+                                        )
+                                    })}
+                                </tbody>
+                                {rows.length > 1 && (
+                                    <tfoot>
+                                        <tr style={{ background: 'rgba(26,26,46,0.04)', borderTop: '2px solid rgba(26,26,46,0.15)' }}>
+                                            <td style={{ padding: '11px 16px', fontWeight: 800, fontSize: 12, color: 'rgba(26,26,46,0.5)' }}>TOTALS</td>
+                                            <td style={{ padding: '11px 16px', fontFamily: 'JetBrains Mono, monospace', fontSize: 12, fontWeight: 700 }}>${fmt(totalBilled)}</td>
+                                            <td style={{ padding: '11px 16px', fontFamily: 'JetBrains Mono, monospace', fontSize: 12, fontWeight: 700, color: '#4ECDC4' }}>${fmt(totalPaid)}</td>
+                                            <td style={{ padding: '11px 16px', fontFamily: 'JetBrains Mono, monospace', fontSize: 12, fontWeight: 700, color: '#B89000' }}>${fmt(totalPatResp)}</td>
+                                            <td colSpan={2} />
+                                        </tr>
+                                    </tfoot>
+                                )}
+                            </table>
+                        </div>
+                    </div>
+                )}
+            </div>
+        )
+    }
+
+    // ──────────────────────────────────────────────────────────────────────────
+    // 834 — Family Enrollment View
+    // ──────────────────────────────────────────────────────────────────────────
+    if (txnType === '834') {
+        const groups: EnrollmentGroup[] = build834EnrollmentGroups(parseResult as any)
+
+        const totalMembers = groups.reduce((s, g) => s + g.totalMembers, 0)
+        const totalCob = groups.reduce(
+            (s, g) =>
+                s +
+                (g.subscriber.hasSecondaryCoverage ? 1 : 0) +
+                g.dependents.filter((d) => d.hasSecondaryCoverage).length,
+            0,
+        )
+        const totalTerminations = groups.reduce(
+            (s, g) =>
+                s +
+                (g.subscriber.maintenanceTypeCode === '024' ? 1 : 0) +
+                g.dependents.filter((d) => d.maintenanceTypeCode === '024').length,
+            0,
+        )
+
+        return (
+            <div style={{ padding: '24px 28px', display: 'flex', flexDirection: 'column', gap: 24, fontFamily: 'Nunito, sans-serif' }}>
+
+                {/* Page header */}
+                <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                    <div style={{
+                        width: 36, height: 36, borderRadius: 10, background: '#FFE66D',
+                        border: '2.5px solid #1A1A2E', boxShadow: '3px 3px 0px rgba(26,26,46,0.2)',
+                        display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 18, flexShrink: 0,
+                    }}>🧑‍🤝‍🧑</div>
+                    <div>
+                        <h2 style={{ margin: 0, fontWeight: 900, fontSize: 16, color: '#1A1A2E' }}>
+                            834 Member Enrollment — Family View
+                        </h2>
+                        <p style={{ margin: 0, fontSize: 11, color: 'rgba(26,26,46,0.45)' }}>
+                            {groups.length} enrollment group{groups.length !== 1 ? 's' : ''}
+                            {' · '}
+                            {totalMembers} total member{totalMembers !== 1 ? 's' : ''}
+                            {totalCob > 0 && ` · ⚠ ${totalCob} with COB`}
+                        </p>
+                    </div>
+                </div>
+
+                {/* KPI strip */}
+                {groups.length > 0 && (
+                    <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap' }}>
+                        {[
+                            { label: 'Enrollment Groups', value: String(groups.length), color: '#1A1A2E' },
+                            { label: 'Total Members', value: String(totalMembers), color: '#4ECDC4' },
+                            { label: 'With COB', value: String(totalCob), color: totalCob > 0 ? '#C0392B' : 'rgba(26,26,46,0.3)' },
+                            { label: 'Terminations', value: String(totalTerminations), color: totalTerminations > 0 ? '#B89000' : 'rgba(26,26,46,0.3)' },
+                        ].map((k) => (
+                            <div key={k.label} style={{
+                                flex: '1 1 120px', minWidth: 110, padding: '12px 16px',
+                                background: '#FFFFFF', border: '2px solid #1A1A2E', borderRadius: 10,
+                                boxShadow: '3px 3px 0px rgba(26,26,46,0.12)',
+                            }}>
+                                <div style={{ fontSize: 10, fontWeight: 800, color: 'rgba(26,26,46,0.45)', textTransform: 'uppercase', letterSpacing: '0.07em', marginBottom: 4 }}>
+                                    {k.label}
+                                </div>
+                                <div style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: 22, fontWeight: 700, color: k.color }}>
+                                    {k.value}
+                                </div>
+                            </div>
+                        ))}
+                    </div>
+                )}
+
+                {/* Group cards */}
+                {groups.length === 0 ? (
+                    <div style={{
+                        padding: '32px 24px', background: '#FFFFFF',
+                        border: '2px solid rgba(26,26,46,0.1)', borderRadius: 12,
+                        textAlign: 'center', color: 'rgba(26,26,46,0.4)', fontSize: 13,
+                    }}>
+                        No member enrollment loops found in this 834 file.
+                    </div>
+                ) : (
+                    groups.map((group) => (
+                        <EnrollmentGroupCard key={group.groupId} group={group} />
+                    ))
+                )}
+            </div>
+        )
+    }
+
+    // ──────────────────────────────────────────────────────────────────────────
+    // 837 / Generic fallback
+    // ──────────────────────────────────────────────────────────────────────────
+    const overviewRows = [
+        { label: 'Transaction Type', value: txnType || 'Unknown' },
+        { label: 'Implementation Ref', value: metadata.implementation_reference || 'N/A' },
+        { label: 'Sender ID', value: metadata.sender_id || 'N/A' },
+        { label: 'Receiver ID', value: metadata.receiver_id || 'N/A' },
+        { label: 'Control Number', value: metadata.control_number || 'N/A' },
     ]
 
     return (
-      <div style={{ padding: '24px 28px', display: 'flex', flexDirection: 'column', gap: 24, fontFamily: 'Nunito, sans-serif' }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-          <div style={{
-            width: 36, height: 36, borderRadius: 10, background: '#4ECDC4',
-            border: '2.5px solid #1A1A2E', boxShadow: '3px 3px 0px rgba(26,26,46,0.2)',
-            display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 18, flexShrink: 0,
-          }}>💸</div>
-          <div>
-            <h2 style={{ margin: 0, fontWeight: 900, fontSize: 16, color: '#1A1A2E' }}>835 Remittance Summary</h2>
-            <p style={{ margin: 0, fontSize: 11, color: 'rgba(26,26,46,0.45)' }}>
-              {metadata.sender_id ? `Payer: ${metadata.sender_id}` : 'All CLP claim loops'}
-              {metadata.control_number ? ` · Control: ${metadata.control_number}` : ''}
-            </p>
-          </div>
-        </div>
-
-        <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap' }}>
-          {kpis.map((k) => (
-            <div key={k.label} style={{
-              flex: '1 1 130px', minWidth: 120, padding: '14px 16px',
-              background: '#FFFFFF', border: '2px solid #1A1A2E', borderRadius: 10,
-              boxShadow: '3px 3px 0px rgba(26,26,46,0.15)',
-            }}>
-              <div style={{ fontSize: 10, fontWeight: 800, color: 'rgba(26,26,46,0.45)', textTransform: 'uppercase', letterSpacing: '0.07em', marginBottom: 4 }}>
-                {k.label}
-              </div>
-              <div style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: 18, fontWeight: 700, color: k.color }}>
-                {k.value}
-              </div>
+        <div style={{ padding: '24px 28px', display: 'flex', flexDirection: 'column', gap: 16, fontFamily: 'Nunito, sans-serif' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 4 }}>
+                <div style={{ width: 4, height: 20, borderRadius: 2, background: '#4ECDC4', flexShrink: 0 }} />
+                <h2 style={{ margin: 0, fontWeight: 900, fontSize: 15, color: '#1A1A2E' }}>File Overview</h2>
             </div>
-          ))}
-        </div>
-
-        {rows.length === 0 ? (
-          <div style={{
-            padding: '32px 24px', background: '#FFFFFF',
-            border: '2px solid rgba(26,26,46,0.1)', borderRadius: 12,
-            textAlign: 'center', color: 'rgba(26,26,46,0.4)', fontSize: 13,
-          }}>
-            No CLP claim loops found in this 835 file.
-          </div>
-        ) : (
-          <div style={{
-            background: '#FFFFFF', border: '2px solid #1A1A2E', borderRadius: 12,
-            boxShadow: '4px 4px 0px rgba(26,26,46,0.08)', overflow: 'hidden',
-          }}>
-            <div style={{ overflowX: 'auto' }} className="custom-scrollbar">
-              <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
-                <thead>
-                  <tr style={{ background: '#1A1A2E' }}>
-                    {['Claim ID', 'Billed', 'Paid', 'Pt Resp', 'Check / EFT', 'Adjustments'].map((h) => (
-                      <th key={h} style={{
-                        padding: '11px 16px', textAlign: 'left', whiteSpace: 'nowrap',
-                        fontFamily: 'Nunito, sans-serif', fontWeight: 800, fontSize: 11,
-                        color: '#4ECDC4', letterSpacing: '0.05em', textTransform: 'uppercase',
-                      }}>{h}</th>
-                    ))}
-                  </tr>
-                </thead>
-                <tbody>
-                  {rows.map((row, i) => {
-                    const isPaid   = row.paid >= row.billed && row.billed > 0
-                    const isDenied = row.paid === 0 && row.billed > 0
-                    return (
-                      <tr key={i} style={{
-                        borderTop: '1.5px solid rgba(26,26,46,0.07)',
-                        background: i % 2 === 0 ? '#FFFFFF' : 'rgba(78,205,196,0.03)',
-                      }}>
-                        <td style={{ padding: '12px 16px' }}>
-                          <span style={{
-                            fontFamily: 'JetBrains Mono, monospace', fontSize: 12, fontWeight: 700,
-                            background: 'rgba(78,205,196,0.1)', border: '1px solid rgba(78,205,196,0.3)',
-                            borderRadius: 5, padding: '2px 8px', color: '#1A1A2E',
-                          }}>{row.claimId}</span>
-                        </td>
-                        <td style={{ padding: '12px 16px', fontFamily: 'JetBrains Mono, monospace', fontSize: 12, color: 'rgba(26,26,46,0.7)' }}>
-                          ${fmt(row.billed)}
-                        </td>
-                        <td style={{ padding: '12px 16px' }}>
-                          <span style={{
-                            fontFamily: 'JetBrains Mono, monospace', fontSize: 13, fontWeight: 800,
-                            color: isDenied ? '#FF6B6B' : isPaid ? '#27AE60' : '#4ECDC4',
-                          }}>
-                            ${fmt(row.paid)}
-                          </span>
-                        </td>
-                        <td style={{ padding: '12px 16px', fontFamily: 'JetBrains Mono, monospace', fontSize: 12, color: row.patResp > 0 ? '#B89000' : 'rgba(26,26,46,0.4)' }}>
-                          ${fmt(row.patResp)}
-                        </td>
-                        <td style={{ padding: '12px 16px' }}>
-                          <span style={{
-                            fontFamily: 'JetBrains Mono, monospace', fontSize: 11,
-                            color: 'rgba(26,26,46,0.55)', background: 'rgba(26,26,46,0.05)',
-                            padding: '2px 7px', borderRadius: 4,
-                          }}>{row.checkEft}</span>
-                        </td>
-                        <td style={{ padding: '12px 16px', fontSize: 11, color: 'rgba(26,26,46,0.55)', maxWidth: 280, wordBreak: 'break-word' }}>
-                          {row.adjustments.length > 0 ? (
-                            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4 }}>
-                              {row.adjustments.map((a, ai) => (
-                                <span key={ai} style={{
-                                  background: a.group === 'CO' ? 'rgba(78,205,196,0.12)' :
-                                              a.group === 'PR' ? 'rgba(255,230,109,0.25)' :
-                                              a.group === 'OA' ? 'rgba(255,107,107,0.12)' : 'rgba(26,26,46,0.07)',
-                                  color: a.group === 'CO' ? '#2B9B93' :
-                                         a.group === 'PR' ? '#8A6F00' :
-                                         a.group === 'OA' ? '#C0392B' : '#1A1A2E',
-                                  fontFamily: 'JetBrains Mono, monospace', fontSize: 10, fontWeight: 700,
-                                  padding: '2px 6px', borderRadius: 4, whiteSpace: 'nowrap',
-                                }}>
-                                  {a.group}-{a.reason} ${fmt(a.amount)}
-                                </span>
-                              ))}
-                            </div>
-                          ) : (
-                            <span style={{ color: 'rgba(26,26,46,0.3)' }}>—</span>
-                          )}
-                        </td>
-                      </tr>
-                    )
-                  })}
-                </tbody>
-                {rows.length > 1 && (
-                  <tfoot>
-                    <tr style={{ background: 'rgba(26,26,46,0.04)', borderTop: '2px solid rgba(26,26,46,0.15)' }}>
-                      <td style={{ padding: '11px 16px', fontWeight: 800, fontSize: 12, color: 'rgba(26,26,46,0.5)' }}>TOTALS</td>
-                      <td style={{ padding: '11px 16px', fontFamily: 'JetBrains Mono, monospace', fontSize: 12, fontWeight: 700 }}>${fmt(totalBilled)}</td>
-                      <td style={{ padding: '11px 16px', fontFamily: 'JetBrains Mono, monospace', fontSize: 12, fontWeight: 700, color: '#4ECDC4' }}>${fmt(totalPaid)}</td>
-                      <td style={{ padding: '11px 16px', fontFamily: 'JetBrains Mono, monospace', fontSize: 12, fontWeight: 700, color: '#B89000' }}>${fmt(totalPatResp)}</td>
-                      <td colSpan={2} />
-                    </tr>
-                  </tfoot>
-                )}
-              </table>
-            </div>
-          </div>
-        )}
-      </div>
-    )
-  }
-
-  // ──────────────────────────────────────────────────────────────────────────
-  // 834 — Family Enrollment View
-  // ──────────────────────────────────────────────────────────────────────────
-  if (txnType === '834') {
-    const groups: EnrollmentGroup[] = build834EnrollmentGroups(parseResult as any)
-
-    const totalMembers = groups.reduce((s, g) => s + g.totalMembers, 0)
-    const totalCob     = groups.reduce(
-      (s, g) =>
-        s +
-        (g.subscriber.hasSecondaryCoverage ? 1 : 0) +
-        g.dependents.filter((d) => d.hasSecondaryCoverage).length,
-      0,
-    )
-    const totalTerminations = groups.reduce(
-      (s, g) =>
-        s +
-        (g.subscriber.maintenanceTypeCode === '024' ? 1 : 0) +
-        g.dependents.filter((d) => d.maintenanceTypeCode === '024').length,
-      0,
-    )
-
-    return (
-      <div style={{ padding: '24px 28px', display: 'flex', flexDirection: 'column', gap: 24, fontFamily: 'Nunito, sans-serif' }}>
-
-        {/* Page header */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-          <div style={{
-            width: 36, height: 36, borderRadius: 10, background: '#FFE66D',
-            border: '2.5px solid #1A1A2E', boxShadow: '3px 3px 0px rgba(26,26,46,0.2)',
-            display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 18, flexShrink: 0,
-          }}>🧑‍🤝‍🧑</div>
-          <div>
-            <h2 style={{ margin: 0, fontWeight: 900, fontSize: 16, color: '#1A1A2E' }}>
-              834 Member Enrollment — Family View
-            </h2>
-            <p style={{ margin: 0, fontSize: 11, color: 'rgba(26,26,46,0.45)' }}>
-              {groups.length} enrollment group{groups.length !== 1 ? 's' : ''}
-              {' · '}
-              {totalMembers} total member{totalMembers !== 1 ? 's' : ''}
-              {totalCob > 0 && ` · ⚠ ${totalCob} with COB`}
-            </p>
-          </div>
-        </div>
-
-        {/* KPI strip */}
-        {groups.length > 0 && (
-          <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap' }}>
-            {[
-              { label: 'Enrollment Groups', value: String(groups.length),      color: '#1A1A2E' },
-              { label: 'Total Members',     value: String(totalMembers),       color: '#4ECDC4' },
-              { label: 'With COB',          value: String(totalCob),           color: totalCob > 0 ? '#C0392B' : 'rgba(26,26,46,0.3)' },
-              { label: 'Terminations',      value: String(totalTerminations),  color: totalTerminations > 0 ? '#B89000' : 'rgba(26,26,46,0.3)' },
-            ].map((k) => (
-              <div key={k.label} style={{
-                flex: '1 1 120px', minWidth: 110, padding: '12px 16px',
-                background: '#FFFFFF', border: '2px solid #1A1A2E', borderRadius: 10,
-                boxShadow: '3px 3px 0px rgba(26,26,46,0.12)',
-              }}>
-                <div style={{ fontSize: 10, fontWeight: 800, color: 'rgba(26,26,46,0.45)', textTransform: 'uppercase', letterSpacing: '0.07em', marginBottom: 4 }}>
-                  {k.label}
+            {overviewRows.map((row) => (
+                <div key={row.label} style={{
+                    display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+                    padding: '12px 18px', background: '#FFFFFF',
+                    border: '2px solid rgba(26,26,46,0.12)', borderRadius: 10,
+                    boxShadow: '3px 3px 0px rgba(26,26,46,0.06)',
+                }}>
+                    <span style={{ fontWeight: 700, fontSize: 13, color: 'rgba(26,26,46,0.55)' }}>{row.label}</span>
+                    <span style={{ fontFamily: 'JetBrains Mono, monospace', fontWeight: 700, fontSize: 13, color: '#1A1A2E' }}>{row.value}</span>
                 </div>
-                <div style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: 22, fontWeight: 700, color: k.color }}>
-                  {k.value}
-                </div>
-              </div>
             ))}
-          </div>
-        )}
-
-        {/* Group cards */}
-        {groups.length === 0 ? (
-          <div style={{
-            padding: '32px 24px', background: '#FFFFFF',
-            border: '2px solid rgba(26,26,46,0.1)', borderRadius: 12,
-            textAlign: 'center', color: 'rgba(26,26,46,0.4)', fontSize: 13,
-          }}>
-            No member enrollment loops found in this 834 file.
-          </div>
-        ) : (
-          groups.map((group) => (
-            <EnrollmentGroupCard key={group.groupId} group={group} />
-          ))
-        )}
-      </div>
-    )
-  }
-
-  // ──────────────────────────────────────────────────────────────────────────
-  // 837 / Generic fallback
-  // ──────────────────────────────────────────────────────────────────────────
-  const overviewRows = [
-    { label: 'Transaction Type',   value: txnType || 'Unknown' },
-    { label: 'Implementation Ref', value: metadata.implementation_reference || 'N/A' },
-    { label: 'Sender ID',          value: metadata.sender_id   || 'N/A' },
-    { label: 'Receiver ID',        value: metadata.receiver_id || 'N/A' },
-    { label: 'Control Number',     value: metadata.control_number || 'N/A' },
-  ]
-
-  return (
-    <div style={{ padding: '24px 28px', display: 'flex', flexDirection: 'column', gap: 16, fontFamily: 'Nunito, sans-serif' }}>
-      <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 4 }}>
-        <div style={{ width: 4, height: 20, borderRadius: 2, background: '#4ECDC4', flexShrink: 0 }} />
-        <h2 style={{ margin: 0, fontWeight: 900, fontSize: 15, color: '#1A1A2E' }}>File Overview</h2>
-      </div>
-      {overviewRows.map((row) => (
-        <div key={row.label} style={{
-          display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-          padding: '12px 18px', background: '#FFFFFF',
-          border: '2px solid rgba(26,26,46,0.12)', borderRadius: 10,
-          boxShadow: '3px 3px 0px rgba(26,26,46,0.06)',
-        }}>
-          <span style={{ fontWeight: 700, fontSize: 13, color: 'rgba(26,26,46,0.55)' }}>{row.label}</span>
-          <span style={{ fontFamily: 'JetBrains Mono, monospace', fontWeight: 700, fontSize: 13, color: '#1A1A2E' }}>{row.value}</span>
         </div>
-      ))}
-    </div>
-  )
+    )
 }
 
 // ── Empty / No-file upload placeholder ───────────────────────────────────────
 
 function EmptyDropzone() {
-  const processFileInWorkspace = useAppStore((s) => s.processFileInWorkspace)
-  const [loading, setLoading]  = useState(false)
+    const processFileInWorkspace = useAppStore((s) => s.processFileInWorkspace)
+    const [loading, setLoading] = useState(false)
 
-  const handleFile = useCallback(async (file: File) => {
-    setLoading(true)
-    await processFileInWorkspace(file)
-    setLoading(false)
-  }, [processFileInWorkspace])
+    const handleFile = useCallback(async (file: File) => {
+        setLoading(true)
+        await processFileInWorkspace(file)
+        setLoading(false)
+    }, [processFileInWorkspace])
 
-  const { getRootProps, getInputProps, isDragActive } = useDropzone({
-    onDrop: (files) => files[0] && handleFile(files[0]),
-    accept: {
-      'text/plain':               ['.edi', '.txt', '.dat', '.x12'],
-      'application/octet-stream': ['.edi', '.dat', '.x12'],
-    },
-    multiple: false,
-  })
+    const { getRootProps, getInputProps, isDragActive } = useDropzone({
+        onDrop: (files) => files[0] && handleFile(files[0]),
+        accept: {
+            'text/plain': ['.edi', '.txt', '.dat', '.x12'],
+            'application/octet-stream': ['.edi', '.dat', '.x12'],
+        },
+        multiple: false,
+    })
 
-  return (
-    <motion.div
-      initial={{ opacity: 0, y: 20 }}
-      animate={{ opacity: 1, y: 0 }}
-      transition={{ duration: 0.5 }}
-      style={{
-        flex: 1, display: 'flex', flexDirection: 'column',
-        alignItems: 'center', justifyContent: 'center', padding: 40, gap: 24,
-      }}
-    >
-      <div
-        {...getRootProps()}
-        style={{
-          padding: '48px 64px',
-          border: `2.5px dashed ${isDragActive ? '#4ECDC4' : 'rgba(26,26,46,0.2)'}`,
-          borderRadius: 16, background: isDragActive ? 'rgba(78,205,196,0.05)' : '#FFFFFF',
-          boxShadow: isDragActive ? '4px 4px 0px #4ECDC4' : '4px 4px 0px rgba(26,26,46,0.08)',
-          cursor: 'pointer', textAlign: 'center', transition: 'all 0.2s ease', maxWidth: 480, width: '100%',
-        }}
-      >
-        <input {...getInputProps()} />
-        {loading ? (
-          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 12 }}>
-            <div className="doodle-spinner" style={{ width: 40, height: 40 }} />
-            <p style={{ fontFamily: 'Nunito, sans-serif', fontWeight: 600, fontSize: 14, color: '#1A1A2E' }}>Parsing your file…</p>
-          </div>
-        ) : (
-          <>
-            <UploadCloud size={44} color="#4ECDC4" style={{ margin: '0 auto 16px' }} />
-            <p style={{ fontFamily: 'Nunito, sans-serif', fontWeight: 800, fontSize: 17, color: '#1A1A2E', marginBottom: 8 }}>
-              {isDragActive ? 'Drop it right here! 🎉' : 'Drop your EDI file here'}
-            </p>
-            <p style={{ fontFamily: 'Nunito, sans-serif', fontSize: 13, color: 'rgba(26,26,46,0.45)' }}>
-              or click to browse · .edi .txt .dat .x12
-            </p>
-          </>
-        )}
-      </div>
-    </motion.div>
-  )
+    return (
+        <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.5 }}
+            style={{
+                flex: 1, display: 'flex', flexDirection: 'column',
+                alignItems: 'center', justifyContent: 'center', padding: 40, gap: 24,
+            }}
+        >
+            <div
+                {...getRootProps()}
+                style={{
+                    padding: '48px 64px',
+                    border: `2.5px dashed ${isDragActive ? '#4ECDC4' : 'rgba(26,26,46,0.2)'}`,
+                    borderRadius: 16, background: isDragActive ? 'rgba(78,205,196,0.05)' : '#FFFFFF',
+                    boxShadow: isDragActive ? '4px 4px 0px #4ECDC4' : '4px 4px 0px rgba(26,26,46,0.08)',
+                    cursor: 'pointer', textAlign: 'center', transition: 'all 0.2s ease', maxWidth: 480, width: '100%',
+                }}
+            >
+                <input {...getInputProps()} />
+                {loading ? (
+                    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 12 }}>
+                        <div className="doodle-spinner" style={{ width: 40, height: 40 }} />
+                        <p style={{ fontFamily: 'Nunito, sans-serif', fontWeight: 600, fontSize: 14, color: '#1A1A2E' }}>Parsing your file…</p>
+                    </div>
+                ) : (
+                    <>
+                        <UploadCloud size={44} color="#4ECDC4" style={{ margin: '0 auto 16px' }} />
+                        <p style={{ fontFamily: 'Nunito, sans-serif', fontWeight: 800, fontSize: 17, color: '#1A1A2E', marginBottom: 8 }}>
+                            {isDragActive ? 'Drop it right here! 🎉' : 'Drop your EDI file here'}
+                        </p>
+                        <p style={{ fontFamily: 'Nunito, sans-serif', fontSize: 13, color: 'rgba(26,26,46,0.45)' }}>
+                            or click to browse · .edi .txt .dat .x12
+                        </p>
+                    </>
+                )}
+            </div>
+        </motion.div>
+    )
+}
+
+// ── AI Panel ─────────────────────────────────────────────────────────────────
+
+function AIPanel() {
+    const isOpen = useAppStore((s) => s.isAIPanelOpen)
+    const setIsOpen = useAppStore((s) => s.setIsAIPanelOpen)
+    const aiPromptContext = useAppStore((s) => s.aiPromptContext)
+    const pendingFix = useAppStore((s) => s.pendingFix)
+    const acceptFix = useAppStore((s) => s.acceptFix)
+    const rejectFix = useAppStore((s) => s.rejectFix)
+
+    const [messages, setMessages] = useState<Array<{ role: 'user' | 'assistant' | 'system'; content: string; timestamp: number }>>([
+        { role: 'assistant', content: '👋 Hi! I\'m your EDI assistant. Ask me anything about your file or validation errors.', timestamp: Date.now() },
+    ])
+
+    const messagesEndRef = useRef<HTMLDivElement>(null)
+
+    // Auto-scroll to bottom when new messages arrive
+    useEffect(() => {
+        messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
+    }, [messages])
+
+    // Auto-add fix messages to chat
+    useEffect(() => {
+        if (aiPromptContext) {
+            setMessages(m => [...m, { role: 'system', content: aiPromptContext, timestamp: Date.now() }])
+        }
+    }, [aiPromptContext])
+
+    const handleAcceptFix = () => {
+        if (!pendingFix) return
+
+        acceptFix()
+
+        setMessages(m => [...m, {
+            role: 'system',
+            content: `✅ **Fix Accepted**\n\nThe correction has been permanently saved to your document.`,
+            timestamp: Date.now()
+        }])
+    }
+
+    const handleRejectFix = () => {
+        if (!pendingFix) return
+
+        rejectFix()
+
+        setMessages(m => [...m, {
+            role: 'system',
+            content: `❌ **Fix Rejected**\n\nReverted to original value. No changes were saved.`,
+            timestamp: Date.now()
+        }])
+    }
+
+    if (!isOpen) return null
+
+    return (
+        <div style={{
+            width: 340,
+            height: '100%',
+            background: '#FFFFFF',
+            borderLeft: '2.5px solid #1A1A2E',
+            display: 'flex',
+            flexDirection: 'column',
+            flexShrink: 0,
+        }}>
+            {/* Header */}
+            <div style={{
+                padding: '10px 16px',
+                borderBottom: '2px solid rgba(26,26,46,0.1)',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+                flexShrink: 0,
+            }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                    <span style={{ fontSize: 18 }}>🤖</span>
+                    <span style={{
+                        fontFamily: 'Nunito, sans-serif',
+                        fontWeight: 800,
+                        fontSize: 12,
+                        color: '#1A1A2E',
+                        letterSpacing: '0.05em',
+                        textTransform: 'uppercase',
+                    }}>
+                        EDI Assistant
+                    </span>
+                </div>
+                <button
+                    onClick={() => setIsOpen(false)}
+                    style={{
+                        background: 'none',
+                        border: 'none',
+                        cursor: 'pointer',
+                        padding: 4,
+                        display: 'flex',
+                        alignItems: 'center',
+                    }}
+                >
+                    <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
+                        <path d="M1 1l12 12M13 1L1 13" stroke="rgba(26,26,46,0.5)" strokeWidth="2" strokeLinecap="round" />
+                    </svg>
+                </button>
+            </div>
+
+            {/* Messages */}
+            <div style={{
+                flex: 1,
+                overflowY: 'auto',
+                padding: '16px',
+                display: 'flex',
+                flexDirection: 'column',
+                gap: 12,
+            }} className="custom-scrollbar">
+                {messages.map((msg, i) => (
+                    <div key={i} style={{
+                        padding: '10px 12px',
+                        background: msg.role === 'user'
+                            ? '#4ECDC4'
+                            : msg.role === 'system'
+                                ? 'rgba(255,230,109,0.2)'
+                                : '#FDFAF4',
+                        border: msg.role === 'system'
+                            ? '1.5px solid #FFE66D'
+                            : '1.5px solid rgba(26,26,46,0.1)',
+                        borderRadius: 8,
+                        fontFamily: 'Nunito, sans-serif',
+                        fontSize: 12,
+                        color: '#1A1A2E',
+                        lineHeight: 1.5,
+                        whiteSpace: 'pre-wrap',
+                    }}>
+                        {msg.content}
+                    </div>
+                ))}
+
+                {/* Accept/Reject Buttons */}
+                {pendingFix && (
+                    <div style={{
+                        padding: '12px',
+                        background: 'linear-gradient(135deg, rgba(78,205,196,0.1), rgba(255,230,109,0.1))',
+                        border: '2px solid #4ECDC4',
+                        borderRadius: 8,
+                        display: 'flex',
+                        flexDirection: 'column',
+                        gap: 10,
+                        boxShadow: '3px 3px 0 rgba(78,205,196,0.2)',
+                    }}>
+                        <p style={{
+                            fontFamily: 'Nunito, sans-serif',
+                            fontSize: 11,
+                            fontWeight: 800,
+                            color: '#1A1A2E',
+                            margin: 0,
+                            textAlign: 'center',
+                        }}>
+                            🤔 Do you want to keep this fix?
+                        </p>
+                        <div style={{ display: 'flex', gap: 8 }}>
+                            <button
+                                onClick={handleAcceptFix}
+                                style={{
+                                    flex: 1,
+                                    background: '#27AE60',
+                                    color: '#FFFFFF',
+                                    fontFamily: 'Nunito, sans-serif',
+                                    fontWeight: 800,
+                                    fontSize: 11,
+                                    border: '2px solid #1A1A2E',
+                                    borderRadius: 6,
+                                    padding: '8px 12px',
+                                    cursor: 'pointer',
+                                    boxShadow: '2px 2px 0 #1A1A2E',
+                                    transition: 'transform 0.1s',
+                                }}
+                                onMouseDown={(e) => { e.currentTarget.style.transform = 'translateY(1px)'; e.currentTarget.style.boxShadow = '1px 1px 0 #1A1A2E' }}
+                                onMouseUp={(e) => { e.currentTarget.style.transform = ''; e.currentTarget.style.boxShadow = '2px 2px 0 #1A1A2E' }}
+                            >
+                                ✓ Accept Fix
+                            </button>
+                            <button
+                                onClick={handleRejectFix}
+                                style={{
+                                    flex: 1,
+                                    background: '#FF6B6B',
+                                    color: '#FFFFFF',
+                                    fontFamily: 'Nunito, sans-serif',
+                                    fontWeight: 800,
+                                    fontSize: 11,
+                                    border: '2px solid #1A1A2E',
+                                    borderRadius: 6,
+                                    padding: '8px 12px',
+                                    cursor: 'pointer',
+                                    boxShadow: '2px 2px 0 #1A1A2E',
+                                    transition: 'transform 0.1s',
+                                }}
+                                onMouseDown={(e) => { e.currentTarget.style.transform = 'translateY(1px)'; e.currentTarget.style.boxShadow = '1px 1px 0 #1A1A2E' }}
+                                onMouseUp={(e) => { e.currentTarget.style.transform = ''; e.currentTarget.style.boxShadow = '2px 2px 0 #1A1A2E' }}
+                            >
+                                ✗ Reject Fix
+                            </button>
+                        </div>
+                    </div>
+                )}
+
+                <div ref={messagesEndRef} />
+            </div>
+        </div>
+    )
 }
 
 // ── Main EditorArea ───────────────────────────────────────────────────────────
 
 export default function EditorArea() {
-  const parseResult = useAppStore((s) => s.parseResult)
-  const ediFile     = useAppStore((s) => s.ediFile)
-  const activeTabId = useAppStore((s) => s.activeTabId)
-  const hasFile     = !!(parseResult || ediFile.fileName)
+    const parseResult = useAppStore((s) => s.parseResult)
+    const ediFile = useAppStore((s) => s.ediFile)
+    const activeTabId = useAppStore((s) => s.activeTabId)
+    const isAIPanelOpen = useAppStore((s) => s.isAIPanelOpen)
+    const hasFile = !!(parseResult || ediFile.fileName)
 
-  return (
-    <div style={{ height: '100%', display: 'flex', flexDirection: 'column', background: '#FDFAF4', overflow: 'hidden' }}>
-      <CenterTabBar />
-      <div style={{ flex: 1, overflow: 'auto' }} className="custom-scrollbar">
-        {!hasFile ? (
-          <EmptyDropzone />
-        ) : (
-          <>
-            {activeTabId === 'form'    && <FormEditorView />}
-            {activeTabId === 'raw'     && <RawEDIContent />}
-            {activeTabId === 'summary' && <SummaryContent />}
-          </>
-        )}
-      </div>
-    </div>
-  )
+    return (
+        <div style={{ height: '100%', display: 'flex', background: '#FDFAF4', overflow: 'hidden' }}>
+            {/* Main editor area */}
+            <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+                <CenterTabBar />
+                <div style={{ flex: 1, overflow: 'auto' }} className="custom-scrollbar">
+                    {!hasFile ? (
+                        <EmptyDropzone />
+                    ) : (
+                        <>
+                            {activeTabId === 'form' && <FormEditorView />}
+                            {activeTabId === 'raw' && <RawEDIContent />}
+                            {activeTabId === 'summary' && <SummaryContent />}
+                        </>
+                    )}
+                </div>
+            </div>
+
+            {/* AI Panel (conditionally rendered) */}
+            {isAIPanelOpen && <AIPanel />}
+        </div>
+    )
 }
+
+// Export AIPanel for use in other components if needed
+export { AIPanel }

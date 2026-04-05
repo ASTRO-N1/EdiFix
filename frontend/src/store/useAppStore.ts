@@ -122,6 +122,20 @@ interface AppState {
   setChangeReport834Result: (data: Record<string, unknown> | null) => void
   isChangeReport834Loading: boolean
   setIsChangeReport834Loading: (v: boolean) => void
+
+  // ── Fix Assistant State ──────────────────────────────────────────────
+  fixSuggestions: Record<string, any>[]
+  setFixSuggestions: (suggestions: Record<string, any>[]) => void
+  pendingFix: Record<string, any> | null
+  setPendingFix: (fix: Record<string, any> | null) => void
+  fixHistory: Array<{ before: Record<string, unknown>; after: Record<string, unknown>; suggestion: Record<string, any> }>
+  pushFixHistory: (entry: { before: Record<string, unknown>; after: Record<string, unknown>; suggestion: Record<string, any> }) => void
+  
+  // Actions
+  fetchFixSuggestions: () => Promise<void>
+  applyFix: (suggestion: Record<string, any>) => Promise<void>
+  acceptFix: () => void
+  rejectFix: () => void
 }
 
 const DEFAULT_TABS: WorkspaceTab[] = [
@@ -380,6 +394,116 @@ const useAppStore = create<AppState>((set, get) => ({
   setChangeReport834Result: (data) => set({ changeReport834Result: data }),
   isChangeReport834Loading: false,
   setIsChangeReport834Loading: (v) => set({ isChangeReport834Loading: v }),
+
+  // ── Fix Assistant ───────────────────────────────────────────────────
+  fixSuggestions: [],
+  setFixSuggestions: (suggestions) => set({ fixSuggestions: suggestions }),
+  pendingFix: null,
+  setPendingFix: (fix) => set({ pendingFix: fix }),
+  fixHistory: [],
+  pushFixHistory: (entry) => set((s) => ({ fixHistory: [...s.fixHistory, entry] })),
+  
+  fetchFixSuggestions: async () => {
+    const state = get()
+    if (!state.parseResult) return
+    
+    const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:8000'
+    
+    try {
+      const res = await fetch(`${apiUrl}/api/v1/suggest-fixes`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'X-Internal-Bypass': 'frontend-ui-secret',
+        },
+        body: JSON.stringify({ parse_result: state.parseResult }),
+      })
+      
+      const json = await res.json()
+      
+      if (json.status === 'success' && json.suggestions) {
+        set({ fixSuggestions: json.suggestions })
+      }
+    } catch (err) {
+      console.error('Failed to fetch fix suggestions:', err)
+    }
+  },
+  
+  applyFix: async (suggestion: Record<string, any>) => {
+    const state = get()
+    if (!state.parseResult) return
+    
+    const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:8000'
+    
+    // Store original state for undo
+    const before = structuredClone(state.parseResult)
+    
+    try {
+      const res = await fetch(`${apiUrl}/api/v1/apply-fix`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'X-Internal-Bypass': 'frontend-ui-secret',
+        },
+        body: JSON.stringify({
+          parse_result: state.parseResult,
+          suggestion: suggestion,
+        }),
+      })
+      
+      const json = await res.json()
+      
+      if (json.status === 'success' && json.updated_parse_result) {
+        const after = json.updated_parse_result
+        
+        // Update parse result
+        set({ parseResult: after, pendingFix: suggestion })
+        
+        // Store in history
+        state.pushFixHistory({ before, after, suggestion })
+        
+        // Post message to AI chat
+        const aiMsg = `✓ **Fix Applied: ${suggestion.fix_type}**\n\n` +
+                      `**Field**: ${suggestion.loop_key} · ${suggestion.segment_key} · ${suggestion.element_key}\n` +
+                      `**Before**: \`${suggestion.current_value}\`\n` +
+                      `**After**: \`${suggestion.suggested_value}\`\n\n` +
+                      `**Reason**: ${suggestion.reason}\n\n` +
+                      `*Use the buttons below to accept or reject this fix.*`
+        
+        set({ aiPromptContext: aiMsg, isAIPanelOpen: true })
+      }
+    } catch (err) {
+      console.error('Failed to apply fix:', err)
+      set({ 
+        aiPromptContext: `❌ **Fix Failed**\n\nCould not apply the fix. Error: ${(err as Error).message}`,
+        isAIPanelOpen: true 
+      })
+    }
+  },
+  
+  acceptFix: () => {
+    const state = get()
+    if (!state.pendingFix) return
+    
+    set({
+      pendingFix: null,
+      aiPromptContext: `✅ **Fix Accepted**\n\nThe correction has been saved. Run validation again to see updated error count.`,
+    })
+  },
+  
+  rejectFix: () => {
+    const state = get()
+    if (!state.pendingFix || state.fixHistory.length === 0) return
+    
+    // Restore previous state
+    const lastEntry = state.fixHistory[state.fixHistory.length - 1]
+    set({
+      parseResult: lastEntry.before,
+      pendingFix: null,
+      fixHistory: state.fixHistory.slice(0, -1),
+      aiPromptContext: `❌ **Fix Rejected**\n\nReverted to original value. The change has been undone.`,
+    })
+  },
 }))
 
 export default useAppStore

@@ -14,6 +14,8 @@ export default function OverviewPage() {
   const isMobile = useIsMobile()
   const { t, isDark } = useTheme()
   const navigate = useNavigate()
+  const walkthroughStep = useAppStore(s => s.walkthroughStep)
+  const setWalkthroughStep = useAppStore(s => s.setWalkthroughStep)
 
   useEffect(() => {
     console.log('[OverviewPage] full parseResult:', JSON.stringify(parseResult, null, 2))
@@ -75,6 +77,11 @@ export default function OverviewPage() {
   const doodleOpacity = isDark ? 0.08 : 0.15
 
   const handleProceedToWorkspace = () => {
+    // Advance walkthrough if on the overview step
+    if (walkthroughStep === 'overview-proceed') {
+      setWalkthroughStep('workspace-explorer')
+    }
+
     if (setActiveMainView) {
       setActiveMainView('editor') // Switch workspace mode to explorer panel
     }
@@ -162,6 +169,7 @@ export default function OverviewPage() {
         animation: 'fadeSlideUp 600ms ease-out 400ms both'
       }}>
         <motion.button
+          data-tour="proceed-workspace-btn"
           onClick={handleProceedToWorkspace}
           whileHover={{ scale: 1.02, rotate: 0.5, y: -2, boxShadow: `5px 5px 0px ${t.ink}` }}
           whileTap={{ scale: 0.98, rotate: 0, y: 0, boxShadow: `2px 2px 0px ${t.ink}` }}

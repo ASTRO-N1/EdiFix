@@ -50,6 +50,7 @@ export default function CenterTabBar() {
               style={{ cursor: 'grab' }}
             >
               <motion.div
+                data-tour={tab.type === 'summary' ? 'tab-summary' : undefined}
                 onClick={() => setActiveTabId(tab.id)}
                 layout
                 style={{

@@ -16,6 +16,7 @@ import ReconcileView from '../components/workspace/ReconcileView'
 import ExportPage from '../components/workspace/ExportPage'
 import ChangeReport834View from '../components/workspace/ChangeReport834View'
 import EligibilityScrubberView from '../components/workspace/EligibilityScrubberView'
+import WalkthroughOverlay from '../components/walkthrough/WalkthroughOverlay'
 
 const FlexPanelGroup = PanelGroup as any
 
@@ -57,6 +58,9 @@ export default function WorkspacePage() {
 
   return (
     <div style={{ position: 'relative', display: 'flex', flexDirection: 'column', height: '100vh', overflow: 'hidden', background: '#FDFAF4' }}>
+
+      {/* Walkthrough Overlay — rendered via portal */}
+      <WalkthroughOverlay />
 
       {/* Global parse-loading overlay */}
       {isLoading && (
@@ -164,7 +168,9 @@ export default function WorkspacePage() {
             {isLeftSidebarOpen && (
               <>
                 <Panel id="left-sidebar" defaultSize={300} minSize={12} collapsible>
-                  <LeftSidebar onMinimize={() => setIsLeftSidebarOpen(false)} />
+                  <div data-tour="left-sidebar" style={{ height: '100%' }}>
+                    <LeftSidebar onMinimize={() => setIsLeftSidebarOpen(false)} />
+                  </div>
                 </Panel>
                 <DoodleResizeHandle />
               </>
@@ -172,10 +178,12 @@ export default function WorkspacePage() {
 
             <Panel id="center-column" minSize={30}>
               <div style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
-                <div style={{ flex: 1, overflow: 'hidden', minHeight: 0 }}>
+                <div data-tour="form-editor-view" style={{ flex: 1, overflow: 'hidden', minHeight: 0 }}>
                   <EditorArea />
                 </div>
-                <ValidationDrawer />
+                <div data-tour="validation-drawer">
+                  <ValidationDrawer />
+                </div>
               </div>
             </Panel>
 
@@ -183,7 +191,9 @@ export default function WorkspacePage() {
 
             {isAIPanelOpen && (
               <Panel id="ai-panel" defaultSize={320} minSize={15} collapsible>
-                <AIPanel />
+                <div data-tour="ai-panel" style={{ height: '100%' }}>
+                  <AIPanel />
+                </div>
               </Panel>
             )}
           </FlexPanelGroup>

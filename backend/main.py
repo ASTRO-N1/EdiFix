@@ -16,6 +16,7 @@ from auth import verify_api_key, generate_api_key, verify_supabase_session
 import httpx
 from dotenv import load_dotenv
 from core_parser.eligibility_scrubber import run_eligibility_scrubber
+from core_parser.fix_assistant import analyze_and_suggest_fixes, apply_fix_to_tree
 
 load_dotenv(override=True)
 
@@ -68,6 +69,15 @@ class GenerateRequest(BaseModel):
     
     class Config:
         extra = "allow"  # Allow extra fields like "status", "filename", etc.
+
+
+class SuggestFixesRequest(BaseModel):
+    parse_result: dict
+
+
+class ApplyFixRequest(BaseModel):
+    parse_result: dict
+    suggestion: dict
 
 
 # ── AI Chat endpoint ──────────────────────────────────────────────────────────
@@ -761,41 +771,92 @@ async def revoke_api_key(key_id: str, verified_user_id: str = Depends(verify_sup
     return {"status": "revoked", "id": key_id}
 
 
-# ── Eligibility Scrubber endpoint ────────────────────────────────────────────
+# ── Fix Assistant Endpoints ────────────────────────────────────────────────
 
-class EligibilityScrubberRequest(BaseModel):
-    parsed_834_files: List[dict]
-    parsed_837: dict
-
-
-@app.options("/api/eligibility/scrub")
-def options_eligibility_srub():
+@app.options("/api/v1/suggest-fixes")
+def options_suggest_fixes():
     return {}
 
 
-@app.post("/api/eligibility/scrub")
-async def eligibility_scrubber_endpoint(
-    req: EligibilityScrubberRequest,
+@app.post("/api/v1/suggest-fixes")
+async def suggest_fixes_endpoint(
+    req: SuggestFixesRequest,
     api_caller: dict = Depends(verify_api_key),
 ):
     """
-    Eligibility Scrubber — validate 837 claims against 834 roster.
+    Analyzes validation errors and returns deterministic fix suggestions.
     
-    Body:
-      {
-        "parsed_834_files": [<parse response>, <parse response>, ...],
-        "parsed_837": <parse response>
-      }
-      
-    Returns: Eligibility report with flagged claims.
+    Body: { "parse_result": {...} }
+    Returns: { "suggestions": [...] }
     """
     try:
-        if len(req.parsed_834_files) == 0:
-            return {"status": "error", "message": "At least one 834 file is required."}
-        
-        report = run_eligibility_scrubber(req.parsed_834_files, req.parsed_837)
-        return {"status": "success", "report": report}
+        suggestions = analyze_and_suggest_fixes(req.parse_result)
+        return {"status": "success", "suggestions": suggestions}
     except Exception as e:
         import traceback
-        print("Eligibility scrubber error:", traceback.format_exc())
+        print("Fix suggestion error:", traceback.format_exc())
         return {"status": "error", "message": str(e)}
+
+
+@app.options("/api/v1/apply-fix")
+def options_apply_fix():
+    return {}
+
+
+@app.post("/api/v1/apply-fix")
+async def apply_fix_endpoint(
+    req: ApplyFixRequest,
+    api_caller: dict = Depends(verify_api_key),
+):
+    """
+    Applies a single fix suggestion and re-validates.
+    
+    Body: { "parse_result": {...}, "suggestion": {...} }
+    Returns: { "updated_parse_result": {...} }
+    """
+    try:
+        # Apply the fix
+        updated = apply_fix_to_tree(req.parse_result, req.suggestion)
+        
+        return {
+            "status": "success",
+            "updated_parse_result": updated,
+        }
+    except Exception as e:
+        import traceback
+        print("Apply fix error:", traceback.format_exc())
+        return {"status": "error", "message": str(e)}
+
+if __name__ == "__main__":
+    import argparse
+    parser = argparse.ArgumentParser(description="Run the EdiFix API server.")
+    parser.add_argument(
+        "--host",
+        type=str,
+        default="0.0.0.0",
+        help="Host address to bind the server (default: 0.0.0.0)",
+    )
+    parser.add_argument(
+        "--port",
+        type=int,
+        default=8000,
+        help="Port number to run the server on (default: 8000)",
+    )
+    args = parser.parse_args()
+
+    import ssl
+    
+    # Self-signed certs for development
+    context = ssl.SSLContext(ssl.PROTOCOL_TLS_SERVER)
+    context.load_cert_chain(certfile="cert.pem", keyfile="key.pem")
+    
+    # For debugging: disable hostname checking (not recommended for production)
+    #context.check_hostname = False
+    
+    uvicorn.run(
+        "main:app",
+        host=args.host,
+        port=args.port,
+        log_level="info",
+        ssl=context,
+    )

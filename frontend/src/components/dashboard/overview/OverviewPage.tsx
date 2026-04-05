@@ -1,8 +1,9 @@
-import { useEffect, useRef } from 'react'
+import { useEffect } from 'react'
+import { useNavigate } from 'react-router-dom'
+import { motion } from 'framer-motion'
 import rough from 'roughjs'
 import KPICard from './KPICard'
 import ClaimCard from './ClaimCard'
-import ValidationBadge from './ValidationBadge'
 
 import GuestUpsellCard from '../GuestUpsellCard'
 import useAppStore from '../../../store/useAppStore'
@@ -10,11 +11,10 @@ import { useTheme } from '../../../theme/ThemeContext'
 import { useIsMobile } from '../../../hooks/useWindowWidth'
 
 export default function OverviewPage() {
-  const { parseResult, file, session } = useAppStore()
+  const { parseResult, file, session, setActiveMainView } = useAppStore()
   const isMobile = useIsMobile()
   const { t, isDark } = useTheme()
-  const validPanelRef = useRef<HTMLDivElement>(null)
-  const validRoughRef = useRef<SVGSVGElement>(null)
+  const navigate = useNavigate()
 
   useEffect(() => {
     console.log('[OverviewPage] full parseResult:', JSON.stringify(parseResult, null, 2))
@@ -43,7 +43,6 @@ export default function OverviewPage() {
 
   type NormErr = { type: 'error' | 'warning'; code: string; element: string; loop: string; message: string }
 
-  // FIX: Explicitly map items from the errors array as 'error', and warnings array as 'warning'
   const errorsArr: NormErr[] = (() => {
     if (!parseResult) return PLACEHOLDER_ERRORS;
     const root = parseResult as Record<string, any>;
@@ -74,33 +73,14 @@ export default function OverviewPage() {
   const warnCount = errorsArr.filter(e => e.type === 'warning').length
   const isValid = hasData && errCount === 0 && warnCount === 0
 
-  useEffect(() => {
-    if (!validRoughRef.current || !validPanelRef.current) return
-    const container = validPanelRef.current
-    const draw = () => {
-      if (!validRoughRef.current) return
-      const svg = validRoughRef.current
-      svg.innerHTML = ''
-      const rc = rough.svg(svg)
-      const w = container.offsetWidth
-      const h = container.offsetHeight
-      if (!w || !h) return
-      svg.setAttribute('width', String(w))
-      svg.setAttribute('height', String(h))
-      svg.appendChild(rc.rectangle(2, 2, w - 4, h - 4, {
-        roughness: isDark ? 1.2 : 1.8,
-        strokeWidth: isDark ? 1.5 : 2,
-        stroke: isDark ? 'rgba(240,235,225,0.35)' : t.roughStroke,
-        fill: 'none',
-      }))
-    }
-    draw()
-    const ro = new ResizeObserver(draw)
-    ro.observe(container)
-    return () => ro.disconnect()
-  }, [isDark, t.roughStroke])
-
   const doodleOpacity = isDark ? 0.08 : 0.15
+
+  const handleProceedToWorkspace = () => {
+    if (setActiveMainView) {
+      setActiveMainView('editor') // Switch workspace mode to explorer panel
+    }
+    navigate('/workspace')
+  }
 
   return (
     <div style={{ padding: '20px 24px', maxWidth: 1400, margin: '0 auto', position: 'relative', width: '100%', minWidth: 0, boxSizing: 'border-box' }}>
@@ -116,167 +96,95 @@ export default function OverviewPage() {
       </svg>
 
       <div style={{
-        display: 'grid',
-        gridTemplateColumns: isMobile ? 'repeat(2, 1fr)' : 'repeat(4, 1fr)',
-        gap: isMobile ? 10 : 16,
-        marginBottom: 16,
+        display: 'flex',
+        flexDirection: isMobile ? 'column' : 'row',
+        gap: 24,
+        marginBottom: 32,
+        animation: 'fadeSlideUp 500ms ease-out 100ms both',
       }}>
-        <KPICard
-          label="Total Segments"
-          value={totalSegments}
-          icon="🧩"
-          color={t.teal}
-          subtext="across all loops"
-          decoration="star"
-          delay={0}
-        />
-        <KPICard
-          label="Transaction Sets"
-          value={txSets}
-          icon="📋"
-          color={t.purple}
-          subtext="in this interchange"
-          decoration="circle"
-          delay={80}
-        />
-        <KPICard
-          label="EDI Status"
-          value={hasData ? (isValid ? 'Valid' : 'Invalid') : '--'}
-          icon={hasData ? (isValid ? '✅' : '❌') : '➖'}
-          color={hasData ? (isValid ? t.mint : t.coral) : t.inkMuted}
-          subtext={hasData ? `${errCount} errors, ${warnCount} warnings` : 'no file loaded'}
-          decoration="zigzag"
-          delay={160}
-        />
-        <KPICard
-          label="File Size"
-          value={fileSizeLabel}
-          icon="📁"
-          color={t.yellow}
-          subtext={fileName}
-          decoration="diamond"
-          delay={240}
-        />
+
+        {/* Left Side: Claim Details */}
+        <div style={{ flex: isMobile ? 'none' : '1.1', animation: 'fadeSlideUp 500ms ease-out 200ms both' }}>
+          <ClaimCard />
+        </div>
+
+        {/* Right Side: 2x2 KPI Grid */}
+        <div style={{
+          flex: isMobile ? 'none' : '1.3',
+          display: 'grid',
+          gridTemplateColumns: isMobile ? '1fr' : 'repeat(2, 1fr)',
+          gap: 6, // Minimal distance between tiles
+        }}>
+          <KPICard
+            label="Total Segments"
+            value={totalSegments}
+            icon="🧩"
+            color={t.teal}
+            subtext="across all loops"
+            decoration="star"
+            delay={0}
+          />
+          <KPICard
+            label="Transaction Sets"
+            value={txSets}
+            icon="📋"
+            color={t.purple}
+            subtext="in this interchange"
+            decoration="circle"
+            delay={80}
+          />
+          <KPICard
+            label="EDI Status"
+            value={hasData ? (isValid ? 'Valid' : 'Invalid') : '--'}
+            icon={hasData ? (isValid ? '✅' : '❌') : '➖'}
+            color={hasData ? (isValid ? t.mint : t.coral) : t.inkMuted}
+            subtext={hasData ? `${errCount} errors, ${warnCount} warnings` : 'no file loaded'}
+            decoration="zigzag"
+            delay={160}
+          />
+          <KPICard
+            label="File Size"
+            value={fileSizeLabel}
+            icon="📁"
+            color={t.yellow}
+            subtext={fileName}
+            decoration="diamond"
+            delay={240}
+          />
+        </div>
+
       </div>
 
+      {/* Proceed Button below the grid and cards */}
       <div style={{
-        display: 'grid',
-        gridTemplateColumns: isMobile ? '1fr' : 'minmax(300px, 1fr) minmax(300px, 1.2fr)',
-        gap: 16,
-        marginBottom: 16,
-        animation: 'fadeSlideUp 500ms ease-out 320ms both',
+        display: 'flex',
+        justifyContent: 'center',
+        marginBottom: 32,
+        animation: 'fadeSlideUp 600ms ease-out 400ms both'
       }}>
-        <ClaimCard />
-
-        <div
-          ref={validPanelRef}
+        <motion.button
+          onClick={handleProceedToWorkspace}
+          whileHover={{ scale: 1.02, rotate: 0.5, y: -2, boxShadow: `5px 5px 0px ${t.ink}` }}
+          whileTap={{ scale: 0.98, rotate: 0, y: 0, boxShadow: `2px 2px 0px ${t.ink}` }}
           style={{
-            background: t.bgCard,
-            borderRadius: 14,
-            padding: '20px 24px',
-            boxShadow: `4px 4px 0px ${t.shadow}`,
-            position: 'relative',
+            background: t.teal,
+            color: t.ink,
+            fontFamily: 'Nunito, sans-serif',
+            fontWeight: 800,
+            fontSize: 16,
+            padding: '14px 32px',
+            border: `2.5px solid ${t.ink}`,
+            borderRadius: 8,
+            boxShadow: `3px 3px 0px ${t.ink}`,
+            cursor: 'pointer',
+            transform: 'rotate(-0.5deg)',
             display: 'flex',
-            flexDirection: 'column',
-            transition: 'background 0.2s',
+            alignItems: 'center',
+            gap: 10
           }}
         >
-          <svg ref={validRoughRef} style={{ position: 'absolute', top: 0, left: 0, pointerEvents: 'none', width: '100%', height: '100%' }} />
-
-          <div style={{ marginBottom: 20, display: 'flex', alignItems: 'center', gap: 12 }}>
-            <span style={{ fontSize: 18 }}>🛡️</span>
-            <div style={{ fontFamily: 'Nunito, sans-serif', fontWeight: 800, fontSize: 16, color: t.ink }}>
-              Validation Report
-            </div>
-            <div style={{ marginLeft: 'auto' }}>
-              <ValidationBadge />
-            </div>
-          </div>
-
-          <div style={{ flex: 1, overflowY: 'auto', paddingRight: 8, display: 'flex', flexDirection: 'column', gap: 12 }}>
-            {!hasData ? (
-              <div style={{ margin: 'auto', textAlign: 'center', color: t.inkFaint, fontFamily: 'Nunito, sans-serif' }}>
-                <span style={{ fontSize: 24, display: 'block', marginBottom: 8 }}>📭</span>
-                No file parsed yet
-              </div>
-            ) : isValid ? (
-              <div style={{ margin: 'auto', textAlign: 'center' }}>
-                <div style={{
-                  width: 64, height: 64, borderRadius: '50%',
-                  background: isDark ? 'rgba(149,225,211,0.1)' : 'rgba(149,225,211,0.2)',
-                  border: `3px solid ${t.teal}`,
-                  display: 'flex', alignItems: 'center', justifyContent: 'center',
-                  margin: '0 auto 16px', fontSize: 32,
-                }}>
-                  ✨
-                </div>
-                <div style={{ fontFamily: 'Nunito, sans-serif', fontWeight: 800, fontSize: 18, color: t.ink }}>
-                  All checks passed
-                </div>
-                <div style={{ fontFamily: 'Nunito, sans-serif', fontSize: 14, color: t.inkMuted, marginTop: 4 }}>
-                  SNIP Levels 1-2 verified successfully.
-                </div>
-                <div style={{ display: 'flex', gap: 8, justifyContent: 'center', marginTop: 16 }}>
-                  {['Syntax', 'Balance', 'Segments'].map(tStr => (
-                    <span key={tStr} style={{
-                      background: isDark ? 'rgba(149,225,211,0.15)' : t.mint,
-                      color: t.ink,
-                      padding: '4px 12px',
-                      borderRadius: 12,
-                      fontFamily: 'Nunito, sans-serif',
-                      fontWeight: 700,
-                      fontSize: 12,
-                    }}>
-                      {tStr} OK
-                    </span>
-                  ))}
-                </div>
-              </div>
-            ) : (
-              <>
-                {errorsArr.filter(e => e.type === 'error').map((err, i) => (
-                  <div key={`err-${i}`} style={{
-                    background: isDark ? 'rgba(255,107,107,0.12)' : '#FFF0F0',
-                    borderLeft: `4px solid ${t.coral}`,
-                    padding: '12px 16px',
-                    borderRadius: '4px 8px 8px 4px',
-                    fontFamily: 'Nunito, sans-serif',
-                    fontSize: 13,
-                    color: t.ink,
-                    lineHeight: 1.4,
-                  }}>
-                    <strong style={{ color: t.coral }}>Error [{err.code}]:</strong> {err.message}
-                    {err.element && <span style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: 11, color: t.inkMuted, marginLeft: 8 }}>· {err.element}{err.loop ? ` @ ${err.loop}` : ''}</span>}
-                  </div>
-                ))}
-                {errorsArr.filter(e => e.type === 'warning').map((warn, i) => (
-                  <div key={`warn-${i}`} style={{
-                    background: isDark ? 'rgba(255,230,109,0.08)' : '#FFFBF0',
-                    borderLeft: `4px solid ${t.yellow}`,
-                    padding: '12px 16px',
-                    borderRadius: '4px 8px 8px 4px',
-                    fontFamily: 'Nunito, sans-serif',
-                    fontSize: 13,
-                    color: t.ink,
-                    lineHeight: 1.4,
-                  }}>
-                    <strong style={{ color: t.yellow }}>Warning [{warn.code}]:</strong> {warn.message}
-                    {warn.element && <span style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: 11, color: t.inkMuted, marginLeft: 8 }}>· {warn.element}{warn.loop ? ` @ ${warn.loop}` : ''}</span>}
-                  </div>
-                ))}
-              </>
-            )}
-          </div>
-        </div>
-      </div>
-
-      <div style={{
-        display: 'grid',
-        gridTemplateColumns: isMobile ? '1fr' : 'minmax(300px, 1.6fr) minmax(240px, 1fr)',
-        gap: 16,
-        marginBottom: 32,
-        animation: 'fadeSlideUp 600ms ease-out 400ms both',
-      }}>
+          <span style={{ fontSize: '18px' }}>🚀</span> Proceed to Workspace
+        </motion.button>
       </div>
 
       {!session && <GuestUpsellCard />}

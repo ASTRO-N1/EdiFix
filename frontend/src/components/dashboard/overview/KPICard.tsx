@@ -79,61 +79,82 @@ export default function KPICard({ label, value, icon, color, subtext, delay = 0,
     return `rgba(${r},${g},${b},${alpha})`
   }
 
+  // Slight alternating rotation so they still feel handwritten, even when closely packed
+  const rot = delay % 160 === 0 ? -0.5 : 0.5
+
   return (
     <div
       ref={containerRef}
       className="kpi-card"
       style={{
         background: t.bgCard,
-        borderRadius: 14,
-        padding: 16,
+        borderRadius: 12,
+        padding: '24px 20px',
         boxShadow: `4px 4px 0px ${t.shadow}`,
         position: 'relative',
         overflow: 'hidden',
         cursor: 'default',
         animation: `fadeSlideUp 400ms ease-out ${delay}ms both`,
-        transition: 'background 0.2s ease',
+        transition: 'transform 0.2s ease, box-shadow 0.2s ease, background 0.2s ease',
+        transform: `rotate(${rot}deg)`,
+        display: 'flex',
+        flexDirection: 'column',
+      }}
+      onMouseEnter={(e) => {
+        e.currentTarget.style.transform = `rotate(${rot}deg) translateY(-4px)`
+        e.currentTarget.style.boxShadow = `8px 8px 0px ${t.shadow}`
+        e.currentTarget.style.zIndex = '10'
+      }}
+      onMouseLeave={(e) => {
+        e.currentTarget.style.transform = `rotate(${rot}deg) translateY(0px)`
+        e.currentTarget.style.boxShadow = `4px 4px 0px ${t.shadow}`
+        e.currentTarget.style.zIndex = '1'
       }}
     >
-      <svg ref={roughRef} style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', pointerEvents: 'none' }} />
-      <svg ref={decoRef} width={48} height={48} style={{ position: 'absolute', bottom: 4, right: 4, opacity: 0.15, pointerEvents: 'none' }} />
+      <svg ref={roughRef} style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', pointerEvents: 'none', zIndex: 0 }} />
+      <svg ref={decoRef} width={48} height={48} style={{ position: 'absolute', bottom: -4, right: -4, opacity: 0.15, pointerEvents: 'none', zIndex: 0 }} />
 
-      <div style={{ display: 'flex', alignItems: 'center' }}>
+      <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', zIndex: 1 }}>
         <div style={{
-          width: 40, height: 40, borderRadius: '50%',
-          background: hexToRgba(color, 0.18),
+          width: 46, height: 46, borderRadius: '10px',
+          background: hexToRgba(color, 0.15),
           border: `2px solid ${color}`,
           display: 'flex', alignItems: 'center', justifyContent: 'center',
-          fontSize: 20, flexShrink: 0,
+          fontSize: 22, flexShrink: 0,
+          transform: 'rotate(-2deg)'
         }}>
-          <span style={{ fontSize: 20 }}>{icon}</span>
+          <span style={{ fontSize: 22 }}>{icon}</span>
         </div>
-        <span style={{
-          marginLeft: 'auto',
-          fontFamily: 'Nunito, sans-serif',
-          fontWeight: 600, fontSize: 12,
-          color: t.inkMuted,
-          textAlign: 'right', maxWidth: 100, lineHeight: 1.3,
-        }}>
-          {label}
-        </span>
       </div>
 
-      <div style={{
-        fontFamily: 'Nunito, sans-serif',
-        fontWeight: 800, fontSize: 28, color: t.ink, marginTop: 12, lineHeight: 1.1,
-      }}>
-        {value}
-      </div>
-
-      {subtext && (
+      <div style={{ marginTop: 20, zIndex: 1 }}>
         <div style={{
           fontFamily: 'Nunito, sans-serif',
-          fontWeight: 400, fontSize: 12, color: t.inkFaint, marginTop: 4,
+          fontWeight: 800, fontSize: 16, color: t.ink,
+          opacity: 0.85,
+          letterSpacing: '0.2px'
         }}>
-          {subtext}
+          {label}
         </div>
-      )}
+        <div style={{
+          fontFamily: 'Nunito, sans-serif',
+          fontWeight: 900, fontSize: 34, color: t.ink, marginTop: 2, lineHeight: 1.1,
+        }}>
+          {value}
+        </div>
+
+        {subtext && (
+          <div style={{
+            fontFamily: '"JetBrains Mono", monospace',
+            fontWeight: 700, fontSize: 12, color: t.ink, marginTop: 10,
+            background: hexToRgba(color, 0.18),
+            border: `1.5px solid ${hexToRgba(t.ink, 0.15)}`,
+            padding: '4px 10px', borderRadius: 6, display: 'inline-block',
+          }}>
+            {subtext}
+          </div>
+        )}
+      </div>
     </div>
   )
 }

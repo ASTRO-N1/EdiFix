@@ -49,13 +49,14 @@ export default function WorkspaceWelcome() {
             // data = { status, filename, data: { metadata, loops, errors, ... } }
             const innerTree = data.data || data
             const type =
-              innerTree?.metadata?.transaction_type ||
-              data.transaction_type ||
-              'EDI File'
+                innerTree?.metadata?.transaction_type ||
+                data.transaction_type ||
+                'EDI File'
 
             setParseResult(innerTree)
             setTransactionType(type)
-            setActiveMainView('editor')
+            // Redirect to dashboard instead of editor
+            setActiveMainView('dashboard')
 
         } catch (err: any) {
             setError(err.message || 'An error occurred during parsing')

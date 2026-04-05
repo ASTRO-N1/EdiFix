@@ -112,15 +112,15 @@ export default function ClaimCard() {
 
   // ISA header fields
   const controlNumber = String(metadata?.control_number ?? metadata?.isa_control_number ?? '').trim() || '--'
-  const rawIsaDate    = String(metadata?.isa_date ?? '').trim()
+  const rawIsaDate = String(metadata?.isa_date ?? '').trim()
   const isaDate = rawIsaDate.length === 6
-    ? `20${rawIsaDate.slice(0,2)}-${rawIsaDate.slice(2,4)}-${rawIsaDate.slice(4,6)}`
+    ? `20${rawIsaDate.slice(0, 2)}-${rawIsaDate.slice(2, 4)}-${rawIsaDate.slice(4, 6)}`
     : rawIsaDate.length === 8
-      ? `${rawIsaDate.slice(0,4)}-${rawIsaDate.slice(4,6)}-${rawIsaDate.slice(6,8)}`
+      ? `${rawIsaDate.slice(0, 4)}-${rawIsaDate.slice(4, 6)}-${rawIsaDate.slice(6, 8)}`
       : rawIsaDate || '--'
   const rawIsaTime = String(metadata?.isa_time ?? '').trim()
   const isaTime = rawIsaTime.length === 4
-    ? `${rawIsaTime.slice(0,2)}:${rawIsaTime.slice(2,4)}`
+    ? `${rawIsaTime.slice(0, 2)}:${rawIsaTime.slice(2, 4)}`
     : rawIsaTime || '--'
 
   // GS group control / sender / receiver
@@ -158,25 +158,25 @@ export default function ClaimCard() {
   const description = TX_DESC[txType] ?? 'EDI Transaction'
 
   // ── Claim / patient info — use same findLoop/findSeg pattern as FormEditorView ──
-  const l2300   = findLoopData(root, '2300', 'loop_2300')
-  const clmSeg  = findSegData(l2300, 'CLM')
-  const dtpSeg  = findSegData(l2300, 'DTP')
+  const l2300 = findLoopData(root, '2300', 'loop_2300')
+  const clmSeg = findSegData(l2300, 'CLM')
+  const dtpSeg = findSegData(l2300, 'DTP')
 
-  const claimAmount   = getNestedVal(clmSeg, 'CLM02', 'TotalClaimChargeAmount_02', 'total_charge', 'amount', 'CLM_02')
-  const claimId       = getNestedVal(clmSeg, 'CLM01', 'claim_id', 'control_number', 'CLM_01')
-  const serviceDate   = getNestedVal(dtpSeg, 'DTP03', 'service_date', 'date')
+  const claimAmount = getNestedVal(clmSeg, 'CLM02', 'TotalClaimChargeAmount_02', 'total_charge', 'amount', 'CLM_02')
+  const claimId = getNestedVal(clmSeg, 'CLM01', 'claim_id', 'control_number', 'CLM_01')
+  const serviceDate = getNestedVal(dtpSeg, 'DTP03', 'service_date', 'date')
 
-  const l2010BA  = findLoopData(root, '2010BA', 'loop_2010BA')
-  const nm1Sub   = findSegData(l2010BA, 'NM1')
+  const l2010BA = findLoopData(root, '2010BA', 'loop_2010BA')
+  const nm1Sub = findSegData(l2010BA, 'NM1')
   const patientName = (() => {
-    const last  = getNestedVal(nm1Sub, 'NM103', 'Lastname_03', 'last_name', 'NM1_03')
+    const last = getNestedVal(nm1Sub, 'NM103', 'Lastname_03', 'last_name', 'NM1_03')
     const first = getNestedVal(nm1Sub, 'NM104', 'Firstname_04', 'first_name', 'NM1_04')
     if (last || first) return [first, last].filter(Boolean).join(' ')
     return ''
   })()
 
   // Diagnosis count from HI segment in loop 2300
-  const hiSeg   = findSegData(l2300, 'HI')
+  const hiSeg = findSegData(l2300, 'HI')
   const diagCount = hiSeg ? Object.keys(hiSeg).filter(k => !k.startsWith('raw') && (k.startsWith('HI') || k.includes('02'))).length : 0
 
   useEffect(() => {
@@ -231,7 +231,7 @@ export default function ClaimCard() {
 
       <div style={{ marginBottom: 16 }}>
         <div style={{ fontFamily: 'Nunito, sans-serif', fontWeight: 800, fontSize: 16, color: t.ink }}>
-          📋 Claim Details
+          📋 Envelope Details
         </div>
         <svg ref={underlineRef} width={130} height={8} style={{ display: 'block', marginTop: 2 }} />
       </div>

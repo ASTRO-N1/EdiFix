@@ -1,4 +1,4 @@
-import { useCallback, useState, useEffect, useRef } from 'react'
+import { useCallback, useState, useEffect } from 'react'
 import { useDropzone } from 'react-dropzone'
 import { UploadCloud } from 'lucide-react'
 import { motion } from 'framer-motion'
@@ -44,7 +44,6 @@ function MemberRow({
             marginBottom: 14,
             marginLeft: isSubscriber ? 0 : 12,
         }}>
-            {/* Name + badges */}
             <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6, flexWrap: 'wrap' }}>
                 <span style={{ fontFamily: 'Nunito, sans-serif', fontWeight: 900, fontSize: 14, color: '#1A1A2E' }}>
                     {member.name}
@@ -77,7 +76,6 @@ function MemberRow({
                 )}
             </div>
 
-            {/* Detail pills */}
             <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', fontSize: 11, color: 'rgba(26,26,46,0.55)', marginBottom: 4 }}>
                 <span style={{ fontFamily: 'JetBrains Mono, monospace' }}>ID: {member.memberId}</span>
                 {member.dob && <span>DOB: {formatDob(member.dob)}</span>}
@@ -95,7 +93,6 @@ function MemberRow({
                 {member.address !== '—' && <span>{member.address}</span>}
             </div>
 
-            {/* Coverage pills */}
             {member.coverage.length > 0 && (
                 <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginTop: 4, marginBottom: 4 }}>
                     {member.coverage.map((cov, ci) => (
@@ -116,7 +113,6 @@ function MemberRow({
                 </div>
             )}
 
-            {/* COB blocks */}
             {member.cobDetails.map((cob, ci) => (
                 <div key={ci} style={{
                     marginTop: 8, padding: '10px 14px', borderRadius: 8,
@@ -145,7 +141,6 @@ function EnrollmentGroupCard({ group }: { group: EnrollmentGroup }) {
             background: '#FFFFFF', border: '2px solid #1A1A2E', borderRadius: 12,
             boxShadow: '4px 4px 0px rgba(26,26,46,0.08)', overflow: 'hidden',
         }}>
-            {/* Header bar */}
             <div style={{
                 background: '#1A1A2E', padding: '12px 20px',
                 display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 8,
@@ -172,7 +167,6 @@ function EnrollmentGroupCard({ group }: { group: EnrollmentGroup }) {
                 </span>
             </div>
 
-            {/* Member rows */}
             <div style={{ padding: '18px 20px' }}>
                 <MemberRow member={group.subscriber} isSubscriber={true} />
                 {group.dependents.map((dep, di) => (
@@ -182,8 +176,6 @@ function EnrollmentGroupCard({ group }: { group: EnrollmentGroup }) {
         </div>
     )
 }
-
-// ── Tab content: Raw EDI ─────────────────────────────────────────────────────
 
 function RawEDIContent() {
     const parseResult = useAppStore((s) => s.parseResult)
@@ -380,8 +372,6 @@ function RawEDIContent() {
     )
 }
 
-// ── Tab content: Summary ─────────────────────────────────────────────────────
-
 function SummaryContent() {
     const parseResult = useAppStore((s) => s.parseResult)
 
@@ -400,9 +390,6 @@ function SummaryContent() {
     const loops = data.loops || {}
     const txnType = metadata.transaction_type
 
-    // ──────────────────────────────────────────────────────────────────────────
-    // 835 — Remittance Summary
-    // ──────────────────────────────────────────────────────────────────────────
     if (txnType === '835') {
         const remit: any[] = (parseResult as any).remittance_summary || data.remittance_summary || []
 
@@ -617,9 +604,6 @@ function SummaryContent() {
         )
     }
 
-    // ──────────────────────────────────────────────────────────────────────────
-    // 834 — Family Enrollment View
-    // ──────────────────────────────────────────────────────────────────────────
     if (txnType === '834') {
         const groups: EnrollmentGroup[] = build834EnrollmentGroups(parseResult as any)
 
@@ -642,7 +626,6 @@ function SummaryContent() {
         return (
             <div style={{ padding: '24px 28px', display: 'flex', flexDirection: 'column', gap: 24, fontFamily: 'Nunito, sans-serif' }}>
 
-                {/* Page header */}
                 <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
                     <div style={{
                         width: 36, height: 36, borderRadius: 10, background: '#FFE66D',
@@ -662,7 +645,6 @@ function SummaryContent() {
                     </div>
                 </div>
 
-                {/* KPI strip */}
                 {groups.length > 0 && (
                     <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap' }}>
                         {[
@@ -687,7 +669,6 @@ function SummaryContent() {
                     </div>
                 )}
 
-                {/* Group cards */}
                 {groups.length === 0 ? (
                     <div style={{
                         padding: '32px 24px', background: '#FFFFFF',
@@ -705,9 +686,6 @@ function SummaryContent() {
         )
     }
 
-    // ──────────────────────────────────────────────────────────────────────────
-    // 837 / Generic fallback
-    // ──────────────────────────────────────────────────────────────────────────
     const overviewRows = [
         { label: 'Transaction Type', value: txnType || 'Unknown' },
         { label: 'Implementation Ref', value: metadata.implementation_reference || 'N/A' },
@@ -736,8 +714,6 @@ function SummaryContent() {
         </div>
     )
 }
-
-// ── Empty / No-file upload placeholder ───────────────────────────────────────
 
 function EmptyDropzone() {
     const processFileInWorkspace = useAppStore((s) => s.processFileInWorkspace)
@@ -800,247 +776,26 @@ function EmptyDropzone() {
     )
 }
 
-// ── AI Panel ─────────────────────────────────────────────────────────────────
-
-function AIPanel() {
-    const isOpen = useAppStore((s) => s.isAIPanelOpen)
-    const setIsOpen = useAppStore((s) => s.setIsAIPanelOpen)
-    const aiPromptContext = useAppStore((s) => s.aiPromptContext)
-    const pendingFix = useAppStore((s) => s.pendingFix)
-    const acceptFix = useAppStore((s) => s.acceptFix)
-    const rejectFix = useAppStore((s) => s.rejectFix)
-
-    const [messages, setMessages] = useState<Array<{ role: 'user' | 'assistant' | 'system'; content: string; timestamp: number }>>([
-        { role: 'assistant', content: '👋 Hi! I\'m your EDI assistant. Ask me anything about your file or validation errors.', timestamp: Date.now() },
-    ])
-
-    const messagesEndRef = useRef<HTMLDivElement>(null)
-
-    // Auto-scroll to bottom when new messages arrive
-    useEffect(() => {
-        messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
-    }, [messages])
-
-    // Auto-add fix messages to chat
-    useEffect(() => {
-        if (aiPromptContext) {
-            setMessages(m => [...m, { role: 'system', content: aiPromptContext, timestamp: Date.now() }])
-        }
-    }, [aiPromptContext])
-
-    const handleAcceptFix = () => {
-        if (!pendingFix) return
-
-        acceptFix()
-
-        setMessages(m => [...m, {
-            role: 'system',
-            content: `✅ **Fix Accepted**\n\nThe correction has been permanently saved to your document.`,
-            timestamp: Date.now()
-        }])
-    }
-
-    const handleRejectFix = () => {
-        if (!pendingFix) return
-
-        rejectFix()
-
-        setMessages(m => [...m, {
-            role: 'system',
-            content: `❌ **Fix Rejected**\n\nReverted to original value. No changes were saved.`,
-            timestamp: Date.now()
-        }])
-    }
-
-    if (!isOpen) return null
-
-    return (
-        <div style={{
-            width: 340,
-            height: '100%',
-            background: '#FFFFFF',
-            borderLeft: '2.5px solid #1A1A2E',
-            display: 'flex',
-            flexDirection: 'column',
-            flexShrink: 0,
-        }}>
-            {/* Header */}
-            <div style={{
-                padding: '10px 16px',
-                borderBottom: '2px solid rgba(26,26,46,0.1)',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'space-between',
-                flexShrink: 0,
-            }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                    <span style={{ fontSize: 18 }}>🤖</span>
-                    <span style={{
-                        fontFamily: 'Nunito, sans-serif',
-                        fontWeight: 800,
-                        fontSize: 12,
-                        color: '#1A1A2E',
-                        letterSpacing: '0.05em',
-                        textTransform: 'uppercase',
-                    }}>
-                        EDI Assistant
-                    </span>
-                </div>
-                <button
-                    onClick={() => setIsOpen(false)}
-                    style={{
-                        background: 'none',
-                        border: 'none',
-                        cursor: 'pointer',
-                        padding: 4,
-                        display: 'flex',
-                        alignItems: 'center',
-                    }}
-                >
-                    <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
-                        <path d="M1 1l12 12M13 1L1 13" stroke="rgba(26,26,46,0.5)" strokeWidth="2" strokeLinecap="round" />
-                    </svg>
-                </button>
-            </div>
-
-            {/* Messages */}
-            <div style={{
-                flex: 1,
-                overflowY: 'auto',
-                padding: '16px',
-                display: 'flex',
-                flexDirection: 'column',
-                gap: 12,
-            }} className="custom-scrollbar">
-                {messages.map((msg, i) => (
-                    <div key={i} style={{
-                        padding: '10px 12px',
-                        background: msg.role === 'user'
-                            ? '#4ECDC4'
-                            : msg.role === 'system'
-                                ? 'rgba(255,230,109,0.2)'
-                                : '#FDFAF4',
-                        border: msg.role === 'system'
-                            ? '1.5px solid #FFE66D'
-                            : '1.5px solid rgba(26,26,46,0.1)',
-                        borderRadius: 8,
-                        fontFamily: 'Nunito, sans-serif',
-                        fontSize: 12,
-                        color: '#1A1A2E',
-                        lineHeight: 1.5,
-                        whiteSpace: 'pre-wrap',
-                    }}>
-                        {msg.content}
-                    </div>
-                ))}
-
-                {/* Accept/Reject Buttons */}
-                {pendingFix && (
-                    <div style={{
-                        padding: '12px',
-                        background: 'linear-gradient(135deg, rgba(78,205,196,0.1), rgba(255,230,109,0.1))',
-                        border: '2px solid #4ECDC4',
-                        borderRadius: 8,
-                        display: 'flex',
-                        flexDirection: 'column',
-                        gap: 10,
-                        boxShadow: '3px 3px 0 rgba(78,205,196,0.2)',
-                    }}>
-                        <p style={{
-                            fontFamily: 'Nunito, sans-serif',
-                            fontSize: 11,
-                            fontWeight: 800,
-                            color: '#1A1A2E',
-                            margin: 0,
-                            textAlign: 'center',
-                        }}>
-                            🤔 Do you want to keep this fix?
-                        </p>
-                        <div style={{ display: 'flex', gap: 8 }}>
-                            <button
-                                onClick={handleAcceptFix}
-                                style={{
-                                    flex: 1,
-                                    background: '#27AE60',
-                                    color: '#FFFFFF',
-                                    fontFamily: 'Nunito, sans-serif',
-                                    fontWeight: 800,
-                                    fontSize: 11,
-                                    border: '2px solid #1A1A2E',
-                                    borderRadius: 6,
-                                    padding: '8px 12px',
-                                    cursor: 'pointer',
-                                    boxShadow: '2px 2px 0 #1A1A2E',
-                                    transition: 'transform 0.1s',
-                                }}
-                                onMouseDown={(e) => { e.currentTarget.style.transform = 'translateY(1px)'; e.currentTarget.style.boxShadow = '1px 1px 0 #1A1A2E' }}
-                                onMouseUp={(e) => { e.currentTarget.style.transform = ''; e.currentTarget.style.boxShadow = '2px 2px 0 #1A1A2E' }}
-                            >
-                                ✓ Accept Fix
-                            </button>
-                            <button
-                                onClick={handleRejectFix}
-                                style={{
-                                    flex: 1,
-                                    background: '#FF6B6B',
-                                    color: '#FFFFFF',
-                                    fontFamily: 'Nunito, sans-serif',
-                                    fontWeight: 800,
-                                    fontSize: 11,
-                                    border: '2px solid #1A1A2E',
-                                    borderRadius: 6,
-                                    padding: '8px 12px',
-                                    cursor: 'pointer',
-                                    boxShadow: '2px 2px 0 #1A1A2E',
-                                    transition: 'transform 0.1s',
-                                }}
-                                onMouseDown={(e) => { e.currentTarget.style.transform = 'translateY(1px)'; e.currentTarget.style.boxShadow = '1px 1px 0 #1A1A2E' }}
-                                onMouseUp={(e) => { e.currentTarget.style.transform = ''; e.currentTarget.style.boxShadow = '2px 2px 0 #1A1A2E' }}
-                            >
-                                ✗ Reject Fix
-                            </button>
-                        </div>
-                    </div>
-                )}
-
-                <div ref={messagesEndRef} />
-            </div>
-        </div>
-    )
-}
-
-// ── Main EditorArea ───────────────────────────────────────────────────────────
-
 export default function EditorArea() {
     const parseResult = useAppStore((s) => s.parseResult)
     const ediFile = useAppStore((s) => s.ediFile)
     const activeTabId = useAppStore((s) => s.activeTabId)
-    const isAIPanelOpen = useAppStore((s) => s.isAIPanelOpen)
     const hasFile = !!(parseResult || ediFile.fileName)
 
     return (
-        <div style={{ height: '100%', display: 'flex', background: '#FDFAF4', overflow: 'hidden' }}>
-            {/* Main editor area */}
-            <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
-                <CenterTabBar />
-                <div style={{ flex: 1, overflow: 'auto' }} className="custom-scrollbar">
-                    {!hasFile ? (
-                        <EmptyDropzone />
-                    ) : (
-                        <>
-                            {activeTabId === 'form' && <FormEditorView />}
-                            {activeTabId === 'raw' && <RawEDIContent />}
-                            {activeTabId === 'summary' && <SummaryContent />}
-                        </>
-                    )}
-                </div>
+        <div style={{ height: '100%', display: 'flex', flexDirection: 'column', background: '#FDFAF4', overflow: 'hidden' }}>
+            <CenterTabBar />
+            <div style={{ flex: 1, overflow: 'auto' }} className="custom-scrollbar">
+                {!hasFile ? (
+                    <EmptyDropzone />
+                ) : (
+                    <>
+                        {activeTabId === 'form' && <FormEditorView />}
+                        {activeTabId === 'raw' && <RawEDIContent />}
+                        {activeTabId === 'summary' && <SummaryContent />}
+                    </>
+                )}
             </div>
-
-            {/* AI Panel (conditionally rendered) */}
-            {isAIPanelOpen && <AIPanel />}
         </div>
     )
 }
-
-// Export AIPanel for use in other components if needed
-export { AIPanel }

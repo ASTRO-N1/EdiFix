@@ -4,7 +4,7 @@ import ReactMarkdown from 'react-markdown'
 
 interface Message {
   id: string
-  role: 'user' | 'assistant'
+  role: 'user' | 'assistant' | 'system'
   text: string
 }
 
@@ -19,10 +19,6 @@ interface FixPatch {
   reason: string
   canAutoFix: boolean
 }
-
-// ── Apply a single patch to the parse tree ───────────────────────────────────
-// The AI returns loopKey like '2010AA' but the tree may store it as
-// 'loop_2010AA'. We try several variants so the lookup doesn't silently fail.
 
 function applyPatch(tree: any, fix: FixPatch): any {
   if (!fix.canAutoFix || !fix.newValue) return tree
@@ -45,17 +41,14 @@ function applyPatch(tree: any, fix: FixPatch): any {
     if (loops[c]) { loopArr = loops[c]; foundKey = c; break }
   }
 
-  console.log(`[AI Fix] ${fix.fieldId} | wanted="${fix.loopKey}" | tried:`, candidates, '| found:', foundKey || 'NONE', '| tree keys:', allKeys)
   if (!loopArr) return cloned
 
   const instances = Array.isArray(loopArr) ? loopArr : [loopArr]
   for (const instance of instances) {
     if (!instance) continue
     const rawSeg = instance[fix.segmentKey]
-    if (!rawSeg) {
-      console.log(`[AI Fix] segment "${fix.segmentKey}" not found in loop "${foundKey}"`)
-      continue
-    }
+    if (!rawSeg) continue
+    
     const seg = Array.isArray(rawSeg) ? rawSeg[0] : rawSeg
     if (!seg || typeof seg !== 'object') continue
 
@@ -79,7 +72,6 @@ function applyPatch(tree: any, fix: FixPatch): any {
         }
       }
     }
-    console.log(`[AI Fix] ${fix.segmentKey}.${fix.fieldKey} = "${fix.newValue}" | patched:`, patched, patched ? '' : '| seg keys: ' + Object.keys(seg).join(', '))
     break
   }
 
@@ -92,30 +84,60 @@ function applyPatch(tree: any, fix: FixPatch): any {
   return cloned
 }
 
-// ── Main Component ────────────────────────────────────────────────────────────
-
 export default function AIPanel() {
   const [messages, setMessages] = useState<Message[]>([
     { id: '1', role: 'assistant', text: "Hi! I'm your EDI assistant. Ask me anything about your file, or click **Fix All Errors** and I'll automatically correct every fixable issue." }
   ])
-  const [input, setInput]       = useState('')
+  const [input, setInput] = useState('')
   const [isTyping, setIsTyping] = useState(false)
   const [isFixing, setIsFixing] = useState(false)
 
-  const setIsAIPanelOpen   = useAppStore(s => s.setIsAIPanelOpen)
-  const aiPromptContext    = useAppStore(s => s.aiPromptContext)
+  const setIsAIPanelOpen = useAppStore(s => s.setIsAIPanelOpen)
+  const aiPromptContext = useAppStore(s => s.aiPromptContext)
   const setAiPromptContext = useAppStore(s => s.setAiPromptContext)
-  const parseResult        = useAppStore(s => s.parseResult)
-  const setParseResult     = useAppStore(s => s.setParseResult)
-  const transactionType    = useAppStore(s => s.transactionType)
+  const parseResult = useAppStore(s => s.parseResult)
+  const setParseResult = useAppStore(s => s.setParseResult)
+  const transactionType = useAppStore(s => s.transactionType)
+  const pendingFix = useAppStore(s => s.pendingFix)
+  const acceptFix = useAppStore(s => s.acceptFix)
+  const rejectFix = useAppStore(s => s.rejectFix)
 
-  const inputRef   = useRef<HTMLInputElement>(null)
+  const inputRef = useRef<HTMLInputElement>(null)
   const msgsEndRef = useRef<HTMLDivElement>(null)
 
   const errors: any[] = (parseResult as any)?.errors ?? (parseResult as any)?.data?.errors ?? []
   const errorCount = errors.length
 
-  // ── Auto-fix: fetch patches → apply all fixable ones immediately ─────────
+  // Auto-add fix messages from Fix Assistant (ValidationDrawer)
+  useEffect(() => {
+    if (aiPromptContext) {
+      setMessages(m => [...m, { id: Date.now().toString(), role: 'system', text: aiPromptContext }])
+    }
+  }, [aiPromptContext])
+
+  const handleAcceptFix = () => {
+    if (!pendingFix) return
+    
+    acceptFix()
+    
+    setMessages(m => [...m, {
+      id: Date.now().toString(),
+      role: 'system',
+      text: `✅ **Fix Accepted**\n\nThe correction has been permanently saved to your document.`
+    }])
+  }
+
+  const handleRejectFix = () => {
+    if (!pendingFix) return
+    
+    rejectFix()
+    
+    setMessages(m => [...m, {
+      id: Date.now().toString(),
+      role: 'system',
+      text: `❌ **Fix Rejected**\n\nReverted to original value. No changes were saved.`
+    }])
+  }
 
   const handleFixAllErrors = async () => {
     if (!errorCount) return
@@ -130,10 +152,6 @@ export default function AIPanel() {
     try {
       const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:8000'
 
-      // Log what we're sending to help debug
-      console.log('[AI Fix] Sending errors:', errors)
-      console.log('[AI Fix] Parse tree loop keys:', Object.keys((parseResult as any)?.loops || {}))
-
       const res = await fetch(`${apiUrl}/ai/fix-errors`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -141,28 +159,21 @@ export default function AIPanel() {
       })
       if (!res.ok) throw new Error(`AI backend returned ${res.status}: ${res.statusText}`)
       const data = await res.json()
-      console.log('[AI Fix] Raw response:', data)
 
       if (data.error) throw new Error(data.error)
 
       const fixes: FixPatch[] = (data.fixes || []).filter((f: any) => f.fieldId)
       const fixable = fixes.filter(f => f.canAutoFix && f.newValue)
-      const manual  = fixes.filter(f => !f.canAutoFix || !f.newValue)
+      const manual = fixes.filter(f => !f.canAutoFix || !f.newValue)
 
-      console.log('[AI Fix] Fixable:', fixable.length, fixable)
-      console.log('[AI Fix] Manual:', manual.length, manual)
-
-      // Apply all fixable patches in one sequential pass
       if (fixable.length > 0) {
         let current = useAppStore.getState().parseResult as any
         for (const fix of fixable) {
           current = applyPatch(current, fix)
         }
         setParseResult(current)
-        console.log('[AI Fix] setParseResult called with updated tree')
       }
 
-      // Build summary message
       const fixedLines = fixable.map(f =>
         `✅ **${f.label}**: \`${f.oldValue || '—'}\` → \`${f.newValue}\`\n   _${f.reason}_`
       ).join('\n\n')
@@ -196,8 +207,6 @@ export default function AIPanel() {
     }
   }
 
-  // ── Pre-fill input from "Ask AI to Fix" on a form field ──────────────────
-
   useEffect(() => {
     if (aiPromptContext) {
       setInput(aiPromptContext)
@@ -209,8 +218,6 @@ export default function AIPanel() {
   useEffect(() => {
     msgsEndRef.current?.scrollIntoView({ behavior: 'smooth' })
   }, [messages, isTyping])
-
-  // ── Regular chat ──────────────────────────────────────────────────────────
 
   const handleSend = async (text: string) => {
     const msg = text.trim()
@@ -235,12 +242,9 @@ export default function AIPanel() {
     }
   }
 
-  // ── Render ────────────────────────────────────────────────────────────────
-
   return (
     <div style={{ height: '100%', display: 'flex', flexDirection: 'column', background: '#FDFAF4', borderLeft: '2.5px solid #1A1A2E', overflow: 'hidden' }}>
 
-      {/* Header */}
       <div style={{ padding: '12px 16px', borderBottom: '2.5px solid #1A1A2E', display: 'flex', alignItems: 'center', gap: 8, background: '#FFFFFF', flexShrink: 0 }}>
         <div style={{ fontSize: 18 }}>✦</div>
         <span style={{ fontFamily: 'Nunito, sans-serif', fontWeight: 800, fontSize: 13, color: '#1A1A2E', letterSpacing: '0.05em', textTransform: 'uppercase' }}>
@@ -254,17 +258,16 @@ export default function AIPanel() {
         </button>
       </div>
 
-      {/* Messages */}
       <div style={{ flex: 1, overflowY: 'auto', padding: '16px 12px', display: 'flex', flexDirection: 'column', gap: 16 }} className="custom-scrollbar">
         {messages.map((m) => (
           <div key={m.id} style={{ alignSelf: m.role === 'user' ? 'flex-end' : 'flex-start', maxWidth: '85%', display: 'flex', flexDirection: 'column', gap: 4 }}>
             <span style={{ fontFamily: 'Nunito, sans-serif', fontWeight: 800, fontSize: 10, color: 'rgba(26,26,46,0.4)', alignSelf: m.role === 'user' ? 'flex-end' : 'flex-start', marginLeft: 4, marginRight: 4 }}>
-              {m.role === 'user' ? 'YOU' : 'EDI EXPERT'}
+              {m.role === 'user' ? 'YOU' : m.role === 'system' ? 'FIX ASSISTANT' : 'EDI EXPERT'}
             </span>
             <div style={{
-              background: m.role === 'user' ? '#1A1A2E' : '#FFFFFF',
+              background: m.role === 'user' ? '#1A1A2E' : m.role === 'system' ? 'rgba(255,230,109,0.2)' : '#FFFFFF',
               color: m.role === 'user' ? '#FDFAF4' : '#1A1A2E',
-              border: m.role === 'user' ? '2px solid #1A1A2E' : '2px solid rgba(26,26,46,0.15)',
+              border: m.role === 'user' ? '2px solid #1A1A2E' : m.role === 'system' ? '2px solid #FFE66D' : '2px solid rgba(26,26,46,0.15)',
               borderRadius: m.role === 'user' ? '12px 12px 2px 12px' : '12px 12px 12px 2px',
               padding: '10px 14px', fontFamily: 'Nunito, sans-serif', fontSize: 13, lineHeight: 1.5,
               boxShadow: m.role === 'user' ? 'none' : '2px 2px 0px rgba(26,26,46,0.08)', overflowX: 'auto',
@@ -273,9 +276,9 @@ export default function AIPanel() {
                 <div style={{ whiteSpace: 'pre-wrap' }}>{m.text}</div>
               ) : (
                 <ReactMarkdown components={{
-                  p:    ({ node, ref, ...props }: any) => <p style={{ margin: '0 0 8px 0' }} {...props} />,
-                  ul:   ({ node, ref, ...props }: any) => <ul style={{ margin: '0 0 8px 0', paddingLeft: 20 }} {...props} />,
-                  ol:   ({ node, ref, ...props }: any) => <ol style={{ margin: '0 0 8px 0', paddingLeft: 20 }} {...props} />,
+                  p: ({ node, ref, ...props }: any) => <p style={{ margin: '0 0 8px 0' }} {...props} />,
+                  ul: ({ node, ref, ...props }: any) => <ul style={{ margin: '0 0 8px 0', paddingLeft: 20 }} {...props} />,
+                  ol: ({ node, ref, ...props }: any) => <ol style={{ margin: '0 0 8px 0', paddingLeft: 20 }} {...props} />,
                   code: ({ node, inline, className, children, ref, ...props }: any) => (
                     <code style={{ background: 'rgba(26,26,46,0.06)', padding: inline ? '2px 4px' : '8px', borderRadius: 4, fontFamily: 'JetBrains Mono, monospace', fontSize: 11, display: inline ? 'inline' : 'block', whiteSpace: 'pre-wrap', wordBreak: 'break-word' }} {...props}>{children}</code>
                   ),
@@ -293,10 +296,81 @@ export default function AIPanel() {
             </div>
           </div>
         )}
+
+        {/* Accept/Reject Buttons */}
+        {pendingFix && (
+          <div style={{
+            alignSelf: 'center',
+            width: '100%',
+            padding: '12px',
+            background: 'linear-gradient(135deg, rgba(78,205,196,0.1), rgba(255,230,109,0.1))',
+            border: '2px solid #4ECDC4',
+            borderRadius: 8,
+            display: 'flex',
+            flexDirection: 'column',
+            gap: 10,
+            boxShadow: '3px 3px 0 rgba(78,205,196,0.2)',
+          }}>
+            <p style={{
+              fontFamily: 'Nunito, sans-serif',
+              fontSize: 11,
+              fontWeight: 800,
+              color: '#1A1A2E',
+              margin: 0,
+              textAlign: 'center',
+            }}>
+              🤔 Do you want to keep this fix?
+            </p>
+            <div style={{ display: 'flex', gap: 8 }}>
+              <button
+                onClick={handleAcceptFix}
+                style={{
+                  flex: 1,
+                  background: '#27AE60',
+                  color: '#FFFFFF',
+                  fontFamily: 'Nunito, sans-serif',
+                  fontWeight: 800,
+                  fontSize: 11,
+                  border: '2px solid #1A1A2E',
+                  borderRadius: 6,
+                  padding: '8px 12px',
+                  cursor: 'pointer',
+                  boxShadow: '2px 2px 0 #1A1A2E',
+                  transition: 'transform 0.1s',
+                }}
+                onMouseDown={(e) => { e.currentTarget.style.transform = 'translateY(1px)'; e.currentTarget.style.boxShadow = '1px 1px 0 #1A1A2E' }}
+                onMouseUp={(e) => { e.currentTarget.style.transform = ''; e.currentTarget.style.boxShadow = '2px 2px 0 #1A1A2E' }}
+              >
+                ✓ Accept Fix
+              </button>
+              <button
+                onClick={handleRejectFix}
+                style={{
+                  flex: 1,
+                  background: '#FF6B6B',
+                  color: '#FFFFFF',
+                  fontFamily: 'Nunito, sans-serif',
+                  fontWeight: 800,
+                  fontSize: 11,
+                  border: '2px solid #1A1A2E',
+                  borderRadius: 6,
+                  padding: '8px 12px',
+                  cursor: 'pointer',
+                  boxShadow: '2px 2px 0 #1A1A2E',
+                  transition: 'transform 0.1s',
+                }}
+                onMouseDown={(e) => { e.currentTarget.style.transform = 'translateY(1px)'; e.currentTarget.style.boxShadow = '1px 1px 0 #1A1A2E' }}
+                onMouseUp={(e) => { e.currentTarget.style.transform = ''; e.currentTarget.style.boxShadow = '2px 2px 0 #1A1A2E' }}
+              >
+                ✗ Reject Fix
+              </button>
+            </div>
+          </div>
+        )}
+
         <div ref={msgsEndRef} />
       </div>
 
-      {/* Fix All Errors button */}
       {errorCount > 0 && (
         <div style={{ padding: '0 12px 8px', flexShrink: 0 }}>
           <button
@@ -328,7 +402,6 @@ export default function AIPanel() {
         </div>
       )}
 
-      {/* Chat input */}
       <div style={{ padding: '12px', borderTop: '2.5px solid #1A1A2E', background: '#FFFFFF', flexShrink: 0 }}>
         <form
           onSubmit={e => { e.preventDefault(); handleSend(input) }}

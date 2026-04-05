@@ -162,6 +162,63 @@ function NavItem({
   )
 }
 
+// ── Other Services sub-item ───────────────────────────────────────────────────
+
+function SubNavItem({
+  id, label, icon, isActive, showLabel, accentColor = ACTIVE, onClick,
+}: {
+  id: string; label: string; icon: JSX.Element
+  isActive: boolean; showLabel: boolean; accentColor?: string; onClick: () => void
+}) {
+  return (
+    <button
+      id={`sidebar-${id}`}
+      onClick={onClick}
+      title={showLabel ? undefined : label}
+      style={{
+        position: 'relative',
+        width: '100%',
+        display: 'flex',
+        alignItems: 'center',
+        gap: showLabel ? 10 : 0,
+        padding: showLabel ? '8px 16px 8px 32px' : '8px 0',
+        justifyContent: showLabel ? 'flex-start' : 'center',
+        background: isActive ? 'rgba(255,255,255,0.07)' : 'transparent',
+        border: 'none',
+        borderRadius: 0,
+        cursor: 'pointer',
+        transition: 'background 0.15s ease',
+        overflow: 'hidden',
+      }}
+      onMouseEnter={(e) => { if (!isActive) e.currentTarget.style.background = 'rgba(255,255,255,0.04)' }}
+      onMouseLeave={(e) => { if (!isActive) e.currentTarget.style.background = 'transparent' }}
+    >
+      {isActive && (
+        <div style={{
+          position: 'absolute', left: 0, top: 6, bottom: 6,
+          width: 3, background: accentColor, borderRadius: '0 2px 2px 0',
+          flexShrink: 0,
+        }} />
+      )}
+      <span style={{ flexShrink: 0, display: 'flex', alignItems: 'center' }}>{icon}</span>
+      <span style={{
+        fontFamily: 'Nunito, sans-serif',
+        fontWeight: isActive ? 700 : 400,
+        fontSize: 12,
+        color: isActive ? '#FFFFFF' : 'rgba(255,255,255,0.5)',
+        whiteSpace: 'nowrap',
+        letterSpacing: '0.01em',
+        maxWidth: showLabel ? 130 : 0,
+        opacity: showLabel ? 1 : 0,
+        overflow: 'hidden',
+        transition: 'max-width 0.22s ease, opacity 0.18s ease',
+      }}>
+        {label}
+      </span>
+    </button>
+  )
+}
+
 // ── Main ActivityBar ──────────────────────────────────────────────────────────
 
 export default function ActivityBar() {
@@ -174,12 +231,11 @@ export default function ActivityBar() {
   const session              = useAppStore((s) => s.session)
 
   // ── Collapse state ────────────────────────────────────────────────────────
-  // collapsed = true  →  icon-strip (64 px), triggered by Explorer click
-  // hovered          →  temporarily re-expand while mouse is over the bar
   const [collapsed, setCollapsed] = useState(false)
   const [hovered,   setHovered]   = useState(false)
+  const [otherOpen, setOtherOpen] = useState(false)
 
-  const showLabel = !collapsed || hovered   // show labels if expanded OR temporarily hovered
+  const showLabel = !collapsed || hovered
 
   const currentWidth = showLabel ? 200 : 64
 
@@ -195,6 +251,10 @@ export default function ActivityBar() {
 
   const isReconcileActive    = activeMainView === 'reconcile'
   const isChangeReportActive = activeMainView === 'change-report'
+  const isEligibilityActive  = activeMainView === 'eligibility-scrubber'
+
+  // Whether any "Other Services" item is active (used to highlight the group header)
+  const isAnyOtherActive = isReconcileActive || isChangeReportActive || isEligibilityActive
 
   return (
     <div
@@ -261,38 +321,120 @@ export default function ActivityBar() {
       {/* ── Divider ── */}
       <div style={{ height: 1, background: 'rgba(255,255,255,0.09)', margin: '6px 16px' }} />
 
-      {/* ── Reconcile 835 ── */}
-      <NavItem
-        id="reconcile-835"
-        label="Reconcile 835"
-        icon={<ScaleIcon active={isReconcileActive} />}
-        isActive={isReconcileActive}
-        showLabel={showLabel}
-        accentColor="#FFE66D"
-        onClick={() => { setCollapsed(false); setActiveMainView('reconcile') }}
-      />
+      {/* ── Other Services dropdown header ── */}
+      <button
+        id="sidebar-other-services"
+        title={showLabel ? undefined : 'Other Services'}
+        onClick={() => {
+          setCollapsed(false)
+          setOtherOpen((prev) => !prev)
+        }}
+        style={{
+          position: 'relative',
+          width: '100%',
+          display: 'flex',
+          alignItems: 'center',
+          gap: showLabel ? 10 : 0,
+          padding: showLabel ? '9px 16px' : '10px 0',
+          justifyContent: showLabel ? 'flex-start' : 'center',
+          background: isAnyOtherActive ? 'rgba(255,255,255,0.06)' : 'transparent',
+          border: 'none',
+          borderRadius: 0,
+          cursor: 'pointer',
+          transition: 'background 0.15s ease',
+          overflow: 'hidden',
+        }}
+        onMouseEnter={(e) => { e.currentTarget.style.background = 'rgba(255,255,255,0.05)' }}
+        onMouseLeave={(e) => { e.currentTarget.style.background = isAnyOtherActive ? 'rgba(255,255,255,0.06)' : 'transparent' }}
+      >
+        {/* Grid / services icon */}
+        <span style={{ flexShrink: 0, display: 'flex', alignItems: 'center' }}>
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none"
+            stroke={isAnyOtherActive ? '#4ECDC4' : 'rgba(255,255,255,0.5)'}
+            strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <circle cx="9" cy="9" r="3" />
+            <circle cx="15" cy="9" r="3" />
+            <circle cx="9" cy="15" r="3" />
+            <circle cx="15" cy="15" r="3" />
+          </svg>
+        </span>
 
-      {/* ── 834 Change Report ── */}
-      <NavItem
-        id="change-report-834"
-        label="Change Report"
-        icon={<ChangeReport834Icon active={isChangeReportActive} />}
-        isActive={isChangeReportActive}
-        showLabel={showLabel}
-        accentColor="#95E1D3"
-        onClick={() => { setCollapsed(false); setActiveMainView('change-report') }}
-      />
+        {/* Label */}
+        <span style={{
+          fontFamily: 'Nunito, sans-serif',
+          fontWeight: 600,
+          fontSize: 13,
+          color: isAnyOtherActive ? '#FFFFFF' : 'rgba(255,255,255,0.55)',
+          whiteSpace: 'nowrap',
+          letterSpacing: '0.01em',
+          flex: 1,
+          textAlign: 'left',
+          maxWidth: showLabel ? 120 : 0,
+          opacity: showLabel ? 1 : 0,
+          overflow: 'hidden',
+          transition: 'max-width 0.22s ease, opacity 0.18s ease',
+        }}>
+          Other Services
+        </span>
 
-      {/* ── Eligibility Scrubber ── */}
-      <NavItem
-        id="eligibility-scrubber"
-        label="Eligibility Check"
-        icon={<EligibilityIcon active={activeMainView === 'eligibility-scrubber'} />}
-        isActive={activeMainView === 'eligibility-scrubber'}
-        showLabel={showLabel}
-        accentColor="#FFE66D"
-        onClick={() => { setCollapsed(false); setActiveMainView('eligibility-scrubber') }}
-      />
+        {/* Chevron */}
+        <span style={{
+          maxWidth: showLabel ? 16 : 0,
+          opacity: showLabel ? 1 : 0,
+          overflow: 'hidden',
+          flexShrink: 0,
+          display: 'flex',
+          alignItems: 'center',
+          transition: 'max-width 0.22s ease, opacity 0.18s ease',
+          transform: otherOpen ? 'rotate(180deg)' : 'rotate(0deg)',
+        }}>
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none"
+            stroke="rgba(255,255,255,0.4)" strokeWidth="2.5"
+            strokeLinecap="round" strokeLinejoin="round">
+            <polyline points="6 9 12 15 18 9" />
+          </svg>
+        </span>
+      </button>
+
+      {/* ── Other Services sub-items (animated slide) ── */}
+      <div style={{
+        overflow: 'hidden',
+        maxHeight: otherOpen ? 200 : 0,
+        transition: 'max-height 0.28s ease',
+      }}>
+        {/* Reconcile 835 */}
+        <SubNavItem
+          id="reconcile-835"
+          label="Reconcile 835"
+          icon={<ScaleIcon active={isReconcileActive} />}
+          isActive={isReconcileActive}
+          showLabel={showLabel}
+          accentColor="#FFE66D"
+          onClick={() => { setCollapsed(false); setActiveMainView('reconcile') }}
+        />
+
+        {/* Change Report */}
+        <SubNavItem
+          id="change-report-834"
+          label="Change Report"
+          icon={<ChangeReport834Icon active={isChangeReportActive} />}
+          isActive={isChangeReportActive}
+          showLabel={showLabel}
+          accentColor="#95E1D3"
+          onClick={() => { setCollapsed(false); setActiveMainView('change-report') }}
+        />
+
+        {/* Eligibility Check */}
+        <SubNavItem
+          id="eligibility-scrubber"
+          label="Eligibility Check"
+          icon={<EligibilityIcon active={isEligibilityActive} />}
+          isActive={isEligibilityActive}
+          showLabel={showLabel}
+          accentColor="#FFE66D"
+          onClick={() => { setCollapsed(false); setActiveMainView('eligibility-scrubber') }}
+        />
+      </div>
     </div>
   )
-}
+}

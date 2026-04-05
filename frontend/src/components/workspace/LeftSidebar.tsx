@@ -85,7 +85,7 @@ function isSegment(key: string): boolean {
 
 function buildEdiTree(
   data: Record<string, unknown>,
-  errorElements: Set<string>,
+  errorLoops: Set<string>,
   parentPath = '',
   depth = 0
 ): EdiTreeNode[] {
@@ -93,11 +93,7 @@ function buildEdiTree(
   const nodes: EdiTreeNode[] = []
 
   for (const [key, value] of Object.entries(data)) {
-    // 1. Skip all the root metadata fluff (Metrics, Warnings, etc.)
     if (SKIP_KEYS.has(key)) continue
-
-    // 2. CRITICAL: Skip primitive values completely.
-    // This stops the raw data (like "John Doe" or 35) from rendering as tree nodes.
     if (value === null || typeof value !== 'object') continue
 
     const path = parentPath ? `${parentPath}.${key}` : key
@@ -106,7 +102,6 @@ function buildEdiTree(
     let icon: string | undefined
     let section: string | undefined
 
-    // Apply schema formatting
     if (key in EDI_LOOP_SCHEMA) {
       label = EDI_LOOP_SCHEMA[key].label
       icon = EDI_LOOP_SCHEMA[key].icon
@@ -118,20 +113,19 @@ function buildEdiTree(
 
     const isSeg = isSegment(key)
     const nodeType = isSeg ? 'segment' : 'loop'
-    const hasError = errorElements.has(key.toUpperCase())
+    
+    // Check if this loop or any parent loop has errors
+    const hasError = errorLoops.has(key.toUpperCase()) || 
+                     errorLoops.has(loop.replace('LOOP_', '').replace('_', ''))
 
     if (Array.isArray(value)) {
-      // 3. CREATE THE WRAPPER FOLDER
-      // This gives you the "▶ L Loop 1000A" parent folder
       const children: EdiTreeNode[] = []
       
       value.forEach((item, i) => {
         if (item && typeof item === 'object') {
           const itemPath = `${path}[${i}]`
-          const itemLabel = `${label} [${i + 1}]` // e.g., Loop 1000A [1]
-          
-          // Recurse into the array item
-          const itemChildren = buildEdiTree(item as Record<string, unknown>, errorElements, itemPath, depth + 1)
+          const itemLabel = `${label} [${i + 1}]`
+          const itemChildren = buildEdiTree(item as Record<string, unknown>, errorLoops, itemPath, depth + 1)
           
           children.push({
             id: itemPath,
@@ -146,7 +140,6 @@ function buildEdiTree(
         }
       })
 
-      // Only push the wrapper if it actually contains object children
       if (children.length > 0) {
         nodes.push({
           id: path,
@@ -160,8 +153,7 @@ function buildEdiTree(
         })
       }
     } else {
-      // 4. Single object handling (non-arrays)
-      const children = buildEdiTree(value as Record<string, unknown>, errorElements, path, depth + 1)
+      const children = buildEdiTree(value as Record<string, unknown>, errorLoops, path, depth + 1)
       
       nodes.push({
         id: path,
@@ -171,8 +163,6 @@ function buildEdiTree(
         icon,
         section,
         hasError,
-        // If there are no children (because we ignored the primitive data inside), 
-        // it renders as a flat segment "— S NM1" without the expansion arrow.
         children: children.length > 0 ? children : undefined 
       })
     }
@@ -504,24 +494,29 @@ function ExplorerView({ onMinimize }: { onMinimize?: () => void }) {
 
   const hasFile = !!(parseResult || ediFile.fileName)
 
-  // Collect all element keys that have validation errors → for red ⚠ badges
-  const errorElements = useMemo<Set<string>>(() => {
+  // Collect all loops that have validation errors
+  const errorLoops = useMemo<Set<string>>(() => {
     if (!parseResult) return new Set()
     const data = parseResult as Record<string, unknown>
-    const errs = (data.validation_errors ?? data.errors ?? []) as Array<{ element?: string; field?: string }>
-    const keys = new Set<string>()
+    const errs = (data.validation_errors ?? data.errors ?? []) as Array<{ element?: string; field?: string; loop?: string }>
+    const loops = new Set<string>()
     errs.forEach((e) => {
-      const el = e.element ?? e.field ?? ''
-      if (el) keys.add(el.toUpperCase())
+      const loopKey = e.loop ?? ''
+      if (loopKey) {
+        // Add both the full loop key and normalized versions
+        loops.add(loopKey.toUpperCase())
+        loops.add(loopKey.replace('LOOP_', '').replace(/_/g, '').toUpperCase())
+        loops.add(loopKey.replace('LOOP_', '').toUpperCase())
+      }
     })
-    return keys
+    return loops
   }, [parseResult])
 
   // Build EDI-aware tree
   const tree = useMemo<EdiTreeNode[]>(() => {
     if (!parseResult) return []
-    return buildEdiTree(parseResult as Record<string, unknown>, errorElements)
-  }, [parseResult, errorElements])
+    return buildEdiTree(parseResult as Record<string, unknown>, errorLoops)
+  }, [parseResult, errorLoops])
 
   // Scroll is now handled inside each EdiNode via the scrollContainer ref prop.
   // This outer effect is a fallback for the very first render.

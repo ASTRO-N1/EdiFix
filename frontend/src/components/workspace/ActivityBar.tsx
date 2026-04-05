@@ -335,7 +335,6 @@ export default function ActivityBar() {
         id="sidebar-other-services"
         title={showLabel ? undefined : 'Other Services'}
         onClick={() => {
-          setCollapsed(false)
           setOtherOpen((prev) => !prev)
         }}
         style={{

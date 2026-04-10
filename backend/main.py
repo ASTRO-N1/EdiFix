@@ -17,6 +17,7 @@ import httpx
 from dotenv import load_dotenv
 from core_parser.eligibility_scrubber import run_eligibility_scrubber
 from core_parser.fix_assistant import analyze_and_suggest_fixes, apply_fix_to_tree
+from whatsapp_handler import handle_whatsapp_webhook
 
 load_dotenv(override=True)
 
@@ -227,6 +228,15 @@ Output JSON:"""
 def health_check():
     """Simple health check endpoint."""
     return {"status": "online", "message": "EdiFix Engine is ready.", "version": "1.0.0"}
+
+
+# ── WhatsApp Bot Webhook ───────────────────────────────────────────────────────
+@app.post("/webhook/whatsapp")
+async def whatsapp_webhook(request: Request):
+    """Twilio WhatsApp webhook — receives messages, files, and returns TwiML."""
+    from fastapi.responses import Response
+    xml_data = await handle_whatsapp_webhook(request)
+    return Response(content=xml_data, media_type="application/xml")
 
 
 # ── CORS preflight ────────────────────────────────────────────────────────────
@@ -858,6 +868,8 @@ if __name__ == "__main__":
     # For debugging: disable hostname checking (not recommended for production)
     #context.check_hostname = False
     
+
+
     uvicorn.run(
         "main:app",
         host=args.host,

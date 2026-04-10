@@ -1,16 +1,33 @@
-import { useCallback, useState } from 'react'
+import { useCallback, useState, useRef } from 'react'
 import { useDropzone } from 'react-dropzone'
 import { useNavigate } from 'react-router-dom'
-import { UploadCloud } from 'lucide-react'
+import { UploadCloud, ChevronDown, FileText } from 'lucide-react'
 import JSZip from 'jszip'
 import useAppStore from '../../store/useAppStore'
 import { SittingStickFigure } from './StickFigure'
 
 const SAMPLE_FILES = [
-  { label: '837P Sample', type: '837p' },
-  { label: '837I Sample', type: '837i' },
-  { label: '835 Sample', type: '835' },
-  { label: '834 Sample', type: '834' },
+  {
+    label: '834 — Benefit Enrollment',
+    description: 'X12 005010X220A1 · 4 members',
+    filename: '834-sample.txt',
+    badge: '834',
+    badgeColor: '#4ECDC4',
+  },
+  {
+    label: '835 — Remittance Advice',
+    description: 'X12 005010X221A1 · 3 claims',
+    filename: '835-sample.txt',
+    badge: '835',
+    badgeColor: '#FFE66D',
+  },
+  {
+    label: '837 — Professional Claim',
+    description: 'X12 005010X222A1 · Out-of-network',
+    filename: '837-sample.edi',
+    badge: '837',
+    badgeColor: '#FF6B6B',
+  },
 ]
 
 const ALLOWED_EXTENSIONS = ['.edi', '.txt', '.dat', '.x12', '.zip']
@@ -40,6 +57,9 @@ export default function UploadZone() {
   const processBatchZip = useAppStore((s) => s.processBatchZip)
 
   const [loading, setLoading] = useState(false)
+  const [dropdownOpen, setDropdownOpen] = useState(false)
+  const [loadingSample, setLoadingSample] = useState<string | null>(null)
+  const dropdownRef = useRef<HTMLDivElement>(null)
 
   const handleFile = useCallback(
     async (file: File) => {
@@ -52,7 +72,6 @@ export default function UploadZone() {
           const contents = await zip.loadAsync(file)
           const unzippedFiles: File[] = []
 
-          // Extract files, skipping directories and Mac metadata
           for (const [filename, zipEntry] of Object.entries(contents.files)) {
             if (!zipEntry.dir && !filename.startsWith('__MACOSX/')) {
               const blob = await zipEntry.async('blob')
@@ -61,12 +80,11 @@ export default function UploadZone() {
           }
 
           if (unzippedFiles.length === 0) {
-            throw new Error("No usable files found in the ZIP archive.")
+            throw new Error('No usable files found in the ZIP archive.')
           }
 
           await processBatchZip(file, unzippedFiles)
           navigate('/workspace')
-
         } catch (err: any) {
           setError(err.message || 'An error occurred extracting the ZIP.')
         } finally {
@@ -84,7 +102,7 @@ export default function UploadZone() {
           const formData = new FormData()
           formData.append('file', file)
 
-          const apiUrl = import.meta.env.VITE_API_URL || 'https://edi-parser-production.up.railway.app';
+          const apiUrl = import.meta.env.VITE_API_URL || 'https://edi-parser-production.up.railway.app'
           const response = await fetch(`${apiUrl}/api/v1/parse`, {
             method: 'POST',
             headers: { 'X-Internal-Bypass': 'frontend-ui-secret' },
@@ -97,15 +115,15 @@ export default function UploadZone() {
 
           const data = await response.json()
 
-          // Unpack the data wrapper securely
           const innerTree = data.parsed_data || data.data || data
           setParseResult(innerTree)
 
-          const type = innerTree.transaction_type ||
+          const type =
+            innerTree.transaction_type ||
             innerTree.metadata?.transaction_type ||
             data.file_info?.transaction_type ||
-            "EDI File";
-          setTransactionType(type);
+            'EDI File'
+          setTransactionType(type)
 
           setActiveMainView('dashboard')
           navigate('/workspace')
@@ -133,17 +151,21 @@ export default function UploadZone() {
 
   const rejectionError = fileRejections[0]?.errors[0]?.message ?? null
 
-  const handleSampleClick = async (type: string) => {
+  const handleSampleClick = async (sample: typeof SAMPLE_FILES[number]) => {
+    setDropdownOpen(false)
+    setLoadingSample(sample.badge)
     setLoading(true)
     try {
-      const res = await fetch(`/samples/${type}.edi`)
+      const res = await fetch(`/samples/${sample.filename}`)
       if (!res.ok) throw new Error('Sample not found')
       const blob = await res.blob()
-      const file = new File([blob], `${type}-sample.edi`, { type: 'text/plain' })
-      handleFile(file)
+      const file = new File([blob], sample.filename, { type: 'text/plain' })
+      await handleFile(file)
     } catch {
-      const placeholder = new File(['ISA*00*...'], `${type}-sample.edi`, { type: 'text/plain' })
-      handleFile(placeholder)
+      setError(`Could not load sample file: ${sample.filename}`)
+      setLoading(false)
+    } finally {
+      setLoadingSample(null)
     }
   }
 
@@ -176,7 +198,7 @@ export default function UploadZone() {
           <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 12 }}>
             <div className="doodle-spinner" />
             <p style={{ fontFamily: 'Nunito, sans-serif', fontWeight: 600, fontSize: 16, color: '#1A1A2E' }}>
-              Reading your file…
+              {loadingSample ? `Parsing ${loadingSample} sample…` : 'Reading your file…'}
             </p>
           </div>
         ) : (
@@ -217,25 +239,124 @@ export default function UploadZone() {
         )}
       </div>
 
+      {/* Sample Files Dropdown */}
       <div
-        style={{
-          display: 'flex',
-          flexWrap: 'wrap',
-          gap: 8,
-          marginTop: 14,
-          justifyContent: 'center',
-        }}
+        ref={dropdownRef}
+        style={{ position: 'relative', marginTop: 14, display: 'flex', justifyContent: 'center' }}
       >
-        {SAMPLE_FILES.map((s) => (
-          <button
-            key={s.type}
-            className="doodle-pill"
-            onClick={() => handleSampleClick(s.type)}
-            type="button"
+        <button
+          type="button"
+          id="sample-files-dropdown-trigger"
+          onClick={(e) => { e.stopPropagation(); setDropdownOpen((o) => !o) }}
+          style={{
+            display: 'inline-flex',
+            alignItems: 'center',
+            gap: 8,
+            padding: '9px 18px',
+            background: '#FFFFFF',
+            border: '2px solid #1A1A2E',
+            borderRadius: 10,
+            fontFamily: 'Nunito, sans-serif',
+            fontWeight: 700,
+            fontSize: 13,
+            color: '#1A1A2E',
+            cursor: 'pointer',
+            boxShadow: dropdownOpen ? '2px 2px 0px #1A1A2E' : '3px 3px 0px #1A1A2E',
+            transform: dropdownOpen ? 'translate(1px, 1px)' : 'translate(0,0)',
+            transition: 'all 0.15s ease',
+            userSelect: 'none',
+          }}
+        >
+          <FileText size={15} color="#4ECDC4" />
+          Try a Sample File
+          <ChevronDown
+            size={15}
+            color="#1A1A2E"
+            style={{
+              transform: dropdownOpen ? 'rotate(180deg)' : 'rotate(0deg)',
+              transition: 'transform 0.2s ease',
+            }}
+          />
+        </button>
+
+        {dropdownOpen && (
+          <div
+            style={{
+              position: 'absolute',
+              top: 'calc(100% + 8px)',
+              left: '50%',
+              transform: 'translateX(-50%)',
+              background: '#FFFFFF',
+              border: '2px solid #1A1A2E',
+              borderRadius: 12,
+              boxShadow: '4px 4px 0px #1A1A2E',
+              zIndex: 999,
+              minWidth: 260,
+              overflow: 'hidden',
+              animation: 'fadeSlideDown 0.15s ease',
+            }}
           >
-            {s.label}
-          </button>
-        ))}
+            <div style={{ padding: '8px 12px 6px', borderBottom: '1.5px solid rgba(26,26,46,0.1)' }}>
+              <p style={{ fontFamily: 'Nunito, sans-serif', fontWeight: 800, fontSize: 11, color: 'rgba(26,26,46,0.45)', textTransform: 'uppercase', letterSpacing: '0.06em', margin: 0 }}>
+                Sample EDI Files
+              </p>
+            </div>
+            {SAMPLE_FILES.map((s) => (
+              <button
+                key={s.badge}
+                id={`sample-${s.badge.toLowerCase()}`}
+                type="button"
+                onClick={() => handleSampleClick(s)}
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 12,
+                  width: '100%',
+                  padding: '11px 14px',
+                  background: 'transparent',
+                  border: 'none',
+                  borderBottom: '1px solid rgba(26,26,46,0.06)',
+                  cursor: 'pointer',
+                  textAlign: 'left',
+                  transition: 'background 0.12s ease',
+                }}
+                onMouseEnter={(e) => (e.currentTarget.style.background = '#FDFAF4')}
+                onMouseLeave={(e) => (e.currentTarget.style.background = 'transparent')}
+              >
+                <span
+                  style={{
+                    flexShrink: 0,
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    width: 38,
+                    height: 26,
+                    background: s.badgeColor,
+                    border: '1.5px solid #1A1A2E',
+                    borderRadius: 6,
+                    fontFamily: 'JetBrains Mono, monospace',
+                    fontWeight: 700,
+                    fontSize: 11,
+                    color: '#1A1A2E',
+                  }}
+                >
+                  {s.badge}
+                </span>
+                <span style={{ flex: 1 }}>
+                  <span style={{ display: 'block', fontFamily: 'Nunito, sans-serif', fontWeight: 700, fontSize: 13, color: '#1A1A2E' }}>
+                    {s.label}
+                  </span>
+                  <span style={{ display: 'block', fontFamily: 'Nunito, sans-serif', fontWeight: 400, fontSize: 11, color: 'rgba(26,26,46,0.5)' }}>
+                    {s.description}
+                  </span>
+                </span>
+                {loadingSample === s.badge && (
+                  <div className="doodle-spinner" style={{ width: 16, height: 16, borderWidth: 2 }} />
+                )}
+              </button>
+            ))}
+          </div>
+        )}
       </div>
     </div>
   )

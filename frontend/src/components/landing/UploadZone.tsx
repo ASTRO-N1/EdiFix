@@ -1,7 +1,7 @@
-import { useCallback, useState, useRef } from 'react'
+import { useCallback, useState } from 'react'
 import { useDropzone } from 'react-dropzone'
 import { useNavigate } from 'react-router-dom'
-import { UploadCloud, ChevronDown, FileText } from 'lucide-react'
+import { UploadCloud } from 'lucide-react'
 import JSZip from 'jszip'
 import useAppStore from '../../store/useAppStore'
 import { SittingStickFigure } from './StickFigure'
@@ -57,9 +57,7 @@ export default function UploadZone() {
   const processBatchZip = useAppStore((s) => s.processBatchZip)
 
   const [loading, setLoading] = useState(false)
-  const [dropdownOpen, setDropdownOpen] = useState(false)
   const [loadingSample, setLoadingSample] = useState<string | null>(null)
-  const dropdownRef = useRef<HTMLDivElement>(null)
 
   const handleFile = useCallback(
     async (file: File) => {
@@ -152,7 +150,6 @@ export default function UploadZone() {
   const rejectionError = fileRejections[0]?.errors[0]?.message ?? null
 
   const handleSampleClick = async (sample: typeof SAMPLE_FILES[number]) => {
-    setDropdownOpen(false)
     setLoadingSample(sample.badge)
     setLoading(true)
     try {
@@ -239,124 +236,41 @@ export default function UploadZone() {
         )}
       </div>
 
-      {/* Sample Files Dropdown */}
+      {/* Sample Files Minimal Buttons */}
       <div
-        ref={dropdownRef}
-        style={{ position: 'relative', marginTop: 14, display: 'flex', justifyContent: 'center' }}
+        style={{
+          display: 'flex',
+          flexWrap: 'wrap',
+          gap: 12,
+          marginTop: 18,
+          justifyContent: 'center',
+        }}
       >
-        <button
-          type="button"
-          id="sample-files-dropdown-trigger"
-          onClick={(e) => { e.stopPropagation(); setDropdownOpen((o) => !o) }}
-          style={{
-            display: 'inline-flex',
-            alignItems: 'center',
-            gap: 8,
-            padding: '9px 18px',
-            background: '#FFFFFF',
-            border: '2px solid #1A1A2E',
-            borderRadius: 10,
-            fontFamily: 'Nunito, sans-serif',
-            fontWeight: 700,
-            fontSize: 13,
-            color: '#1A1A2E',
-            cursor: 'pointer',
-            boxShadow: dropdownOpen ? '2px 2px 0px #1A1A2E' : '3px 3px 0px #1A1A2E',
-            transform: dropdownOpen ? 'translate(1px, 1px)' : 'translate(0,0)',
-            transition: 'all 0.15s ease',
-            userSelect: 'none',
-          }}
-        >
-          <FileText size={15} color="#4ECDC4" />
-          Try a Sample File
-          <ChevronDown
-            size={15}
-            color="#1A1A2E"
-            style={{
-              transform: dropdownOpen ? 'rotate(180deg)' : 'rotate(0deg)',
-              transition: 'transform 0.2s ease',
-            }}
-          />
-        </button>
-
-        {dropdownOpen && (
-          <div
-            style={{
-              position: 'absolute',
-              top: 'calc(100% + 8px)',
-              left: '50%',
-              transform: 'translateX(-50%)',
-              background: '#FFFFFF',
-              border: '2px solid #1A1A2E',
-              borderRadius: 12,
-              boxShadow: '4px 4px 0px #1A1A2E',
-              zIndex: 999,
-              minWidth: 260,
-              overflow: 'hidden',
-              animation: 'fadeSlideDown 0.15s ease',
-            }}
+        <span style={{ 
+          fontFamily: 'Nunito, sans-serif', 
+          fontSize: 13, 
+          color: 'rgba(26,26,46,0.6)', 
+          fontWeight: 600, 
+          display: 'flex', 
+          alignItems: 'center',
+          marginRight: 4
+        }}>
+          Try a sample:
+        </span>
+        {SAMPLE_FILES.map((s) => (
+          <button
+            key={s.badge}
+            className="doodle-pill"
+            id={`sample-${s.badge.toLowerCase()}`}
+            type="button"
+            onClick={() => handleSampleClick(s)}
           >
-            <div style={{ padding: '8px 12px 6px', borderBottom: '1.5px solid rgba(26,26,46,0.1)' }}>
-              <p style={{ fontFamily: 'Nunito, sans-serif', fontWeight: 800, fontSize: 11, color: 'rgba(26,26,46,0.45)', textTransform: 'uppercase', letterSpacing: '0.06em', margin: 0 }}>
-                Sample EDI Files
-              </p>
-            </div>
-            {SAMPLE_FILES.map((s) => (
-              <button
-                key={s.badge}
-                id={`sample-${s.badge.toLowerCase()}`}
-                type="button"
-                onClick={() => handleSampleClick(s)}
-                style={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: 12,
-                  width: '100%',
-                  padding: '11px 14px',
-                  background: 'transparent',
-                  border: 'none',
-                  borderBottom: '1px solid rgba(26,26,46,0.06)',
-                  cursor: 'pointer',
-                  textAlign: 'left',
-                  transition: 'background 0.12s ease',
-                }}
-                onMouseEnter={(e) => (e.currentTarget.style.background = '#FDFAF4')}
-                onMouseLeave={(e) => (e.currentTarget.style.background = 'transparent')}
-              >
-                <span
-                  style={{
-                    flexShrink: 0,
-                    display: 'inline-flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    width: 38,
-                    height: 26,
-                    background: s.badgeColor,
-                    border: '1.5px solid #1A1A2E',
-                    borderRadius: 6,
-                    fontFamily: 'JetBrains Mono, monospace',
-                    fontWeight: 700,
-                    fontSize: 11,
-                    color: '#1A1A2E',
-                  }}
-                >
-                  {s.badge}
-                </span>
-                <span style={{ flex: 1 }}>
-                  <span style={{ display: 'block', fontFamily: 'Nunito, sans-serif', fontWeight: 700, fontSize: 13, color: '#1A1A2E' }}>
-                    {s.label}
-                  </span>
-                  <span style={{ display: 'block', fontFamily: 'Nunito, sans-serif', fontWeight: 400, fontSize: 11, color: 'rgba(26,26,46,0.5)' }}>
-                    {s.description}
-                  </span>
-                </span>
-                {loadingSample === s.badge && (
-                  <div className="doodle-spinner" style={{ width: 16, height: 16, borderWidth: 2 }} />
-                )}
-              </button>
-            ))}
-          </div>
-        )}
+            {loadingSample === s.badge && (
+              <div className="doodle-spinner" style={{ width: 12, height: 12, borderWidth: 2, marginRight: 6 }} />
+            )}
+            {s.label.split('—')[0].trim()}
+          </button>
+        ))}
       </div>
     </div>
   )

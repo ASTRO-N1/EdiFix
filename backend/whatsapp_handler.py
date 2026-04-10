@@ -2,14 +2,13 @@
 whatsapp_handler.py
 
 Full-featured WhatsApp EDI Bot.
-Flow: User uploads .edi -> Bot parses -> Lists errors -> User fixes or ignores -> Bot returns fixed file.
+Flow: User uploads .edi -> Bot parses -> Lists errors -> User fixes or ignores -> Bot returns download link.
 State is tracked in Supabase `whatsapp_sessions` table, keyed by phone number.
-Sessions auto-expire after 2 hours of inactivity via Supabase TTL logic.
 """
 import httpx
 import os
 import json
-import re
+import hashlib
 import tempfile
 from fastapi import Request
 from twilio.twiml.messaging_response import MessagingResponse
@@ -21,6 +20,7 @@ SUPABASE_URL = os.getenv("SUPABASE_URL")
 SUPABASE_SERVICE_ROLE_KEY = os.getenv("SUPABASE_SERVICE_ROLE_KEY")
 TWILIO_ACCOUNT_SID = os.getenv("TWILIO_ACCOUNT_SID")
 TWILIO_AUTH_TOKEN = os.getenv("TWILIO_AUTH_TOKEN")
+RAILWAY_URL = os.getenv("RAILWAY_PUBLIC_DOMAIN", "")  # e.g. edifix-backend.up.railway.app
 
 DB_HEADERS = {
     "apikey": SUPABASE_SERVICE_ROLE_KEY,
@@ -30,15 +30,13 @@ DB_HEADERS = {
 }
 
 # ─── State Constants ──────────────────────────────────────────────────────────
-STATE_IDLE = "IDLE"
-STATE_AWAITING_FIX_CHOICE = "AWAITING_FIX_CHOICE"  # User chose an error #, now we ask for the value
-STATE_AWAITING_VALUE = "AWAITING_VALUE"              # Waiting for the user to type the corrected value
+STATE_AWAITING_FIX_CHOICE = "AWAITING_FIX_CHOICE"
+STATE_AWAITING_VALUE = "AWAITING_VALUE"
 
 
 # ─── Supabase Helpers ─────────────────────────────────────────────────────────
 
 async def get_session(phone: str) -> dict | None:
-    """Fetch a session from the DB by phone number."""
     async with httpx.AsyncClient() as client:
         resp = await client.get(
             f"{SUPABASE_URL}/rest/v1/whatsapp_sessions",
@@ -50,8 +48,7 @@ async def get_session(phone: str) -> dict | None:
     return None
 
 
-async def save_session(phone: str, tree: dict, errors: list, state: str, pending_field: str | None = None):
-    """Upsert session data for this phone number."""
+async def save_session(phone: str, tree: dict, errors: list, state: str, pending_field: str | None = None, edi_string: str | None = None):
     data = {
         "phone_number": phone,
         "current_tree": json.dumps(tree),
@@ -60,6 +57,9 @@ async def save_session(phone: str, tree: dict, errors: list, state: str, pending
         "pending_field": pending_field,
         "updated_at": "now()",
     }
+    # Store generated EDI string temporarily for download
+    if edi_string is not None:
+        data["edi_output"] = edi_string
     async with httpx.AsyncClient() as client:
         await client.post(
             f"{SUPABASE_URL}/rest/v1/whatsapp_sessions",
@@ -69,7 +69,6 @@ async def save_session(phone: str, tree: dict, errors: list, state: str, pending
 
 
 async def delete_session(phone: str):
-    """Remove the session once the user is done."""
     async with httpx.AsyncClient() as client:
         await client.delete(
             f"{SUPABASE_URL}/rest/v1/whatsapp_sessions",
@@ -78,32 +77,66 @@ async def delete_session(phone: str):
         )
 
 
-# ─── Twilio File Sender ───────────────────────────────────────────────────────
+# ─── Download Token Helpers ───────────────────────────────────────────────────
 
-async def send_edi_file(to: str, edi_content: str, filename: str):
+def make_download_token(phone: str) -> str:
+    """Create a short, URL-safe token from the phone number."""
+    return hashlib.sha256(phone.encode()).hexdigest()[:16]
+
+
+def make_download_url(phone: str) -> str:
+    """Build the full download URL for the fixed EDI file."""
+    token = make_download_token(phone)
+    base = RAILWAY_URL.rstrip("/")
+    if not base.startswith("http"):
+        base = f"https://{base}"
+    return f"{base}/api/download/{token}"
+
+
+# ─── Twilio Document Downloader ───────────────────────────────────────────────
+
+async def download_twilio_document(message_sid: str) -> bytes | None:
     """
-    Use the Twilio REST API to send the fixed EDI back as a media message.
-    This is a separate call outside TwiML because sending binary files requires the REST API.
+    Attempt to download document media from Twilio's REST API.
+    Uses the MessageSid to fetch the media list, then downloads the first item.
     """
     if not TWILIO_ACCOUNT_SID or not TWILIO_AUTH_TOKEN:
-        return  # Silently skip if Twilio is not configured yet
+        return None
 
-    # We upload the content to a temp Twilio URL via the Media API.
-    # Simplest approach for demos: base64-encode and send as a text file link.
-    # For now, we'll just send it as a text reply with the EDI content (Twilio sandbox limitation).
-    # In production, you'd host the file and send a URL.
-    pass
+    auth = (TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN)
+    api_url = f"https://api.twilio.com/2010-04-01/Accounts/{TWILIO_ACCOUNT_SID}/Messages/{message_sid}/Media.json"
+
+    async with httpx.AsyncClient() as client:
+        resp = await client.get(api_url, auth=auth)
+
+    print(f"[WA] Twilio Media API status={resp.status_code} body={resp.text[:300]}")
+
+    if resp.status_code != 200:
+        return None
+
+    data = resp.json()
+    # Twilio returns either 'media_list' or nested in other keys
+    media_list = data.get("media_list", [])
+    if not media_list:
+        return None
+
+    media_sid = media_list[0]["sid"]
+    media_url = f"https://api.twilio.com/2010-04-01/Accounts/{TWILIO_ACCOUNT_SID}/Messages/{message_sid}/Media/{media_sid}"
+
+    async with httpx.AsyncClient() as client:
+        file_resp = await client.get(media_url, auth=auth, follow_redirects=True)
+
+    return file_resp.content if file_resp.status_code == 200 else None
 
 
 # ─── Error Formatter ─────────────────────────────────────────────────────────
 
 def format_errors_for_chat(errors: list) -> str:
-    """Turn the list of EDI errors into a human-readable WhatsApp message."""
     if not errors:
         return "✅ No errors found!"
 
     lines = [f"⚠️ Found *{len(errors)} error(s)*:\n"]
-    for i, err in enumerate(errors[:10], 1):  # Cap at 10 for readability
+    for i, err in enumerate(errors[:10], 1):
         segment = err.get("segment", "?")
         msg = err.get("message", "Unknown error")
         suggestion = err.get("suggestion", "")
@@ -116,33 +149,27 @@ def format_errors_for_chat(errors: list) -> str:
             line += f"\n   💡 _{suggestion}_"
         lines.append(line)
 
-    lines.append("\n\nReply with a number to fix that error, or *ignore* to skip and get the file.")
+    lines.append("\n\nReply with a *number* to fix that error, or *ignore* to skip all and download.")
     return "\n".join(lines)
 
 
 def get_fixable_field(error: dict) -> dict | None:
-    """Map a known error to the field in the EDI tree that needs to be changed."""
     FIELD_MAP = {
-        "NM109": {"path": ["NM1", "NM109"], "label": "NPI / ID Number"},
-        "NM103": {"path": ["NM1", "NM103"], "label": "Organization / Provider Name"},
-        "CLM01":  {"path": ["CLM", "CLM01"],  "label": "Claim ID"},
-        "CLM02":  {"path": ["CLM", "CLM02"],  "label": "Claimed Amount ($)"},
-        "DTP03":  {"path": ["DTP", "DTP03"],  "label": "Service Date (CCYYMMDD)"},
-        "N301":   {"path": ["N3",  "N301"],   "label": "Street Address"},
-        "N401":   {"path": ["N4",  "N401"],   "label": "City"},
-        "N402":   {"path": ["N4",  "N402"],   "label": "State"},
-        "N403":   {"path": ["N4",  "N403"],   "label": "ZIP Code"},
-        "REF02":  {"path": ["REF", "REF02"],  "label": "Tax ID / Reference Number"},
+        "NM109": {"label": "NPI / ID Number"},
+        "NM103": {"label": "Organization / Provider Name"},
+        "CLM01": {"label": "Claim ID"},
+        "CLM02": {"label": "Claimed Amount ($)"},
+        "DTP03": {"label": "Service Date (CCYYMMDD)"},
+        "N301":  {"label": "Street Address"},
+        "N401":  {"label": "City"},
+        "N402":  {"label": "State"},
+        "N403":  {"label": "ZIP Code"},
+        "REF02": {"label": "Tax ID / Reference Number"},
     }
-    field_key = error.get("field", "")
-    return FIELD_MAP.get(field_key)
+    return FIELD_MAP.get(error.get("field", ""))
 
 
 def apply_patch_to_tree(tree: dict, error: dict, new_value: str) -> dict:
-    """
-    Walk the tree and apply the new_value to the correct segment/field.
-    This is a simplified deep-patch for the session flow.
-    """
     segment_key = error.get("segment", "")
     field_key = error.get("field", "")
     if not segment_key or not field_key:
@@ -163,24 +190,34 @@ def apply_patch_to_tree(tree: dict, error: dict, new_value: str) -> dict:
     return tree
 
 
+async def parse_edi_bytes(content: bytes, sender_phone: str) -> str:
+    """Parse raw EDI bytes and save the session. Returns the reply string."""
+    tmp_path = None
+    try:
+        with tempfile.NamedTemporaryFile(delete=False, suffix=".edi") as tmp:
+            tmp.write(content)
+            tmp_path = tmp.name
+
+        parser = EDIParser(tmp_path)
+        tree = parser.parse()
+        errors = tree.get("errors", [])
+
+        await save_session(sender_phone, tree, errors, STATE_AWAITING_FIX_CHOICE)
+
+        if not errors:
+            return "✅ *Perfect file!* No errors found.\n\nReply *download* to get your file."
+        else:
+            return format_errors_for_chat(errors)
+
+    except Exception as e:
+        print(f"[WA] Parse ERROR: {e}")
+        return f"❌ Failed to parse: {str(e)}\nMake sure it's valid X12 EDI content."
+    finally:
+        if tmp_path and os.path.exists(tmp_path):
+            os.remove(tmp_path)
+
+
 # ─── Main Webhook Handler ─────────────────────────────────────────────────────
-
-async def fetch_media_url_from_twilio(message_sid: str, account_sid: str, auth_token: str) -> str | None:
-    """
-    Fetch the media URL for a message using the Twilio REST API.
-    Required for document files — Twilio sandbox doesn't pass MediaUrl0 for documents.
-    """
-    api_url = f"https://api.twilio.com/2010-04-01/Accounts/{account_sid}/Messages/{message_sid}/Media.json"
-    async with httpx.AsyncClient() as client:
-        resp = await client.get(api_url, auth=(account_sid, auth_token))
-    if resp.status_code == 200:
-        data = resp.json()
-        media_list = data.get("media_list", [])
-        if media_list:
-            sid = media_list[0]["sid"]
-            return f"https://api.twilio.com/2010-04-01/Accounts/{account_sid}/Messages/{message_sid}/Media/{sid}"
-    return None
-
 
 async def handle_whatsapp_webhook(request: Request) -> str:
     form_data = await request.form()
@@ -188,123 +225,72 @@ async def handle_whatsapp_webhook(request: Request) -> str:
     sender_phone = form_data.get("From", "")
     num_media = int(form_data.get("NumMedia", 0))
     media_url = form_data.get("MediaUrl0", "")
-    media_type = form_data.get("MediaContentType0", "")
     message_type = form_data.get("MessageType", "text")
     message_sid = form_data.get("MessageSid", "")
 
-    # A document was sent but Twilio sandbox doesn't populate MediaUrl0 for docs
     is_document = message_type == "document"
-    has_file = num_media > 0 or bool(media_url)
+    has_media_url = num_media > 0 or bool(media_url)
 
-    print(f"[WA] From={sender_phone} Body={incoming_msg!r} NumMedia={num_media} MsgType={message_type} MediaUrl={media_url!r}")
+    print(f"[WA] phone={sender_phone} type={message_type} sid={message_sid} NumMedia={num_media} MediaUrl={media_url!r}")
 
     response = MessagingResponse()
 
-    # ── DEBUG COMMAND: type "debug" to see raw Twilio data ───────────────────
+    # ── DEBUG: type "debug" to dump raw Twilio data ───────────────────────────
     if incoming_msg.lower() == "debug":
         all_keys = dict(form_data)
         debug_text = "\n".join([f"{k}: {v}" for k, v in list(all_keys.items())[:20]])
-        response.message(f"🔍 Raw Twilio data:\n{debug_text}")
+        response.message(f"🔍 Twilio data:\n{debug_text}")
         return str(response)
 
-    # ── 0. DETECT PASTED EDI CONTENT (starts with ISA*) ──────────────────────
-    # Twilio Sandbox can't serve document files, so users paste the EDI directly.
-    # EDI files always start with ISA* — we detect and parse that instantly.
+    # ── 1. PASTED EDI TEXT (starts with ISA*) ────────────────────────────────
     looks_like_edi = incoming_msg.upper().startswith("ISA*") or incoming_msg.upper().startswith("ISA~")
-
     if looks_like_edi:
-        tmp_path = None
-        try:
-            with tempfile.NamedTemporaryFile(delete=False, suffix=".edi", mode="w", encoding="utf-8") as tmp:
-                tmp.write(incoming_msg)
-                tmp_path = tmp.name
-
-            parser = EDIParser(tmp_path)
-            tree = parser.parse()
-            errors = tree.get("errors", [])
-
-            await save_session(sender_phone, tree, errors, STATE_AWAITING_FIX_CHOICE)
-
-            if not errors:
-                reply = "✅ *Perfect!* No errors found.\n\nReply *download* to get your fixed file."
-            else:
-                reply = format_errors_for_chat(errors)
-
-        except Exception as e:
-            print(f"[WA] Paste parse ERROR: {e}")
-            reply = f"❌ Failed to parse the EDI: {str(e)}"
-        finally:
-            if tmp_path and os.path.exists(tmp_path):
-                os.remove(tmp_path)
-
+        reply = await parse_edi_bytes(incoming_msg.encode("utf-8"), sender_phone)
         response.message(reply)
         return str(response)
 
-    # ── 1. FILE UPLOADED VIA TWILIO MEDIA ────────────────────────────────────
-    if has_file or is_document:
-        reply = "📂 Got your file! Parsing now... ⚡"
-        tmp_path = None
-        try:
-            auth = (TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN) if TWILIO_ACCOUNT_SID else None
+    # ── 2. FILE UPLOADED ──────────────────────────────────────────────────────
+    if has_media_url or is_document:
+        auth = (TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN) if TWILIO_ACCOUNT_SID else None
 
-            # For documents, Twilio sandbox doesn't give MediaUrl0 — fetch via REST API
-            if is_document and not media_url and auth:
-                media_url = await fetch_media_url_from_twilio(message_sid, TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN)
-                print(f"[WA] Fetched document media URL: {media_url!r}")
+        file_content = None
 
-            if not media_url:
-                reply = (
-                    "⚠️ I can see you sent a file but couldn't retrieve it.\n\n"
-                    "Please try sending the file as an *image* or paste the raw EDI text directly."
-                )
-                response.message(reply)
-                return str(response)
-
+        # Case A: MediaUrl0 was provided (images, some files)
+        if media_url and auth:
             async with httpx.AsyncClient() as client:
-                file_resp = await client.get(media_url, auth=auth, follow_redirects=True)
+                r = await client.get(media_url, auth=auth, follow_redirects=True)
+            if r.status_code == 200:
+                file_content = r.content
 
-            with tempfile.NamedTemporaryFile(delete=False, suffix=".edi") as tmp:
-                tmp.write(file_resp.content)
-                tmp_path = tmp.name
+        # Case B: Document type — fetch via Twilio REST API
+        if not file_content and is_document and auth:
+            file_content = await download_twilio_document(message_sid)
 
-            parser = EDIParser(tmp_path)
-            tree = parser.parse()
-            errors = tree.get("errors", [])
-
-            await save_session(sender_phone, tree, errors, STATE_AWAITING_FIX_CHOICE)
-
-            if not errors:
-                reply = (
-                    "✅ *Perfect file!* No errors found.\n\n"
-                    "Reply *download* to get your file sent back, or just drop a new one."
-                )
-            else:
-                reply = format_errors_for_chat(errors)
-
-        except Exception as e:
-            print(f"[WA] Parse ERROR: {e}")
-            reply = f"❌ Failed to parse the file: {str(e)}\nMake sure it's a valid X12 EDI file."
-        finally:
-            if tmp_path and os.path.exists(tmp_path):
-                os.remove(tmp_path)
+        if file_content:
+            reply = await parse_edi_bytes(file_content, sender_phone)
+        else:
+            reply = (
+                "⚠️ File received but I couldn't download it (Twilio Sandbox limitation).\n\n"
+                "👉 *Easy workaround*:\n"
+                "  1. Open the file in Notepad\n"
+                "  2. Copy all the text\n"
+                "  3. Paste it here\n\n"
+                "EDI files start with *ISA* — paste that whole block!"
+            )
 
         response.message(reply)
         return str(response)
 
-    # ── Get current session ───────────────────────────────────────────────────
+    # ── Get session for any other text input ──────────────────────────────────
     session = await get_session(sender_phone)
     msg_lower = incoming_msg.lower().strip()
 
-    # ── 2. NO SESSION — Greet the user ────────────────────────────────────────
+    # ── 3. NO SESSION — Greet ────────────────────────────────────────────────
     if not session:
         response.message(
             "👋 Welcome to *EdiFix Bot!* 🛠️\n\n"
-            "To get started:\n"
-            "  1. Open your EDI file in Notepad\n"
-            "  2. Select All → Copy\n"
-            "  3. Paste it here and send!\n\n"
-            "I'll parse it, show errors in plain English, and help you fix them. ✨\n\n"
-            "_Tip: EDI files start with ISA* — just paste that whole block._"
+            "Send me an EDI file or paste EDI text (starts with ISA*).\n\n"
+            "I'll parse it, show errors in plain English, and help you fix them!"
         )
         return str(response)
 
@@ -313,28 +299,29 @@ async def handle_whatsapp_webhook(request: Request) -> str:
     state = session["state"]
     pending_field = session.get("pending_field")
 
-    # ── 3. USER WANTS TO IGNORE ALL & DOWNLOAD ───────────────────────────────
+    # ── 4. DOWNLOAD ───────────────────────────────────────────────────────────
     if msg_lower in ("ignore", "ignore all", "ignore rest", "done", "download", "send", "finish"):
         try:
             generator = EDIGenerator(tree)
             edi_string = generator.generate()
-            await delete_session(sender_phone)
+
+            # Store generated EDI in session for the download endpoint to serve
+            await save_session(sender_phone, tree, errors, state, edi_string=edi_string)
 
             remaining = len(errors)
-            note = f"({remaining} error(s) were skipped)" if remaining else "(file was clean)"
+            note = f"({remaining} error(s) skipped)" if remaining else "(no errors)"
 
-            # Send the EDI as text (Twilio sandbox limitation)
+            dl_url = make_download_url(sender_phone)
             response.message(
-                f"✅ *Done!* Here is your fixed EDI file {note}:\n\n"
-                f"```\n{edi_string[:3000]}\n```\n\n"
-                "_Copy the above text and save it as a .edi file._\n"
-                "Send a new file to start again!"
+                f"✅ *Done!* {note}\n\n"
+                f"📥 Download your fixed EDI file here:\n{dl_url}\n\n"
+                "_Link expires in 2 hours. Send a new file to start again!_"
             )
         except Exception as e:
-            response.message(f"❌ Could not generate the file: {str(e)}")
+            response.message(f"❌ Could not generate file: {str(e)}")
         return str(response)
 
-    # ── 4. USER SELECTED AN ERROR NUMBER TO FIX ──────────────────────────────
+    # ── 5. USER SELECTED ERROR NUMBER ────────────────────────────────────────
     if state == STATE_AWAITING_FIX_CHOICE and msg_lower.isdigit():
         choice = int(msg_lower)
         if 1 <= choice <= len(errors):
@@ -355,31 +342,28 @@ async def handle_whatsapp_webhook(request: Request) -> str:
                 )
             else:
                 response.message(
-                    f"⚠️ This error ({selected_error.get('segment','?')}) cannot be fixed automatically.\n"
-                    f"Reply with another error number, or *ignore* to skip and get the file."
+                    f"⚠️ Error #{choice} ({selected_error.get('segment','?')}) can't be auto-fixed here.\n"
+                    "Reply with another number, or *ignore* to download anyway."
                 )
         else:
-            response.message(f"Please reply with a number between 1 and {len(errors)}, or *ignore* to skip.")
+            response.message(f"Reply with a number between 1 and {len(errors)}, or *ignore*.")
         return str(response)
 
-    # ── 5. USER PROVIDED A VALUE FOR THE PENDING FIX ─────────────────────────
+    # ── 6. USER PROVIDED FIX VALUE ────────────────────────────────────────────
     if state == STATE_AWAITING_VALUE and pending_field:
         try:
             pending = json.loads(pending_field) if isinstance(pending_field, str) else pending_field
             error_index = pending.get("error_index", 0)
             original_error = errors[error_index]
 
-            # Patch the tree
             patched_tree = apply_patch_to_tree(tree, original_error, incoming_msg.strip())
-
-            # Remove this error from the list
             remaining_errors = [e for i, e in enumerate(errors) if i != error_index]
 
             await save_session(sender_phone, patched_tree, remaining_errors, STATE_AWAITING_FIX_CHOICE)
 
             if remaining_errors:
                 reply = (
-                    f"✅ Fixed! Value set to *{incoming_msg.strip()}*\n\n"
+                    f"✅ Fixed! Set to *{incoming_msg.strip()}*\n\n"
                     + format_errors_for_chat(remaining_errors)
                 )
             else:
@@ -390,18 +374,13 @@ async def handle_whatsapp_webhook(request: Request) -> str:
             response.message(reply)
 
         except Exception as e:
-            response.message(f"❌ Something went wrong applying that fix: {str(e)}")
+            response.message(f"❌ Something went wrong: {str(e)}")
         return str(response)
 
-    # ── 6. CATCH-ALL ─────────────────────────────────────────────────────────
+    # ── 7. CATCH-ALL ──────────────────────────────────────────────────────────
     if errors:
-        response.message(
-            "I'm waiting for your input!\n\n"
-            + format_errors_for_chat(errors)
-        )
+        response.message("Still waiting!\n\n" + format_errors_for_chat(errors))
     else:
-        response.message(
-            "Reply *download* to get your file, or send a new .edi file to start fresh."
-        )
+        response.message("Reply *download* to get your file, or send a new EDI to start fresh.")
 
     return str(response)

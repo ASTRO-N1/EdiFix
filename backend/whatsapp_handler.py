@@ -207,7 +207,40 @@ async def handle_whatsapp_webhook(request: Request) -> str:
         response.message(f"🔍 Raw Twilio data:\n{debug_text}")
         return str(response)
 
-    # ── 1. FILE UPLOADED — Parse it ───────────────────────────────────────────
+    # ── 0. DETECT PASTED EDI CONTENT (starts with ISA*) ──────────────────────
+    # Twilio Sandbox can't serve document files, so users paste the EDI directly.
+    # EDI files always start with ISA* — we detect and parse that instantly.
+    looks_like_edi = incoming_msg.upper().startswith("ISA*") or incoming_msg.upper().startswith("ISA~")
+
+    if looks_like_edi:
+        tmp_path = None
+        try:
+            with tempfile.NamedTemporaryFile(delete=False, suffix=".edi", mode="w", encoding="utf-8") as tmp:
+                tmp.write(incoming_msg)
+                tmp_path = tmp.name
+
+            parser = EDIParser(tmp_path)
+            tree = parser.parse()
+            errors = tree.get("errors", [])
+
+            await save_session(sender_phone, tree, errors, STATE_AWAITING_FIX_CHOICE)
+
+            if not errors:
+                reply = "✅ *Perfect!* No errors found.\n\nReply *download* to get your fixed file."
+            else:
+                reply = format_errors_for_chat(errors)
+
+        except Exception as e:
+            print(f"[WA] Paste parse ERROR: {e}")
+            reply = f"❌ Failed to parse the EDI: {str(e)}"
+        finally:
+            if tmp_path and os.path.exists(tmp_path):
+                os.remove(tmp_path)
+
+        response.message(reply)
+        return str(response)
+
+    # ── 1. FILE UPLOADED VIA TWILIO MEDIA ────────────────────────────────────
     if has_file or is_document:
         reply = "📂 Got your file! Parsing now... ⚡"
         tmp_path = None
@@ -264,15 +297,14 @@ async def handle_whatsapp_webhook(request: Request) -> str:
 
     # ── 2. NO SESSION — Greet the user ────────────────────────────────────────
     if not session:
-
         response.message(
             "👋 Welcome to *EdiFix Bot!* 🛠️\n\n"
-            "Just drop an EDI file here (.edi) and I'll:\n"
-            "  1. Parse it instantly\n"
-            "  2. Show you all the errors in plain English\n"
-            "  3. Help you fix them one by one\n"
-            "  4. Send the fixed file back!\n\n"
-            "_Send your file to get started._"
+            "To get started:\n"
+            "  1. Open your EDI file in Notepad\n"
+            "  2. Select All → Copy\n"
+            "  3. Paste it here and send!\n\n"
+            "I'll parse it, show errors in plain English, and help you fix them. ✨\n\n"
+            "_Tip: EDI files start with ISA* — just paste that whole block._"
         )
         return str(response)
 

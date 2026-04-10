@@ -49,7 +49,7 @@ export default function Hero() {
         paddingLeft: 'clamp(20px, 5vw, 80px)',
         paddingRight: 'clamp(20px, 4vw, 48px)',
         position: 'relative',
-        overflow: 'hidden',
+        overflowX: 'hidden',
         gap: isMobile ? 32 : 0,
       }}
     >
@@ -91,6 +91,8 @@ export default function Hero() {
           maxWidth: isMobile ? '100%' : '52%',
           width: isMobile ? '100%' : undefined,
           paddingRight: isMobile ? 0 : 'clamp(16px, 2vw, 32px)',
+          position: 'relative',
+          zIndex: 10,
         }}
       >
         <motion.div

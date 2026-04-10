@@ -170,15 +170,21 @@ async def handle_whatsapp_webhook(request: Request) -> str:
     incoming_msg = form_data.get("Body", "").strip()
     sender_phone = form_data.get("From", "")
     num_media = int(form_data.get("NumMedia", 0))
-
-    # Also detect via MediaUrl0 directly (some .edi docs don't trigger NumMedia correctly)
     media_url = form_data.get("MediaUrl0", "")
+    media_type = form_data.get("MediaContentType0", "")
     has_file = num_media > 0 or bool(media_url)
 
     # Debug: log everything we receive
-    print(f"[WA] From={sender_phone} Body={incoming_msg!r} NumMedia={num_media} MediaUrl={media_url!r}")
+    print(f"[WA] From={sender_phone} Body={incoming_msg!r} NumMedia={num_media} MediaUrl={media_url!r} ContentType={media_type!r}")
 
     response = MessagingResponse()
+
+    # ── DEBUG COMMAND: type "debug" to see raw Twilio data ───────────────────
+    if incoming_msg.lower() == "debug":
+        all_keys = dict(form_data)
+        debug_text = "\n".join([f"{k}: {v}" for k, v in list(all_keys.items())[:20]])
+        response.message(f"🔍 Raw Twilio data:\n{debug_text}")
+        return str(response)
 
     # ── 1. FILE UPLOADED — Parse it ───────────────────────────────────────────
     if has_file:
@@ -216,12 +222,11 @@ async def handle_whatsapp_webhook(request: Request) -> str:
         response.message(reply)
         return str(response)
 
-
     # ── Get current session ───────────────────────────────────────────────────
     session = await get_session(sender_phone)
     msg_lower = incoming_msg.lower().strip()
 
-    # ── 2. NO SESSION — Greet the user ────────────────────────────────────────
+
     if not session:
         response.message(
             "👋 Welcome to *EdiFix Bot!* 🛠️\n\n"

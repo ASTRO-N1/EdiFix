@@ -165,6 +165,23 @@ def apply_patch_to_tree(tree: dict, error: dict, new_value: str) -> dict:
 
 # ─── Main Webhook Handler ─────────────────────────────────────────────────────
 
+async def fetch_media_url_from_twilio(message_sid: str, account_sid: str, auth_token: str) -> str | None:
+    """
+    Fetch the media URL for a message using the Twilio REST API.
+    Required for document files — Twilio sandbox doesn't pass MediaUrl0 for documents.
+    """
+    api_url = f"https://api.twilio.com/2010-04-01/Accounts/{account_sid}/Messages/{message_sid}/Media.json"
+    async with httpx.AsyncClient() as client:
+        resp = await client.get(api_url, auth=(account_sid, auth_token))
+    if resp.status_code == 200:
+        data = resp.json()
+        media_list = data.get("media_list", [])
+        if media_list:
+            sid = media_list[0]["sid"]
+            return f"https://api.twilio.com/2010-04-01/Accounts/{account_sid}/Messages/{message_sid}/Media/{sid}"
+    return None
+
+
 async def handle_whatsapp_webhook(request: Request) -> str:
     form_data = await request.form()
     incoming_msg = form_data.get("Body", "").strip()
@@ -172,10 +189,14 @@ async def handle_whatsapp_webhook(request: Request) -> str:
     num_media = int(form_data.get("NumMedia", 0))
     media_url = form_data.get("MediaUrl0", "")
     media_type = form_data.get("MediaContentType0", "")
+    message_type = form_data.get("MessageType", "text")
+    message_sid = form_data.get("MessageSid", "")
+
+    # A document was sent but Twilio sandbox doesn't populate MediaUrl0 for docs
+    is_document = message_type == "document"
     has_file = num_media > 0 or bool(media_url)
 
-    # Debug: log everything we receive
-    print(f"[WA] From={sender_phone} Body={incoming_msg!r} NumMedia={num_media} MediaUrl={media_url!r} ContentType={media_type!r}")
+    print(f"[WA] From={sender_phone} Body={incoming_msg!r} NumMedia={num_media} MsgType={message_type} MediaUrl={media_url!r}")
 
     response = MessagingResponse()
 
@@ -187,10 +208,25 @@ async def handle_whatsapp_webhook(request: Request) -> str:
         return str(response)
 
     # ── 1. FILE UPLOADED — Parse it ───────────────────────────────────────────
-    if has_file:
-        reply = "📂 File received! Parsing now... give me a second ⚡"
+    if has_file or is_document:
+        reply = "📂 Got your file! Parsing now... ⚡"
+        tmp_path = None
         try:
             auth = (TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN) if TWILIO_ACCOUNT_SID else None
+
+            # For documents, Twilio sandbox doesn't give MediaUrl0 — fetch via REST API
+            if is_document and not media_url and auth:
+                media_url = await fetch_media_url_from_twilio(message_sid, TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN)
+                print(f"[WA] Fetched document media URL: {media_url!r}")
+
+            if not media_url:
+                reply = (
+                    "⚠️ I can see you sent a file but couldn't retrieve it.\n\n"
+                    "Please try sending the file as an *image* or paste the raw EDI text directly."
+                )
+                response.message(reply)
+                return str(response)
+
             async with httpx.AsyncClient() as client:
                 file_resp = await client.get(media_url, auth=auth, follow_redirects=True)
 
@@ -216,7 +252,7 @@ async def handle_whatsapp_webhook(request: Request) -> str:
             print(f"[WA] Parse ERROR: {e}")
             reply = f"❌ Failed to parse the file: {str(e)}\nMake sure it's a valid X12 EDI file."
         finally:
-            if "tmp_path" in locals() and os.path.exists(tmp_path):
+            if tmp_path and os.path.exists(tmp_path):
                 os.remove(tmp_path)
 
         response.message(reply)
@@ -226,8 +262,9 @@ async def handle_whatsapp_webhook(request: Request) -> str:
     session = await get_session(sender_phone)
     msg_lower = incoming_msg.lower().strip()
 
-
+    # ── 2. NO SESSION — Greet the user ────────────────────────────────────────
     if not session:
+
         response.message(
             "👋 Welcome to *EdiFix Bot!* 🛠️\n\n"
             "Just drop an EDI file here (.edi) and I'll:\n"

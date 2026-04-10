@@ -171,15 +171,19 @@ async def handle_whatsapp_webhook(request: Request) -> str:
     sender_phone = form_data.get("From", "")
     num_media = int(form_data.get("NumMedia", 0))
 
+    # Also detect via MediaUrl0 directly (some .edi docs don't trigger NumMedia correctly)
+    media_url = form_data.get("MediaUrl0", "")
+    has_file = num_media > 0 or bool(media_url)
+
+    # Debug: log everything we receive
+    print(f"[WA] From={sender_phone} Body={incoming_msg!r} NumMedia={num_media} MediaUrl={media_url!r}")
+
     response = MessagingResponse()
 
     # ── 1. FILE UPLOADED — Parse it ───────────────────────────────────────────
-    if num_media > 0:
-        media_url = form_data.get("MediaUrl0", "")
-        response.message("📂 File received! Parsing now... Please wait a moment.")
-
+    if has_file:
+        reply = "📂 File received! Parsing now... give me a second ⚡"
         try:
-            # Download with Twilio credentials
             auth = (TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN) if TWILIO_ACCOUNT_SID else None
             async with httpx.AsyncClient() as client:
                 file_resp = await client.get(media_url, auth=auth, follow_redirects=True)
@@ -190,8 +194,8 @@ async def handle_whatsapp_webhook(request: Request) -> str:
 
             parser = EDIParser(tmp_path)
             tree = parser.parse()
-
             errors = tree.get("errors", [])
+
             await save_session(sender_phone, tree, errors, STATE_AWAITING_FIX_CHOICE)
 
             if not errors:
@@ -202,15 +206,16 @@ async def handle_whatsapp_webhook(request: Request) -> str:
             else:
                 reply = format_errors_for_chat(errors)
 
-            response.message(reply)
-
         except Exception as e:
-            response.message(f"❌ Failed to parse the file: {str(e)}\nPlease make sure it's a valid X12 EDI file.")
+            print(f"[WA] Parse ERROR: {e}")
+            reply = f"❌ Failed to parse the file: {str(e)}\nMake sure it's a valid X12 EDI file."
         finally:
             if "tmp_path" in locals() and os.path.exists(tmp_path):
                 os.remove(tmp_path)
 
+        response.message(reply)
         return str(response)
+
 
     # ── Get current session ───────────────────────────────────────────────────
     session = await get_session(sender_phone)
